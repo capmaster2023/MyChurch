@@ -1,0 +1,40 @@
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/release.keystore
+android/captures/
+.kotlin/
+
+# Go
+bridge/dist/
+bridge/*.exe
+
+# Neutralino
+verselight/dist/
+verselight/.tmp/
+verselight/.storage/
+verselight/extensions/bridge/*.exe
+verselight/bin/*
+!verselight/bin/neutralino-win_x64.exe
+verselight/neutralinojs.log
+
+# Divers
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+verselight/installer/app/
+verselight/installer/*.exe
+
+# MyVerse 4 (.NET)
+windows/**/bin/
+windows/**/obj/
+windows/installer/app/
+windows/installer/*.exe
+
+# données de test (base LevelDB de la 3.x)
+!windows/MyVerse.Tests/donnees/leveldb-3x/*.log

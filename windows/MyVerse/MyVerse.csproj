@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MyVerse 4.0 : logiciel Windows natif (WPF). Le cœur (Bible, chants, téléphone, OBS) est dans MyVerse.Core. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>MyVerse.Ui</RootNamespace>
+    <AssemblyName>MyChurch</AssemblyName>
+    <ApplicationIcon>myverse.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Product>MyChurch</Product>
+    <AssemblyTitle>MyChurch</AssemblyTitle>
+    <Company>MEPC Montréal</Company>
+    <Copyright>MEPC Montréal</Copyright>
+    <Description>MyChurch 1.0.0 : projection d église (Bible, chants, Display, Duo, MyCam) et audio simplifié comme OBS</Description>
+    <NeutralLanguage>fr</NeutralLanguage>
+    <SatelliteResourceLanguages>fr</SatelliteResourceLanguages>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <NoWarn>$(NoWarn);CA1416;NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyVerse.Core\MyVerse.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- code QR du jumelage, lecture des recueils en PDF -->
+    <PackageReference Include="OpenCvSharp4" Version="4.10.0.20241108" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20241108" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+    <PackageReference Include="PdfPig" Version="0.1.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Ressources\**\*" />
+    <Content Include="Ressources\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Polices\*.ttf" />
+    <Resource Include="myverse.ico" />
+  </ItemGroup>
+</Project>

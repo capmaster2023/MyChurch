@@ -1,0 +1,446 @@
+name: Build MyChurch
+
+on:
+  push:
+    branches: [main, dev]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: MyChurch Windows (natif)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_NOLOGO: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          if ($env:GITHUB_REF -like 'refs/tags/v*') { $v = $env:GITHUB_REF.Substring(11) }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Moteur audio OBS (libobs 33.0.1, paquet officiel, SHA-256 vérifié)
+        run: |
+          New-Item -ItemType Directory -Force ci | Out-Null
+          $zip = "$env:RUNNER_TEMP\obs-33.0.1.zip"
+          Invoke-WebRequest "https://github.com/obsproject/obs-studio/releases/download/33.0.1/OBS-Studio-33.0.1-Windows-x64.zip" -OutFile $zip
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "OBS 33.0.1 : SHA-256 $sha" | Tee-Object -FilePath ci/obs.txt
+          if ($sha -ne "0d9436451c2d772b33428e3fdae9776f071895c335de17283176306fb72651d3") { throw "SHA-256 du paquet OBS inattendu" }
+          $tmp = "$env:RUNNER_TEMP\obs-33.0.1"
+          Expand-Archive $zip -DestinationPath $tmp -Force
+          # seulement libobs et ses bibliothèques (pas l'interface d'OBS : ni Qt, ni obs64.exe, ni les *-test.exe), plus trois modules
+          $obs = "out/obs"
+          New-Item -ItemType Directory -Force "$obs/bin/64bit", "$obs/data", "$obs/core" | Out-Null
+          Get-ChildItem "$tmp/bin/64bit/*.dll" | Where-Object { $_.Name -notlike 'Qt6*' -and $_.Name -notin @('obs-frontend-api.dll', 'obs-scripting.dll') } | Copy-Item -Destination "$obs/bin/64bit"
+          Copy-Item -Recurse "$tmp/data/libobs" "$obs/data/libobs"
+          foreach ($m in @("win-wasapi", "obs-filters", "obs-ffmpeg")) {
+            New-Item -ItemType Directory -Force "$obs/core/$m" | Out-Null
+            Copy-Item "$tmp/core/$m/$m.dll" "$obs/core/$m/"
+            Copy-Item -Recurse "$tmp/core/$m/data" "$obs/core/$m/data"
+          }
+          # runtime Microsoft Visual C++ 2015-2022 (fichiers redistribuables) : libobs en a besoin, il n'est pas dans le zip d'OBS
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC" -Directory | Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } | Sort-Object { [version]$_.Name } -Descending |
+            ForEach-Object { Get-ChildItem "$($_.FullName)\x64" -Directory -Filter "Microsoft.VC14*.CRT" -ErrorAction SilentlyContinue } | Select-Object -First 1
+          if (-not $crt) { throw "Runtime Visual C++ introuvable sur la machine de compilation" }
+          foreach ($f in @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll")) { Copy-Item "$($crt.FullName)\$f" "$obs/bin/64bit/" }
+          "runtime Visual C++ : $($crt.FullName)" | Tee-Object -FilePath ci/obs.txt -Append
+          # chaque DLL chargée par MyChurch doit trouver ses dépendances : dans bin/64bit, ou dans Windows (le runtime Visual C++ doit être dans bin/64bit)
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Where-Object { $_.FullName -like '*Hostx64\x64*' } | Select-Object -First 1
+          if (-not $dumpbin) { throw "dumpbin introuvable" }
+          $bin = (Resolve-Path "$obs/bin/64bit").Path
+          $crtNoms = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll")
+          $file = New-Object System.Collections.Generic.Queue[string]
+          foreach ($f in @("$obs/bin/64bit/obs.dll", "$obs/bin/64bit/libobs-d3d11.dll", "$obs/core/win-wasapi/win-wasapi.dll", "$obs/core/obs-filters/obs-filters.dll", "$obs/core/obs-ffmpeg/obs-ffmpeg.dll")) { $file.Enqueue((Resolve-Path $f).Path) }
+          $vus = @{}
+          $manque = @()
+          while ($file.Count -gt 0) {
+            $f = $file.Dequeue()
+            if ($vus.ContainsKey($f)) { continue }
+            $vus[$f] = $true
+            $mode = $false
+            $deps = foreach ($l in (& $dumpbin.FullName /nologo /dependents $f)) {
+              if ($l -match 'following dependencies') { $mode = $true; continue }
+              if ($l -match 'delay load dependencies' -or $l -match '^\s*Summary') { $mode = $false; continue }
+              if ($mode -and $l -match '^\s+(\S+\.dll)\s*$') { $Matches[1] }
+            }
+            foreach ($d in $deps) {
+              $local = Join-Path $bin $d
+              if (Test-Path $local) { $file.Enqueue((Resolve-Path $local).Path); continue }
+              if ($crtNoms -contains $d.ToLowerInvariant()) { $manque += "$d (pour $(Split-Path $f -Leaf))"; continue }
+              if ($d -like 'api-ms-win-*' -or $d -like 'ext-ms-*' -or (Test-Path "$env:WINDIR\System32\$d")) { continue }
+              $manque += "$d (pour $(Split-Path $f -Leaf))"
+            }
+          }
+          "$($vus.Count) DLL vérifiées : $(($vus.Keys | ForEach-Object { Split-Path $_ -Leaf }) -join ', ')" | Tee-Object -FilePath ci/obs.txt -Append
+          if ($manque.Count -gt 0) { "MANQUANTES : $($manque -join ', ')" | Tee-Object -FilePath ci/obs.txt -Append; throw "Dépendances d'OBS manquantes" }
+          Get-ChildItem -Recurse $obs -File | Measure-Object -Property Length -Sum | ForEach-Object { "dossier obs : {0} fichiers, {1:N1} Mo" -f $_.Count, ($_.Sum / 1MB) } | Tee-Object -FilePath ci/obs.txt -Append
+
+      - name: FFmpeg 8.0.1 (build « essentials » de gyan.dev, GNU GPL v3, SHA-256 vérifié)
+        run: |
+          New-Item -ItemType Directory -Force ci | Out-Null
+          $zip = "$env:RUNNER_TEMP\ffmpeg-8.0.1.zip"
+          Invoke-WebRequest "https://github.com/GyanD/codexffmpeg/releases/download/8.0.1/ffmpeg-8.0.1-essentials_build.zip" -OutFile $zip
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "FFmpeg 8.0.1 essentials (gyan.dev) : SHA-256 $sha" | Tee-Object -FilePath ci/ffmpeg.txt
+          if ($sha -ne "e2aaeaa0fdbc397d4794828086424d4aaa2102cef1fb6874f6ffd29c0b88b673") { throw "SHA-256 du paquet FFmpeg inattendu" }
+          $tmp = "$env:RUNNER_TEMP\ffmpeg-8.0.1"
+          Expand-Archive $zip -DestinationPath $tmp -Force
+          $exe = Get-ChildItem $tmp -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          if (-not $exe) { throw "ffmpeg.exe introuvable dans le paquet" }
+          $racine = $exe.Directory.Parent.FullName
+          $licence = Get-ChildItem $racine -File -Filter "LICENSE*" | Select-Object -First 1
+          if (-not $licence) { throw "Licence de FFmpeg introuvable dans le paquet" }
+          # MyChurch ne livre que ffmpeg.exe (FLAC et vidéo MKV), avec sa licence et le README du build
+          New-Item -ItemType Directory -Force out/ffmpeg | Out-Null
+          Copy-Item $exe.FullName out/ffmpeg/
+          Copy-Item $licence.FullName out/ffmpeg/LICENSE.txt
+          Get-ChildItem $racine -File -Filter "README*" | Select-Object -First 1 | ForEach-Object { Copy-Item $_.FullName out/ffmpeg/README.txt }
+          # les tests du cœur relisent les fichiers avec ffprobe, à côté de ffmpeg.exe dans le paquet
+          "MYCHURCH_FFMPEG=$($exe.FullName)" >> $env:GITHUB_ENV
+          $version = @(& $exe.FullName -hide_banner -version)
+          $version[0] | Tee-Object -FilePath ci/ffmpeg.txt -Append
+          $encodeurs = @(& $exe.FullName -hide_banner -encoders)
+          $encodeurs | Where-Object { $_ -match "libx264|h264_nvenc|h264_qsv|h264_amf|mjpeg| flac | aac " } | ForEach-Object { $_.Trim() } | Tee-Object -FilePath ci/ffmpeg.txt -Append
+
+      - name: Tests du cœur (Bible, recherche, chants, téléphone, mélangeur sur la vraie libobs)
+        run: |
+          New-Item -ItemType Directory -Force ci | Out-Null
+          $env:MYCHURCH_OBS = (Resolve-Path "out/obs").Path
+          "ffmpeg des tests : $env:MYCHURCH_FFMPEG"
+          dotnet run --project windows/MyVerse.Tests -c Release -- "$PWD/windows/MyVerse/Ressources" 2>&1 | Tee-Object -FilePath ci/tests.log
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: DirectShow base classes (Microsoft, MIT, version épinglée)
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/Windows-classic-samples
+          ref: 434f6002bdf9cf9829406c3ff2b33387982d6168
+          path: out/directshow
+          sparse-checkout: Samples/Win7Samples/multimedia/directshow/baseclasses
+
+      - name: MyVirtualCam (64 et 32 bits) et test réel de réception vidéo
+        run: |
+          $base = "$PWD/out/directshow/Samples/Win7Samples/multimedia/directshow/baseclasses"
+          foreach ($arch in @("x64", "Win32")) {
+            cmake -S windows/MyVirtualCam -B "out/cam-$arch" -A $arch "-DBASECLASSES=$base"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            cmake --build "out/cam-$arch" --config Release --parallel 4 2>&1 | Tee-Object -FilePath "ci/virtualcam-$arch.log"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            $dll = "$PWD/out/cam-$arch/Release/MyVirtualCam.dll"
+            $reg = if ($arch -eq "x64") { "$env:WINDIR/System32/regsvr32.exe" } else { "$env:WINDIR/SysWOW64/regsvr32.exe" }
+            $p = Start-Process $reg -ArgumentList @("/s", "`"$dll`"") -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "Enregistrement caméra $arch : $($p.ExitCode)" }
+            & "out/cam-$arch/Release/MyVirtualCamTest.exe"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            & "out/cam-$arch/Release/MyVirtualCamTest.exe" frame
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            $p = Start-Process $reg -ArgumentList @("/s", "/u", "`"$dll`"") -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "Désenregistrement caméra $arch : $($p.ExitCode)" }
+          }
+
+      - name: Compilation de MyChurch.exe
+        run: |
+          dotnet publish windows/MyVerse/MyVerse.csproj -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -p:Version=${{ steps.v.outputs.version }} -o out/MyChurch -v:m 2>&1 | Tee-Object -FilePath ci/windows-build.log
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item windows/LISEZ-MOI.txt out/MyChurch/
+          # moteur audio OBS (libobs, GNU GPL v2 ou ultérieure) et le texte de la licence
+          Copy-Item -Recurse out/obs out/MyChurch/obs
+          Copy-Item COPYING out/MyChurch/COPYING.txt
+          # ffmpeg.exe (GNU GPL v3) pour le FLAC et la vidéo des enregistrements, avec sa licence
+          Copy-Item -Recurse out/ffmpeg out/MyChurch/ffmpeg
+          Copy-Item out/cam-x64/Release/MyVirtualCam.dll out/MyChurch/MyVirtualCam.dll
+          Copy-Item out/cam-Win32/Release/MyVirtualCam.dll out/MyChurch/MyVirtualCam32.dll
+          Get-ChildItem out/directshow/LICENSE* | Copy-Item -Destination out/MyChurch/
+          Get-ChildItem out/MyChurch | Measure-Object -Property Length -Sum | ForEach-Object { "{0} fichiers, {1:N1} Mo" -f $_.Count, ($_.Sum / 1MB) }
+
+      - name: Écran de 1920 × 1080 pour les captures (si Windows le permet)
+        continue-on-error: true
+        run: |
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop; "écran : 1920 × 1080" } catch { "résolution inchangée : $($_.Exception.Message)" }
+
+      - name: Test automatique (fenêtres, projection, captures d'écran)
+        run: |
+          $env:MYCHURCH_TEST_CAM = "1"
+          $env:VERSELIGHT_DATA_DIR = "$env:RUNNER_TEMP\myverse-donnees"
+          New-Item -ItemType Directory -Force ci/autotest | Out-Null
+          $p = Start-Process -FilePath "out\MyChurch\MyChurch.exe" -ArgumentList @("--autotest", "$PWD\ci\autotest") -PassThru
+          $null = $p.Handle
+          if (-not $p.WaitForExit(300000)) { $p.Kill(); "MyVerse ne s'est pas fermé (plus de 5 minutes)" | Tee-Object -FilePath ci/autotest/autotest.txt -Append; exit 1 }
+          Get-Content ci/autotest/autotest.txt -ErrorAction SilentlyContinue
+          "code de sortie : $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) {
+            # plantage : l'erreur .NET (journal Application de Windows) et le journal de MyChurch, pour ci-logs
+            try { Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = '.NET Runtime', 'Application Error' } -MaxEvents 4 -ErrorAction Stop | Format-List TimeCreated, ProviderName, Message | Out-File -Encoding utf8 ci/autotest/plantage.txt } catch { "journal Windows : $($_.Exception.Message)" | Out-File -Encoding utf8 ci/autotest/plantage.txt }
+            Copy-Item "$env:VERSELIGHT_DATA_DIR\journal-myverse.txt" ci/autotest/ -ErrorAction SilentlyContinue
+            Get-Content ci/autotest/plantage.txt -ErrorAction SilentlyContinue | Select-Object -First 60
+          }
+          exit $p.ExitCode
+
+      - name: Source navigateur OBS (image réellement visible)
+        run: |
+          $edge = "${env:ProgramFiles(x86)}/Microsoft/Edge/Application/msedge.exe"
+          if (-not (Test-Path $edge)) { $edge = "$env:ProgramFiles/Microsoft/Edge/Application/msedge.exe" }
+          node windows/tests/obs-browser.cjs "$edge" "$PWD/ci/obs-browser.png"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Add-Type -AssemblyName System.Drawing
+          $image = [System.Drawing.Bitmap]::new("$PWD/ci/obs-browser.png")
+          $pixel = $image.GetPixel([int]($image.Width / 2), [int]($image.Height / 2))
+          $image.Dispose()
+          "Pixel OBS : $($pixel.R),$($pixel.G),$($pixel.B)" | Tee-Object -FilePath ci/obs-browser.txt
+          if ($pixel.R -ne 200 -or $pixel.G -ne 30 -or $pixel.B -ne 40) { throw "Le fond masque la vidéo dans la source navigateur OBS" }
+
+      - name: Règles du pare-feu (MyChurch.exe --parefeu)
+        run: |
+          $p = Start-Process -FilePath "out\MyChurch\MyChurch.exe" -ArgumentList "--parefeu" -PassThru
+          $null = $p.Handle
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); "délai dépassé" | Tee-Object -FilePath ci/parefeu.txt -Append; exit 1 }
+          "code de sortie : $($p.ExitCode)" | Tee-Object -FilePath ci/parefeu.txt -Append
+          foreach ($r in @("MyVerse (TCP)", "MyVerse (UDP)", "MyVerse (programme)")) {
+            $sortie = netsh advfirewall firewall show rule name="$r" verbose
+            $code = $LASTEXITCODE
+            $sortie | Select-Object -First 16 | Tee-Object -FilePath ci/parefeu.txt -Append
+            if ($code -ne 0) { "règle absente : $r" | Tee-Object -FilePath ci/parefeu.txt -Append; exit 1 }
+          }
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          $v = Start-Process -FilePath "out\MyChurch\MyChurch.exe" -ArgumentList "--parefeu-verifier" -PassThru
+          $null = $v.Handle
+          $v.WaitForExit(120000) | Out-Null
+          "vérification du pare-feu par MyVerse : code $($v.ExitCode) (0 = en place)" | Tee-Object -FilePath ci/parefeu.txt -Append
+          exit $v.ExitCode
+
+      - name: Installateur (NSIS) et dossier portable
+        if: success()
+        run: |
+          $V = "${{ steps.v.outputs.version }}"
+          $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (-not (Test-Path $nsis)) { choco install nsis -y --no-progress | Out-Null; $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
+          Remove-Item -Recurse -Force windows/installer/app -ErrorAction SilentlyContinue
+          Copy-Item -Recurse out/MyChurch windows/installer/app
+          Push-Location windows/installer
+          & $nsis -V2 "-DVERSION=$V" MyVerse.nsi
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Pop-Location
+          Move-Item windows/installer/MyChurch-Setup-*.exe .
+          Compress-Archive -Path out/MyChurch -DestinationPath "MyChurch-$V-Windows.zip" -CompressionLevel Optimal
+          Get-ChildItem MyChurch-*.zip, MyChurch-Setup-*.exe | Format-Table Name, Length
+
+      - name: Test de l'installateur (mise à jour d'une 3.x, puis désinstallation)
+        if: success()
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\MyVerse"
+          # une fausse MyVerse 3.x déjà installée (Neutralino + module réseau)
+          New-Item -ItemType Directory -Force "$dir\extensions\bridge" | Out-Null
+          New-ItemProperty -Path (New-Item -Path "HKCU:\Software\MyVerse" -Force).PSPath -Name InstallDir -Value $dir -Force | Out-Null
+          Set-Content "$dir\resources.neu" "ancien"
+          Set-Content "$dir\extensions\bridge\verselight-bridge.exe" "ancien"
+          Set-Content "$dir\neutralinojs.log" "ancien"
+          # Une application vidéo garde la DLL chargée pendant toute la mise à jour.
+          Copy-Item out/MyChurch/MyVirtualCam.dll "$dir/MyVirtualCam.dll"
+          Copy-Item out/MyChurch/MyVirtualCam32.dll "$dir/MyVirtualCam32.dll"
+          Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class CameraChargee { [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern IntPtr LoadLibraryW(string path); [DllImport("kernel32.dll")] public static extern bool FreeLibrary(IntPtr module); }'
+          $module = [CameraChargee]::LoadLibraryW("$dir/MyVirtualCam.dll")
+          if ($module -eq [IntPtr]::Zero) { throw "La DLL de test n'a pas pu être chargée" }
+          $setup = (Get-ChildItem MyChurch-Setup-*.exe | Select-Object -First 1).FullName
+          try {
+            $p = Start-Process $setup -ArgumentList "/S" -PassThru
+            $null = $p.Handle
+            if (-not $p.WaitForExit(240000)) { $p.Kill(); throw "Installateur bloqué pendant la mise à jour de la DLL chargée" }
+            "installateur : code $($p.ExitCode)" | Tee-Object -FilePath ci/installateur.txt -Append
+            $remplacee = Test-Path "$dir/MyVirtualCam.dll"
+            "MyVirtualCam remplacée pendant son utilisation : $remplacee" | Tee-Object -FilePath ci/installateur.txt -Append
+            if ($p.ExitCode -ne 0 -or -not $remplacee) { throw "Échec de la mise à jour de MyVirtualCam" }
+          } finally { [CameraChargee]::FreeLibrary($module) | Out-Null }
+          Start-Sleep 4
+          $ouvert = Get-Process MyChurch -ErrorAction SilentlyContinue
+          "MyVerse rouvert après la mise à jour : $([bool]$ouvert)" | Tee-Object -FilePath ci/installateur.txt -Append
+          $ouvert | Stop-Process -Force -ErrorAction SilentlyContinue
+          $ok = $true
+          foreach ($f in @("MyChurch.exe", "Ressources\lsg.json", "Ressources\obs\ecran.html", "Desinstaller.exe", "obs\bin\64bit\obs.dll", "obs\core\win-wasapi\win-wasapi.dll", "COPYING.txt", "ffmpeg\ffmpeg.exe", "ffmpeg\LICENSE.txt")) { $e = Test-Path "$dir\$f"; "présent $f : $e" | Tee-Object -FilePath ci/installateur.txt -Append; if (-not $e) { $ok = $false } }
+          foreach ($f in @("resources.neu", "extensions", "neutralinojs.log")) { $e = Test-Path "$dir\$f"; "ancien $f retiré : $(-not $e)" | Tee-Object -FilePath ci/installateur.txt -Append; if ($e) { $ok = $false } }
+          "raccourci Bureau : $(Test-Path "$env:USERPROFILE\Desktop\MyChurch.lnk")" | Tee-Object -FilePath ci/installateur.txt -Append
+          "Applications installées : $((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MyVerse' -ErrorAction SilentlyContinue).DisplayVersion)" | Tee-Object -FilePath ci/installateur.txt -Append
+          $u = Start-Process "$dir\Desinstaller.exe" -ArgumentList @("/S", "_?=$dir") -PassThru
+          $null = $u.Handle
+          $u.WaitForExit(120000) | Out-Null
+          "désinstallé (MyChurch.exe supprimé) : $(-not (Test-Path "$dir\MyChurch.exe"))" | Tee-Object -FilePath ci/installateur.txt -Append
+          if (Test-Path "$dir\MyChurch.exe") { $ok = $false }
+          if (-not $ok) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: MyChurch-Setup-${{ steps.v.outputs.version }}
+          path: MyChurch-Setup-*.exe
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: windows-zip
+          path: |
+            MyChurch-*-Windows.zip
+            MyChurch-Setup-*.exe
+          retention-days: 3
+
+      - name: Journal Windows
+        if: always()
+        run: '"${{ job.status }}" | Out-File -Encoding utf8 ci/windows.status'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-windows
+          path: ci
+          retention-days: 3
+
+  android:
+    name: APK Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Keystore de production (si les secrets existent)
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "Signature : keystore de production"
+          else
+            echo "Signature : keystore de debug du dépôt (secrets absents)"
+          fi
+
+      - name: Compilation des APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          export VERSION_NAME=$(tr -d '[:space:]' < ../VERSION)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then export VERSION_NAME="${GITHUB_REF#refs/tags/v}"; fi
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew --no-daemon assembleDebug assembleRelease 2>&1 | tee ../ci-android.log
+          mkdir -p ../apk
+          cp app/build/outputs/apk/release/app-release.apk ../apk/MyChurch.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ../apk/MyChurch-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyChurch
+          path: apk/MyChurch.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyChurch-debug
+          path: apk/MyChurch-debug.apk
+
+      - name: Journal Android
+        if: always()
+        run: echo "${{ job.status }}" > ci-android.status
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-android-log
+          path: |
+            ci-android.log
+            ci-android.status
+          retention-days: 3
+
+  report:
+    name: Rapport (branche ci-logs)
+    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ci-android-log
+          path: /tmp/a
+        continue-on-error: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: ci-windows
+          path: /tmp/w
+        continue-on-error: true
+      - run: |
+          { echo "commit ${GITHUB_SHA}"; echo "branche ${GITHUB_REF_NAME}"; echo "windows=${{ needs.windows.result }}"; echo "android=${{ needs.android.result }}"; } > /tmp/status.txt
+          tail -c 60000 /tmp/a/ci-android.log > /tmp/android.log 2>/dev/null || echo "-" > /tmp/android.log
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git checkout --orphan ci-logs && git rm -rqf .
+          cp /tmp/status.txt status.txt && cp /tmp/android.log android.log
+          if [ -d /tmp/w ]; then
+            tail -c 60000 /tmp/w/tests.log > tests.log 2>/dev/null || true
+            (grep -E "error|warning (CS|MC|NU|NETSDK)" /tmp/w/windows-build.log | sort -u | head -300 > windows-erreurs.log) 2>/dev/null || true
+            tail -c 40000 /tmp/w/windows-build.log > windows.log 2>/dev/null || true
+            cp /tmp/w/windows.status windows.status 2>/dev/null || true
+            cp /tmp/w/installateur.txt installateur.txt 2>/dev/null || true
+            cp /tmp/w/obs.txt obs.txt 2>/dev/null || true
+            cp /tmp/w/ffmpeg.txt ffmpeg.txt 2>/dev/null || true
+            if [ -d /tmp/w/autotest ]; then cp -r /tmp/w/autotest autotest; fi
+          fi
+          git add -A && git commit -qm "CI ${GITHUB_SHA}" && git push -f origin ci-logs
+
+  release:
+    name: Publication (GitHub Release)
+    # la branche « dev » sert à vérifier la compilation : seules « main » et les tags publient une version
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+      - name: Publier la version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(tr -d '[:space:]' < VERSION)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; fi
+          TAG="v$V"
+          BETA=()
+          if [[ "$V" == *-* ]]; then BETA=(--prerelease --latest=false); fi
+          FILES=(dl/windows-zip/*.zip dl/windows-zip/*.exe dl/MyChurch/MyChurch.apk dl/MyChurch-debug/MyChurch-debug.apk)
+          ls -la "${FILES[@]}"
+          # notes de version : windows/NOTES-<version>.md s'il existe
+          if [ -f "windows/NOTES-$V.md" ]; then NOTES=(--notes-file "windows/NOTES-$V.md"); else NOTES=(--notes "MyChurch $V : logiciel Windows natif (installateur MyVerse-Setup, dossier portable) et APK Android (MyChurch.apk)."); fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if [[ "$V" == *-* ]]; then
+              gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true
+            fi
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+            gh release edit "$TAG" --title "MyChurch $V" "${NOTES[@]}" "${BETA[@]}"
+          else
+            gh release create "$TAG" "${FILES[@]}" "${BETA[@]}" --target "$GITHUB_SHA" --title "MyChurch $V" "${NOTES[@]}"
+          fi

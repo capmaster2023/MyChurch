@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>MyChurch — écran</title>
+<link rel="icon" href="favicon.ico">
+<link rel="stylesheet" href="css/commun.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+  body { font-size: calc(100vh / 108); color: var(--blanc); font-family: var(--serif); }
+  #fond { position: fixed; inset: 0; transition: opacity .6s; }
+  .theme-nuit #fond { background: radial-gradient(120% 90% at 50% 10%, #22306A 0%, #10183A 45%, #050817 100%); }
+  .theme-noir #fond { background: #000; }
+  .theme-aube #fond { background: radial-gradient(110% 90% at 50% 100%, #5A3A12 0%, #2A1A0A 45%, #0A0604 100%); }
+  .theme-vert #fond { background: #00B140; }
+  .theme-transparent #fond { background: transparent; }
+  .theme-lin #fond { background: #F1EEE8; }
+  .theme-ciel #fond { background: linear-gradient(180deg, #EEF5FD 0%, #DCE9F8 100%); }
+  .theme-lin #texte, .theme-lin #texte2 { color: #1F1B16; text-shadow: none; }
+  .theme-ciel #texte, .theme-ciel #texte2 { color: #14213D; text-shadow: none; }
+  .theme-lin #ref { color: #8A5A12; }
+  .theme-ciel #ref { color: #1E4FB0; }
+  /* rien à l'écran (Retirer) : tout devient transparent, comme à opacité 0 → OBS montre la caméra, le projecteur est noir */
+  .mode-vide #fond { opacity: 0; }
+  html.obs, html.obs body { background: transparent; }
+  html.obs #msg { display: none; }
+  #scene { position: fixed; inset: 6vh 7vw; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; transition: opacity .45s ease; }
+  #scene.cache { opacity: 0; }
+  #texte { font-size: 6rem; line-height: 1.32; max-width: 100%; text-wrap: balance; text-shadow: 0 .3rem 1.6rem rgba(0,0,0,.55); }
+  #texte .ligne { display: block; }
+  /* 2e version (bilingue) : sous le texte, plus petite */
+  #texte2 { margin-top: 2.2rem; max-width: 100%; font-style: italic; line-height: 1.3; opacity: .86; text-wrap: balance; text-shadow: 0 .3rem 1.6rem rgba(0,0,0,.55); }
+  #texte2:empty { display: none; }
+  #ref { margin-top: 3.2rem; font-family: var(--sans); font-weight: 700; font-size: 3.2rem; letter-spacing: .04em; color: var(--or2); }
+  #ref:empty { display: none; }
+  .mode-verset #texte { font-style: normal; }
+  .mode-chant #texte { font-family: var(--sans); font-weight: 700; line-height: 1.25; }
+  /* bandeau : texte en bas de l'écran (pratique avec le fond vert) */
+  .pres-bandeau #scene { inset: auto 5vw 5vh 5vw; height: 30vh; justify-content: center; background: rgba(10,16,40,.88); border-radius: 2rem; padding: 3vh 4vw; box-shadow: 0 1rem 4rem rgba(0,0,0,.5); }
+  .pres-bandeau #ref { margin-top: 1.4rem; font-size: 2.6rem; }
+  .theme-lin.pres-bandeau #scene, .theme-ciel.pres-bandeau #scene { background: rgba(251,248,242,.94); box-shadow: 0 1rem 4rem rgba(0,0,0,.18); }
+  #msg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 2.4rem var(--sans); color: var(--brume2); opacity: .7; cursor: default; text-align: center; }
+  body.vivant #msg { display: none; }
+</style>
+<style>
+#display-media {position:fixed;z-index:2;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:none}
+.mode-media #display-media {display:block}
+.mode-media #scene {visibility:hidden}
+/* Duo : un second contenu dans un coin, ou les deux côte à côte (chaque contenu est cette même page, en petit) */
+.duo-cadre {position:fixed;z-index:3;border:0;margin:0;padding:0;display:none;pointer-events:none;background:transparent;color-scheme:normal}
+.duo-cote #fond {opacity:1}
+/* dans un cadre, tout se réduit avec lui (16 px pour 1080 px de haut, comme en plein écran) */
+html.enfant {font-size:calc(100vh / 67.5)}
+html.enfant, html.enfant body {cursor:default}
+</style>
+</head>
+<body class="theme-nuit">
+<img id="display-media" alt="" />
+<div id="fond"></div>
+<div id="scene" class="cache"><div id="texte"></div><div id="texte2"></div><div id="ref"></div></div>
+<div id="msg">Écran MyChurch<br><small>Double-cliquez pour le plein écran (ou F11).<br>Placez cette fenêtre sur le projecteur.</small></div>
+<script>
+const scene = document.getElementById('scene'), texte = document.getElementById('texte'), texte2 = document.getElementById('texte2'), refEl = document.getElementById('ref');
+let courant = null;
+function ajuster() {
+  // plus grande taille qui tient dans l'écran
+  let lo = 2, hi = 11, best = 2;
+  const maxH = scene.clientHeight - (refEl.textContent ? refEl.offsetHeight + 40 : 0);
+  const avec2 = !!texte2.textContent;
+  const taille = (r) => { texte.style.fontSize = r + 'rem'; if (avec2) texte2.style.fontSize = (r * 0.68) + 'rem'; };
+  for (let i = 0; i < 14; i++) {
+    const mid = (lo + hi) / 2;
+    taille(mid);
+    const haut = avec2 ? texte.scrollHeight + texte2.scrollHeight + texte2.offsetTop - (texte.offsetTop + texte.offsetHeight) : texte.scrollHeight;
+    if (haut <= maxH + 2 && texte.scrollWidth <= scene.clientWidth + 2 && (!avec2 || texte2.scrollWidth <= scene.clientWidth + 2)) { best = mid; lo = mid; } else hi = mid;
+  }
+  taille(best);
+}
+let displayActif = false;
+const displayImage = document.getElementById('display-media');
+let displayCharge = false;
+// image vivante : display.jpg (écran principal) ou display-duo.jpg (contenu épinglé du Duo)
+let displayFichier = 'display.jpg';
+setInterval(() => {
+  if (!displayActif || displayCharge) return;
+  displayCharge = true;
+  const next = new Image(), fichier = displayFichier;
+  next.onload = () => { if (displayActif && fichier === displayFichier) displayImage.src = next.src; displayCharge = false; };
+  next.onerror = () => { displayCharge = false; };
+  next.src = fichier + '?' + Date.now();
+}, 100);
+
+// ---------- Duo : même logique que le logiciel (Rendu.cs)
+// Cette page, ouverte dans un cadre par elle-même, dessine un des deux contenus : elle reçoit son état de la page du dessus.
+const enfant = /[?&]enfant\b/.test(location.search);
+if (enfant) document.documentElement.classList.add('enfant', 'obs');
+const cadres = {};
+function cadreDuo(nom) {
+  let c = cadres[nom];
+  if (!c) {
+    const f = document.createElement('iframe');
+    f.className = 'duo-cadre';
+    f.setAttribute('tabindex', '-1');
+    f.setAttribute('aria-hidden', 'true');
+    c = cadres[nom] = { f, pret: false, msg: null };
+    f.addEventListener('load', () => { c.pret = true; if (c.msg) f.contentWindow.postMessage(c.msg, '*'); });
+    f.src = location.href.split(/[?#]/)[0] + '?enfant=1';
+    document.body.appendChild(f);
+  }
+  return c;
+}
+function envoyerDuo(c, etat, image) {
+  c.msg = { verselight: true, etat, image };
+  if (c.pret) try { c.f.contentWindow.postMessage(c.msg, '*'); } catch (x) {}
+}
+function cacherDuo(nom) {
+  const c = cadres[nom];
+  if (!c || c.f.style.display !== 'block') return;
+  c.f.style.display = 'none';
+  // un cadre caché ne garde ni texte ni image
+  envoyerDuo(c, { mode: 'vide', lignes: [], ref: '', theme: 'transparent' }, 'display.jpg');
+}
+function placerDuo(c, x, y, w, h) {
+  const s = c.f.style;
+  s.left = x + 'vw'; s.top = y + 'vh'; s.width = w + 'vw'; s.height = h + 'vh'; s.display = 'block';
+}
+const RIEN = { mode: 'vide', media: null, lignes: [], ref: '', second: null };
+function afficher(e) {
+  e = e || {};
+  const d = !enfant && e.duo && e.duo.etat ? e.duo : null;
+  const seul = Object.assign({}, e, { duo: null });
+  document.body.classList.toggle('duo-cote', !!d && d.place === 'cote');
+  if (!d) {
+    cacherDuo('epingle'); cacherDuo('gauche');
+    afficherSeul(seul);
+    return;
+  }
+  // la même source vivante des deux côtés : une seule capture (display.jpg) sert aux deux
+  const meme = e.mode === 'media' && d.etat.mode === 'media' && JSON.stringify(e.media || null) === JSON.stringify(d.etat.media || null);
+  const epingle = cadreDuo('epingle');
+  envoyerDuo(epingle, Object.assign({}, d.etat, { duo: null, theme: e.theme, taille: e.taille, presentation: 'plein' }), meme ? 'display.jpg' : 'display-duo.jpg');
+  if (d.place === 'libre' && d.cadres && d.cadres.length >= 6) {
+    // dossier de l'onglet Duo : chaque élément a sa place et sa taille
+    const k = d.cadres.map(v => v * 100), gauche = cadreDuo('gauche');
+    envoyerDuo(gauche, Object.assign({}, seul, { presentation: 'plein' }), 'display.jpg');
+    gauche.f.style.zIndex = 3; epingle.f.style.zIndex = 4;
+    placerDuo(gauche, k[0], k[1], k[2], k[2]);
+    placerDuo(epingle, k[3], k[4], k[5], k[5]);
+    afficherSeul(Object.assign({}, seul, RIEN));
+    document.body.classList.add('duo-cote');
+    return;
+  }
+  if (d.place === 'cote') {
+    // deux moitiés de même forme que l'écran, centrées en hauteur ; le fond principal reste visible autour
+    const gauche = cadreDuo('gauche');
+    envoyerDuo(gauche, Object.assign({}, seul, { presentation: 'plein' }), 'display.jpg');
+    placerDuo(gauche, 0, 25, 50, 50);
+    placerDuo(epingle, 50, 25, 50, 50);
+    afficherSeul(Object.assign({}, seul, RIEN));
+    document.body.classList.add('duo-cote');
+    return;
+  }
+  cacherDuo('gauche');
+  // un coin : part de l'écran (20 à 50 %), marge de 3 % de la hauteur
+  const part = Math.min(0.5, Math.max(0.2, +d.part || 0.35)) * 100;
+  const mx = 3 * innerHeight / Math.max(1, innerWidth), my = 3;
+  const gaucheCote = d.place === 'hg' || d.place === 'bg', haut = d.place !== 'bd' && d.place !== 'bg';
+  placerDuo(epingle, gaucheCote ? mx : 100 - part - mx, haut ? my : 100 - part - my, part, part);
+  afficherSeul(seul);
+}
+function afficherSeul(e) {
+  const sourceChange = JSON.stringify(e.media || null);
+  if (displayImage.dataset.source !== sourceChange || e.mode !== 'media') displayImage.removeAttribute('src');
+  displayImage.dataset.source = sourceChange;
+  displayActif = e.mode === 'media';
+  document.body.className = 'theme-' + (e.theme || 'nuit') + ' vivant mode-' + (e.mode || 'vide') + ' pres-' + (e.presentation || 'plein');
+  const vide = !e.mode || e.mode === 'vide';
+  const deux = e.mode === 'verset' && e.second && e.second.texte ? e.second.texte : '';
+  const cle = JSON.stringify([e.mode, e.lignes, e.ref, e.taille, e.presentation, deux]);
+  if (cle === courant) return;
+  const avant = courant;
+  courant = cle;
+  scene.classList.add('cache');
+  setTimeout(() => {
+    texte.textContent = '';
+    for (const l of e.lignes || []) { const s = document.createElement('span'); s.className = 'ligne'; s.textContent = l; texte.appendChild(s); }
+    texte2.textContent = deux;
+    refEl.textContent = e.ref || '';
+    ajuster();
+    if (e.taille) { texte.style.fontSize = (parseFloat(texte.style.fontSize) * e.taille) + 'rem'; if (deux) texte2.style.fontSize = (parseFloat(texte2.style.fontSize) * e.taille) + 'rem'; }
+    if (!vide && !displayActif) scene.classList.remove('cache');
+  }, avant && !vide ? 380 : 0);
+}
+window.addEventListener('message', (ev) => {
+  if (!ev.data || !ev.data.verselight) return;
+  if (enfant && ev.data.image && ev.data.image !== displayFichier) { displayFichier = ev.data.image; displayImage.removeAttribute('src'); }
+  afficher(ev.data.etat);
+});
+// raccourcis depuis l'écran de projection (clavier, télécommande de présentation)
+document.addEventListener('keydown', (ev) => {
+  const k = { ArrowRight: 'suiv', ArrowDown: 'suiv', PageDown: 'suiv', ' ': 'suiv', Enter: 'suiv', ArrowLeft: 'prec', ArrowUp: 'prec', PageUp: 'prec', Backspace: 'prec', Escape: 'retirer', Delete: 'retirer', b: 'retirer', B: 'retirer' }[ev.key];
+  if (!k) return;
+  ev.preventDefault();
+  try { localStorage.setItem('verselight-cmd', JSON.stringify({ k, t: Date.now() + Math.random() })); } catch (x) {}
+  if (window.opener) try { window.opener.postMessage({ verselightCmd: k }, '*'); } catch (x) {}
+});
+// OBS (source navigateur, fichier local) : lit l'état écrit par VerseLight dans etat.json
+if (!enfant) if (location.protocol !== 'http:' || location.hostname === 'absolute' || /[?&]obs\b/.test(location.search) || location.protocol === 'file:') {
+  if (location.hostname !== '127.0.0.1') {
+    document.documentElement.classList.add('obs');
+    let dernier = '';
+    setInterval(async () => {
+      try {
+        const t = await (await fetch('etat.json?' + Date.now(), { cache: 'no-store' })).text();
+        if (t && t !== dernier) { dernier = t; afficher(JSON.parse(t)); }
+      } catch (x) {}
+    }, 200);
+  }
+}
+// la régie écrit aussi l'état dans le stockage local : l'écran suit même si la régie est rechargée
+if (!enfant) window.addEventListener('storage', (ev) => { if (ev.key === 'verselight-etat' && ev.newValue) try { afficher(JSON.parse(ev.newValue)); } catch (x) {} });
+if (!enfant) try { const s = localStorage.getItem('verselight-etat'); if (s) afficher(JSON.parse(s)); } catch (x) {}
+window.addEventListener('resize', () => { if (courant) ajuster(); });
+document.addEventListener('dblclick', () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {}); });
+document.addEventListener('mousemove', () => { document.body.style.cursor = 'default'; clearTimeout(window._c); window._c = setTimeout(() => (document.body.style.cursor = 'none'), 2000); });
+// demande l'état actuel à la régie (ouverture ou rechargement)
+if (window.opener) try { window.opener.postMessage({ verselightDemande: true }, '*'); } catch (e) {}
+</script>
+</body>
+</html>
