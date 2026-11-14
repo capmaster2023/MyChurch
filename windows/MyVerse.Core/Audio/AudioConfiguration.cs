@@ -3,14 +3,80 @@ using System.Text.Json.Serialization;
 
 namespace MyVerse.Audio;
 
-/// <summary>Réglages audio de MyChurch : le mélange est fait par libobs (OBS Studio), ces classes ne décrivent que ce qu'on lui demande.</summary>
-/// <summary>Asio (MyChurch 1.1) : capture ASIO, comme le plugin ASIO d'OBS (pilote, format, canaux). Ajouté à la fin : les réglages enregistrés gardent leurs numéros.</summary>
+// ======================================================================================================================
+// MyChurch 1.3 : le son, simple comme une voiture automatique.
+// Ce que l'utilisateur voit et règle : des SONS (un micro, un instrument, la table de mixage, l'ordinateur, les vidéos,
+// une musique) et les endroits OÙ VA LE SON (l'église, l'enregistrement, Zoom ou OBS, le casque).
+// Tout le reste (pistes d'OBS, monitoring, filtres, mono) est décidé par MyChurch : voir AudioConfiguration.Planifier.
+// ======================================================================================================================
+
+/// <summary>Comment le moteur capte un son (caché à l'utilisateur). Les numéros sont ceux des réglages enregistrés depuis la 3.0.</summary>
 public enum AudioInputKind { Microphone, Sortie, Media, Asio }
 public enum AudioFilterKind { NoiseSuppression, NoiseGate, Compressor, Limiter }
-/// <summary>Comme dans OBS : monitoring désactivé, monitoring uniquement (sortie coupée), monitoring et sortie.</summary>
+/// <summary>Le monitoring d'OBS : MyChurch s'en sert pour faire entendre un son dans l'église (haut-parleurs de l'ordinateur).</summary>
 public enum AudioMonitoring { Off, Only, AndOutput }
 
-/// <summary>Un filtre OBS (obs-filters) posé sur une source.</summary>
+/// <summary>Ce qu'est un son. Il décide des réglages faits tout seuls : voix nettoyée et régulière, mono, son dans l'église.</summary>
+public enum GenreSon { Voix, Instrument, Table, Ordinateur, Video, Fichier }
+
+/// <summary>
+/// Un son de l'église, tel que l'utilisateur le voit : un nom, ce que c'est, où il est branché, son volume, Couper,
+/// « Dans l'église », et deux aides pour la voix (enlever le bruit, volume régulier).
+/// </summary>
+public sealed class Son
+{
+    [JsonPropertyName("id")] public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    [JsonPropertyName("nom")] public string Nom { get; set; } = "Son";
+    [JsonPropertyName("genre")] public GenreSon Genre { get; set; }
+    /// <summary>Comment le moteur le capte : micro ou carte son (WASAPI), sortie de l'ordinateur, fichier, pilote ASIO.</summary>
+    [JsonPropertyName("capture")] public AudioInputKind Capture { get; set; }
+    /// <summary>L'appareil (identifiant Windows), le pilote ASIO, ou « default » (celui de Windows).</summary>
+    [JsonPropertyName("appareil")] public string Appareil { get; set; } = "default";
+    [JsonPropertyName("nomAppareil")] public string NomAppareil { get; set; } = "";
+    /// <summary>Carte son à plusieurs entrées : 0 = toutes ensemble (stéréo), 1, 2, 3… = cette entrée seule (des deux côtés).</summary>
+    [JsonPropertyName("entree")] public int Entree { get; set; }
+    /// <summary>Pilote ASIO : l'entrée (0 = Input 1) ou les deux entrées (gauche, droite) ; −1 = muet.</summary>
+    [JsonPropertyName("entreesAsio")] public List<int> EntreesAsio { get; set; } = new() { 0 };
+    [JsonPropertyName("fichier")] public string Fichier { get; set; } = "";
+    [JsonPropertyName("boucle")] public bool Boucle { get; set; }
+    /// <summary>Volume en dB (0 = normal, « 100 % » à l'écran), de −60 (silence) à +6.</summary>
+    [JsonPropertyName("volumeDb")] public double VolumeDb { get; set; }
+    [JsonPropertyName("coupe")] public bool Coupe { get; set; }
+    /// <summary>On l'entend dans l'église : il sort par les haut-parleurs de l'ordinateur (le monitoring d'OBS).</summary>
+    [JsonPropertyName("eglise")] public bool Eglise { get; set; }
+    /// <summary>Enlever le bruit de fond (RNNoise).</summary>
+    [JsonPropertyName("bruit")] public bool EnleverBruit { get; set; }
+    /// <summary>Volume régulier : les passages faibles montent, les cris ne saturent pas (compresseur et limiteur).</summary>
+    [JsonPropertyName("regulier")] public bool VolumeRegulier { get; set; }
+
+    /// <summary>Un nouveau son avec les réglages intelligents de son genre.</summary>
+    public static Son Nouveau(GenreSon genre, string nom)
+    {
+        var s = new Son { Genre = genre, Nom = nom };
+        AudioConfiguration.AppliquerDefauts(s);
+        return s;
+    }
+
+    /// <summary>Une voix se nettoie et se régularise ; la musique, non (cela l'abîmerait).</summary>
+    [JsonIgnore] public bool EstMicro => Genre is GenreSon.Voix or GenreSon.Instrument or GenreSon.Table;
+}
+
+/// <summary>Les haut-parleurs de l'église : la sortie de l'ordinateur où passent les sons « Dans l'église ».</summary>
+public sealed class SortieEglise
+{
+    [JsonPropertyName("appareil")] public string Appareil { get; set; } = "default";
+    [JsonPropertyName("nomAppareil")] public string NomAppareil { get; set; } = "";
+}
+
+/// <summary>Le casque de la régie : on y entend tout le son, comme il part en ligne et dans l'enregistrement.</summary>
+public sealed class CasqueReglages
+{
+    [JsonPropertyName("actif")] public bool Actif { get; set; }
+    [JsonPropertyName("appareil")] public string Appareil { get; set; } = "default";
+    [JsonPropertyName("nomAppareil")] public string NomAppareil { get; set; } = "";
+}
+
+/// <summary>Un filtre d'OBS posé sur une source du moteur. Choisis par MyChurch d'après « Enlever le bruit » et « Volume régulier ».</summary>
 public sealed class AudioFilter
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -29,79 +95,49 @@ public sealed class AudioFilter
     // réduction du bruit : « rnnoise » ou « speex »
     public string Method { get; set; } = "rnnoise";
     public double SuppressDb { get; set; } = -30;
-
-    public static string Nom(AudioFilterKind k) => k switch
-    {
-        AudioFilterKind.NoiseSuppression => "Réduction du bruit",
-        AudioFilterKind.NoiseGate => "Noise gate",
-        AudioFilterKind.Compressor => "Compresseur",
-        _ => "Limiteur",
-    };
-    public string Resume() => Kind switch
-    {
-        AudioFilterKind.NoiseSuppression => Method == "speex" ? $"Speex · {SuppressDb:0} dB" : "RNNoise",
-        AudioFilterKind.NoiseGate => $"Ouverture {OpenDb:0} dB · fermeture {CloseDb:0} dB",
-        AudioFilterKind.Compressor => $"Ratio {Ratio:0.#}:1 · seuil {ThresholdDb:0} dB",
-        _ => $"Seuil {ThresholdDb:0} dB",
-    };
 }
 
 /// <summary>
-/// Une source du mélangeur, comme une source audio d'OBS : capture audio (entrée), capture audio (sortie) ou média.
-/// Ses réglages sont ceux des propriétés de la source (périphérique, horodatage) et des propriétés audio avancées
-/// (volume, mono, balance, décalage de synchronisation, monitoring, pistes).
+/// Une source du moteur (une source d'OBS), préparée par <see cref="AudioConfiguration.Planifier"/> à partir d'un <see cref="Son"/>.
+/// Jusqu'à la 1.2, c'était aussi ce que l'utilisateur réglait (« obsSources ») : ces réglages sont relus une fois pour être repris.
 /// </summary>
 public sealed class AudioSource
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Source";
     public AudioInputKind Kind { get; set; }
-    /// <summary>Identifiant du périphérique pour OBS ; « default » = « Par défaut » (le périphérique choisi dans Windows).</summary>
     public string DeviceId { get; set; } = "default";
     public string DeviceName { get; set; } = "";
     public string MediaPath { get; set; } = "";
-    /// <summary>Média : joue le son de la vidéo projetée depuis Display (au lieu d'un fichier fixe).</summary>
     public bool FollowProjection { get; set; }
     public bool Loop { get; set; }
-    /// <summary>
-    /// Capture audio (entrée) : l'entrée du périphérique écoutée par cette source. 0 = toutes ses entrées ensemble, comme Windows les donne (stéréo) ;
-    /// 1, 2, 3… = cette entrée seule, des deux côtés. Une carte son à 4 entrées donne ainsi 4 sources, une par micro (MyChurch 3.1).
-    /// </summary>
     public int Channel { get; set; }
     public double VolumeDb { get; set; }
     public bool Muted { get; set; }
     public bool Mono { get; set; }
-    /// <summary>Pistes 1 à 6 où va la source (bit 0 = piste 1), cochées dans les propriétés audio avancées comme dans OBS : toutes par défaut.</summary>
+    /// <summary>Pistes d'OBS où va la source (bit 0 = piste 1).</summary>
     public int Tracks { get; set; } = AudioConfiguration.ToutesLesPistes;
-    /// <summary>Monitoring audio d'OBS (casque de la régie) : désactivé, uniquement (la source ne va plus dans les pistes) ou monitoring et sortie.</summary>
     public AudioMonitoring Monitoring { get; set; } = AudioMonitoring.Off;
     public List<AudioFilter> Filters { get; set; } = new();
-    /// <summary>Balance comme dans les propriétés audio avancées d'OBS : 0 = tout à gauche, 0,5 = centre, 1 = tout à droite.</summary>
     public double Balance { get; set; } = 0.5;
-    /// <summary>Décalage de synchronisation (ms) des propriétés audio avancées d'OBS, de −950 à 20 000 : retarde le son de la source.</summary>
     public int SyncOffsetMs { get; set; }
-    /// <summary>« Utiliser l'horodatage du périphérique » des propriétés d'une capture audio d'OBS. Null : la valeur par défaut d'OBS.</summary>
     public bool? UseDeviceTiming { get; set; }
-    /// <summary>
-    /// Capture ASIO : un élément par canal OBS (1 = Mono, 2 = Stéréo), comme « OBS Channel 1 / 2 » du plugin ASIO d'OBS.
-    /// Chaque valeur est l'entrée du pilote (0 = Input 1, 1 = Input 2…) ou −1 = Muet. Le pilote ASIO est dans DeviceId.
-    /// </summary>
     public List<int> AsioCanaux { get; set; } = new() { 0 };
+    /// <summary>Un fichier de musique : il attend « Lire » (il ne part pas tout seul quand on l'ajoute ou au démarrage).</summary>
+    [JsonIgnore] public bool DemarrerArrete { get; set; }
 
-    /// <summary>L'horodatage du périphérique est utilisé : choisi, sinon comme OBS par défaut (non pour une entrée, oui pour une sortie).</summary>
-    [JsonIgnore]
-    public bool Horodatage => UseDeviceTiming ?? AudioConfiguration.HorodatageParDefaut(Kind);
-    /// <summary>La source va dans cette piste (1 à 6).</summary>
+    [JsonIgnore] public bool Horodatage => UseDeviceTiming ?? Kind == AudioInputKind.Sortie;
     public bool DansPiste(int piste) => piste is >= 1 and <= AudioConfiguration.Pistes && (Tracks & (1 << (piste - 1))) != 0;
 }
 
-/// <summary>Ce qui reçoit une piste d'OBS : un enregistrement ou une sortie MyVirtualSound. Comme dans OBS, chacun choisit sa piste (1 à 6) ;
-/// les sources de la piste se cochent dans les propriétés audio avancées.</summary>
+/// <summary>Ce qui reçoit du son : un enregistrement, un envoi (Zoom, OBS…) ou le casque. Il reçoit « tout le son » ou les sons choisis.</summary>
 public interface IDestinationAudio
 {
     string Id { get; }
     string Name { get; }
-    /// <summary>La piste d'OBS reçue (1 à 6).</summary>
+    /// <summary>Les sons reçus ; null = tout le son.</summary>
+    List<string>? ChoixSons { get; set; }
+    /// <summary>La piste d'OBS qui le nourrit (1 à 6), donnée par MyChurch à chaque <see cref="AudioConfiguration.Planifier"/>.</summary>
     int Track { get; set; }
 }
 
@@ -119,6 +155,8 @@ public sealed class RecordingVisual
     /// <summary>Kind « annonce » : l'identifiant de la source Display (bibliothèque).</summary>
     public string Annonce { get; set; } = "";
 }
+
+/// <summary>Un enregistrement : le son (MP3 léger ou WAV studio) ou une vidéo (ce qui est à l'écran, des caméras) avec le son.</summary>
 public sealed class RecordingProfile : IDestinationAudio
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -126,10 +164,13 @@ public sealed class RecordingProfile : IDestinationAudio
     public string Color { get; set; } = "#B3261E";
     public string Directory { get; set; } = "";
     public bool AudioOnly { get; set; } = true;
-    public string Format { get; set; } = "wav"; // wav, flac or mkv (video)
-    /// <summary>La piste d'OBS enregistrée (1 à 6), comme « Piste audio » dans les paramètres d'enregistrement d'OBS.</summary>
-    public int Track { get; set; } = 1;
-    /// <summary>Avant la 4.2 : les sources choisies pour cet enregistrement. Reprises en pistes une fois (<see cref="AudioConfiguration.Normalize"/>), puis oubliées.</summary>
+    /// <summary>Son seul : « mp3 » (léger, à partager), « wav » (studio, sans perte) ; « flac » et « m4a » sont encore lus. Vidéo : « mkv ».</summary>
+    public string Format { get; set; } = "mp3";
+    [JsonPropertyName("sons")] public List<string>? ChoixSons { get; set; }
+    [JsonIgnore] public int Track { get; set; } = 1;
+    /// <summary>Jusqu'à la 1.2 : la piste d'OBS choisie à la main. Reprise une fois en sons choisis, puis oubliée.</summary>
+    [JsonPropertyName("track")] public int? PisteV6 { get; set; }
+    /// <summary>Avant la 4.2 : les sources choisies. Reprises une fois, puis oubliées.</summary>
     public List<string>? SourceIds { get; set; }
     /// <summary>Sources Display filmées, dans l'ordre (la 1re en grand) : identifiants de la bibliothèque Display, ou <see cref="Projection"/>.</summary>
     public List<string> DisplayIds { get; set; } = new();
@@ -137,7 +178,6 @@ public sealed class RecordingProfile : IDestinationAudio
     public const string Projection = "projection";
     /// <summary>Plusieurs sources Display : « incrustation » (la 1re en grand, les autres en petit) ou « cote » (côte à côte).</summary>
     public string Layout { get; set; } = "incrustation";
-    // MyChurch 1.2 : plus de « Synchro du son » (AudioDelayMs) : le son et l'image se calent tout seuls sur l'instant de leur capture.
     public int Width { get; set; } = 1280;
     public int Height { get; set; } = 720;
     public int Fps { get; set; } = 30;
@@ -147,14 +187,13 @@ public sealed class RecordingProfile : IDestinationAudio
     public string Encoder { get; set; } = "auto";
     public List<RecordingVisual> Visuals { get; set; } = new() { new() };
 
-    /// <summary>Les cadres (proportions de l'image) de n sources Display : incrustation (la 1re en plein écran, les autres en petit en bas à droite) ou côte à côte (colonnes, puis grille, chaque cadre à la forme de l'écran).</summary>
+    /// <summary>Les cadres (proportions de l'image) de n sources Display : incrustation (la 1re en plein écran, les autres en petit en bas à droite) ou côte à côte.</summary>
     public static List<(double X, double Y, double W, double H)> Cadres(int n, string layout)
     {
         var cadres = new List<(double, double, double, double)>();
         if (n <= 0) return cadres;
         if (layout == "cote")
         {
-            // chaque source garde la forme de l'écran (16:9) : en colonnes, puis en grille, centrées en hauteur (comme le Duo côte à côte)
             int colonnes = n <= 3 ? n : (int)Math.Ceiling(Math.Sqrt(n));
             int lignes = (int)Math.Ceiling(n / (double)colonnes);
             double t = 1.0 / colonnes, y0 = (1 - lignes * t) / 2;
@@ -185,80 +224,142 @@ public sealed class RecordingProfile : IDestinationAudio
     }
 }
 
-/// <summary>Une sortie MyVirtualSound : une piste d'OBS envoyée vers un périphérique de sortie
-/// (par exemple « CABLE Input » de VB-CABLE, que Zoom reçoit comme micro). Plusieurs sorties peuvent être actives en même temps.</summary>
+/// <summary>
+/// Un envoi du son vers un autre logiciel (Zoom, Teams, OBS, Facebook dans le navigateur) par un câble audio virtuel
+/// (VB-CABLE : ils choisissent le micro « CABLE Output »), ou vers une sortie de l'ordinateur (une autre table de mixage, une salle).
+/// JSON « sortiesVirtuelles » : les sorties MyVirtualSound des versions précédentes.
+/// </summary>
 public sealed class VirtualSoundSettings : IDestinationAudio
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "Zoom";
     public bool Enabled { get; set; }
-    /// <summary>« default » = sortie Windows par défaut ; vide = le câble virtuel installé (VB-CABLE…).</summary>
+    /// <summary>Vide = le câble audio virtuel installé (automatique) ; « default » = sortie Windows par défaut ; sinon une sortie choisie.</summary>
     public string DeviceId { get; set; } = "";
     public string DeviceName { get; set; } = "";
-    /// <summary>La piste d'OBS envoyée (1 à 6).</summary>
-    public int Track { get; set; } = 1;
-    /// <summary>Avant la 4.2 : les sources envoyées dans cette sortie. Reprises en pistes une fois, puis oubliées.</summary>
+    [JsonPropertyName("sons")] public List<string>? ChoixSons { get; set; }
+    [JsonIgnore] public int Track { get; set; } = 1;
+    /// <summary>Jusqu'à la 1.2 : piste choisie à la main, volume et sourdine propres à la sortie. Repris une fois, puis oubliés.</summary>
+    [JsonPropertyName("track")] public int? PisteV6 { get; set; }
+    [JsonPropertyName("volumeDb")] public double? AncienVolumeDb { get; set; }
+    [JsonPropertyName("muted")] public bool? AncienneSourdine { get; set; }
+    /// <summary>Avant la 4.2 : les sources envoyées. Reprises une fois, puis oubliées.</summary>
     public List<string>? SourceIds { get; set; }
-    public double VolumeDb { get; set; }
-    public bool Muted { get; set; }
+
+    /// <summary>L'envoi passe par le câble audio virtuel (le cas de Zoom, OBS, Teams).</summary>
+    [JsonIgnore] public bool ParCable => string.IsNullOrEmpty(DeviceId);
+}
+
+/// <summary>Ce que MyChurch demande au moteur, recalculé à chaque changement : les sources d'OBS et la piste de chaque destination.</summary>
+public sealed class PlanAudio
+{
+    public List<AudioSource> Moteur { get; } = new();
+    /// <summary>Destination (enregistrement, envoi, <see cref="AudioConfiguration.IdCasque"/>) → piste d'OBS (1 à 6).</summary>
+    public Dictionary<string, int> Pistes { get; } = new();
+    /// <summary>Les sons de chaque piste utilisée (piste → identifiants des sons).</summary>
+    public Dictionary<int, List<string>> SonsDesPistes { get; } = new();
+    /// <summary>Ce qu'il faut dire à l'utilisateur (trop de mélanges différents…).</summary>
+    public List<string> Alertes { get; } = new();
+    public int PisteDe(string id) => Pistes.TryGetValue(id, out int p) ? p : 1;
 }
 
 public sealed class AudioConfiguration
 {
-    /// <summary>6 : MyChurch 4.2, l'audio simplifié comme OBS (chaque source coche ses pistes 1 à 6, chaque destination prend une piste).
-    /// 5 : réglages d'OBS 32 (4.0). 4 : enregistrements choisis par l'utilisateur (3.0.1).</summary>
-    public const int Actuelle = 6;
+    /// <summary>7 : MyChurch 1.3, le son simple (sons, « où va le son », pistes attribuées par MyChurch).
+    /// 6 : 1.0 à 1.2 (comme OBS : chaque source coche ses pistes). 5 : réglages d'OBS 32. 4 : enregistrements choisis par l'utilisateur.</summary>
+    public const int Actuelle = 7;
     public const int Pistes = 6;
-    /// <summary>Les pistes 1 à 6 cochées, comme une nouvelle source dans OBS.</summary>
     public const int ToutesLesPistes = (1 << Pistes) - 1;
     public const int MaxEnregistrements = 5;
     public const int MaxSortiesVirtuelles = 4;
-    /// <summary>Sources du mélangeur au plus.</summary>
     public const int MaxSources = 32;
-    /// <summary>Entrées d'un périphérique qu'une source peut écouter seule (cartes son jusqu'à 32 canaux).</summary>
     public const int MaxEntrees = 32;
+    /// <summary>La destination « casque de la régie » dans <see cref="PlanAudio.Pistes"/>.</summary>
+    public const string IdCasque = "casque";
+
     public int Version { get; set; } = Actuelle;
+    [JsonPropertyName("sons")] public List<Son> Sons { get; set; } = new();
+    [JsonPropertyName("eglise")] public SortieEglise Eglise { get; set; } = new();
+    [JsonPropertyName("casque")] public CasqueReglages Casque { get; set; } = new();
+    [JsonPropertyName("enregistrements")] public List<RecordingProfile> Profiles { get; set; } = new();
+    /// <summary>Les envois (Zoom, OBS…) : 4 au plus, actifs en même temps si besoin.</summary>
+    [JsonPropertyName("sortiesVirtuelles")] public List<VirtualSoundSettings> VirtualSounds { get; set; } = new();
 
-    /// <summary>Périphérique de monitoring audio (casque de la régie) ; « default » = sortie Windows par défaut.</summary>
-    public string MonitorDeviceId { get; set; } = "default";
-    public string MonitorDeviceName { get; set; } = "";
-    public bool PanelVisible { get; set; } = true;
-    /// <summary>Les sorties MyVirtualSound (4 au plus), actives en même temps si besoin.</summary>
-    [JsonPropertyName("sortiesVirtuelles")]
-    public List<VirtualSoundSettings> VirtualSounds { get; set; } = new();
-    /// <summary>3.0.0 : une seule sortie MyVirtualSound ; reprise dans <see cref="VirtualSounds"/> puis oubliée.</summary>
-    [JsonPropertyName("virtualSound")]
-    public VirtualSoundSettings? AncienneSortie { get; set; }
-    /// <summary>
-    /// Sources du mélangeur OBS, dans l'ordre du mélangeur. Le nom JSON « obsSources » est voulu : la liste « sources » de la 1.2 bêta
-    /// (types « Capture »/« Loopback », filtres « Gain », « Equalizer »…) est ainsi ignorée au lieu de faire échouer la lecture des réglages.
-    /// </summary>
-    [JsonPropertyName("obsSources")]
-    public List<AudioSource> Sources { get; set; } = new();
-    /// <summary>Les enregistrements créés par l'utilisateur (5 au plus). Nom JSON « enregistrements » : le profil automatique de la 3.0.0 n'est pas repris.</summary>
-    [JsonPropertyName("enregistrements")]
-    public List<RecordingProfile> Profiles { get; set; } = new();
+    // ------------------------------------------------------------ réglages des versions précédentes (relus une fois, puis oubliés)
+    /// <summary>1.0 à 1.2 (et 3.x, 4.x) : les sources du mélangeur « comme OBS ». Reprises en <see cref="Sons"/>.</summary>
+    [JsonPropertyName("obsSources")] public List<AudioSource>? AnciennesSources { get; set; }
+    /// <summary>1.0 à 1.2 : le périphérique de monitoring d'OBS ; il devient les haut-parleurs de l'église.</summary>
+    [JsonPropertyName("monitorDeviceId")] public string? AncienMonitoring { get; set; }
+    [JsonPropertyName("monitorDeviceName")] public string? AncienMonitoringNom { get; set; }
+    /// <summary>3.0.0 : une seule sortie MyVirtualSound.</summary>
+    [JsonPropertyName("virtualSound")] public VirtualSoundSettings? AncienneSortie { get; set; }
 
-    /// <summary>Comme OBS : une capture audio (entrée) n'utilise pas l'horodatage du périphérique par défaut, une capture audio (sortie) oui.</summary>
-    public static bool HorodatageParDefaut(AudioInputKind k) => k == AudioInputKind.Sortie;
-
-    /// <summary>Le type de la source, avec les noms d'OBS : « Capture audio (entrée) », « Capture audio (sortie) », « Média ».</summary>
-    public static string NomType(AudioSource s) => s.Kind switch
+    // ------------------------------------------------------------ mots simples
+    /// <summary>Le nom d'un genre, tel qu'on le dit à l'église.</summary>
+    public static string NomGenre(GenreSon g) => g switch
     {
-        AudioInputKind.Microphone => "Capture audio (entrée)",
-        AudioInputKind.Sortie => "Capture audio (sortie)",
-        AudioInputKind.Asio => "Capture ASIO",
-        _ when s.FollowProjection => "Vidéo projetée (Display)",
-        _ => "Média",
+        GenreSon.Voix => "Micro",
+        GenreSon.Instrument => "Instrument",
+        GenreSon.Table => "Table de mixage",
+        GenreSon.Ordinateur => "Son de l'ordinateur",
+        GenreSon.Video => "Vidéos de Display",
+        _ => "Musique",
     };
 
-    /// <summary>Les sources qui vont dans une piste (1 à 6), sans celles en « monitoring uniquement ».</summary>
-    public List<AudioSource> SourcesDeLaPiste(int piste) => Sources.Where(s => s.DansPiste(piste) && s.Monitoring != AudioMonitoring.Only).ToList();
+    /// <summary>Une phrase pour expliquer un genre (assistant « Ajouter un son »).</summary>
+    public static string AideGenre(GenreSon g) => g switch
+    {
+        GenreSon.Voix => "Pour parler ou chanter : pasteur, chorale, micro sans fil.",
+        GenreSon.Instrument => "Piano, clavier, guitare, basse, batterie…",
+        GenreSon.Table => "Tout le son de l'église, déjà mélangé par la table de mixage.",
+        GenreSon.Ordinateur => "YouTube, une musique, tout ce que l'ordinateur joue.",
+        GenreSon.Video => "Le son des vidéos que vous projetez avec Display.",
+        _ => "Une musique d'attente, un chant en MP3 : un fichier à lire.",
+    };
 
-    /// <summary>Retire une source du mélangeur.</summary>
-    public void Retirer(AudioSource s) => Sources.Remove(s);
+    /// <summary>« Micro · UMC404HD · entrée 1 » : ce qu'est un son et où il est branché.</summary>
+    public static string Description(Son s)
+    {
+        string genre = NomGenre(s.Genre);
+        switch (s.Genre)
+        {
+            case GenreSon.Video: return "Le son des vidéos projetées";
+            case GenreSon.Fichier: return s.Fichier.Length > 0 ? Path.GetFileName(s.Fichier) + (s.Boucle ? " · en boucle" : "") : "aucun fichier choisi";
+            case GenreSon.Ordinateur: return s.Appareil is "" or "default" ? "Tout ce que joue l'ordinateur" : "Ce qui sort de « " + NomCourt(s.NomAppareil) + " »";
+        }
+        if (s.Capture == AudioInputKind.Asio)
+            return genre + " · " + (s.Appareil is "" or "default" ? "aucun pilote" : s.Appareil) + " · " + string.Join(" + ", s.EntreesAsio.Select(k => k < 0 ? "muet" : $"entrée {k + 1}"));
+        string appareil = s.Appareil == "default" || s.NomAppareil.Length == 0 ? "micro de Windows" : NomCourt(s.NomAppareil);
+        return genre + " · " + appareil + (s.Entree > 0 ? $" · entrée {s.Entree}" : "");
+    }
 
-    /// <summary>« Microphone (Focusrite USB) » → « Focusrite USB » : un nom court pour une source.</summary>
+    /// <summary>Les réglages intelligents d'un genre (comment le capter, nettoyer la voix, l'entendre dans l'église).</summary>
+    public static void AppliquerDefauts(Son s)
+    {
+        switch (s.Genre)
+        {
+            case GenreSon.Voix:
+                if (s.Capture is not (AudioInputKind.Microphone or AudioInputKind.Asio)) s.Capture = AudioInputKind.Microphone;
+                s.EnleverBruit = true; s.VolumeRegulier = true; s.Eglise = false;
+                break;
+            case GenreSon.Instrument:
+            case GenreSon.Table:
+                if (s.Capture is not (AudioInputKind.Microphone or AudioInputKind.Asio)) s.Capture = AudioInputKind.Microphone;
+                s.EnleverBruit = false; s.VolumeRegulier = false; s.Eglise = false;
+                break;
+            case GenreSon.Ordinateur:
+                s.Capture = AudioInputKind.Sortie; s.EnleverBruit = false; s.VolumeRegulier = false; s.Eglise = false;
+                break;
+            default:
+                s.Capture = AudioInputKind.Media; s.EnleverBruit = false; s.VolumeRegulier = false; s.Eglise = true;
+                break;
+        }
+    }
+
+    /// <summary>Le son des vidéos de Display : toujours présent (on peut le couper), entendu dans l'église.</summary>
+    [JsonIgnore] public Son SonVideos => Sons.First(s => s.Genre == GenreSon.Video);
+
+    /// <summary>« Microphone (Focusrite USB) » → « Focusrite USB » : un nom court pour un appareil.</summary>
     public static string NomCourt(string nom)
     {
         nom ??= "";
@@ -266,13 +367,47 @@ public sealed class AudioConfiguration
         return a >= 0 && b > a + 1 ? nom[(a + 1)..b].Trim() : nom.Trim();
     }
 
-    /// <summary>Un nom de source pas encore pris, comme OBS : « Capture audio (entrée) », « Capture audio (entrée) 2 »…</summary>
+    /// <summary>Un nom pas encore pris : « Micro », « Micro 2 »…</summary>
     public string NomLibre(string nom)
     {
-        if (string.IsNullOrWhiteSpace(nom)) nom = "Source";
-        if (Sources.All(s => s.Name != nom)) return nom;
+        if (string.IsNullOrWhiteSpace(nom)) nom = "Son";
+        nom = nom.Trim();
+        if (Sons.All(s => !string.Equals(s.Nom, nom, StringComparison.OrdinalIgnoreCase))) return nom;
         for (int i = 2; ; i++)
-            if (Sources.All(s => s.Name != $"{nom} {i}")) return $"{nom} {i}";
+            if (Sons.All(s => !string.Equals(s.Nom, $"{nom} {i}", StringComparison.OrdinalIgnoreCase))) return $"{nom} {i}";
+    }
+
+    /// <summary>Ajoute un son à la liste (avant le son des vidéos, qui reste le dernier).</summary>
+    public void Ajouter(Son s)
+    {
+        int i = Sons.FindIndex(x => x.Genre == GenreSon.Video);
+        if (i < 0 || s.Genre == GenreSon.Video) Sons.Add(s);
+        else Sons.Insert(i, s);
+    }
+
+    /// <summary>Retire un son : il n'est plus reçu nulle part. Le son des vidéos ne se retire pas (on peut le couper).</summary>
+    public bool Retirer(Son s)
+    {
+        if (s.Genre == GenreSon.Video) return false;
+        Sons.Remove(s);
+        foreach (var d in Destinations()) d.ChoixSons?.Remove(s.Id);
+        return true;
+    }
+
+    /// <summary>Les enregistrements et les envois.</summary>
+    public IEnumerable<IDestinationAudio> Destinations() => Profiles.Cast<IDestinationAudio>().Concat(VirtualSounds);
+
+    /// <summary>Ce que reçoit une destination, en mots : « Tout le son », « Pasteur et Chorale », « Aucun son ».</summary>
+    public string Recoit(IDestinationAudio d)
+    {
+        if (d.ChoixSons == null) return "Tout le son";
+        var noms = Sons.Where(s => d.ChoixSons.Contains(s.Id)).Select(s => s.Nom).ToList();
+        return noms.Count switch
+        {
+            0 => "Aucun son",
+            1 => noms[0] + " seulement",
+            _ => string.Join(", ", noms.Take(noms.Count - 1)) + " et " + noms[^1],
+        };
     }
 
     /// <summary>Dossier des enregistrements par défaut : Vidéos\MyChurch.</summary>
@@ -289,137 +424,283 @@ public sealed class AudioConfiguration
     public static T Copy<T>(T x) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(x, Donnees.Json), Donnees.Json)!;
     public static double Bound(double x, double min, double max, double fallback = 0) => double.IsFinite(x) ? Math.Clamp(x, min, max) : fallback;
 
-    static List<string>? AnciennesSources(IDestinationAudio d) => d switch
-    {
-        RecordingProfile p => p.SourceIds,
-        VirtualSoundSettings v => v.SourceIds,
-        _ => null,
-    };
+    // ------------------------------------------------------------ le plan du moteur
+    /// <summary>Même appareil Windows (« default » ne vaut que « default »).</summary>
+    static bool MemeAppareil(string a, string b) => string.Equals(string.IsNullOrEmpty(a) ? "default" : a, string.IsNullOrEmpty(b) ? "default" : b, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Réglages d'avant la 4.2 : chaque enregistrement et chaque sortie MyVirtualSound choisissaient leurs sources, et MyChurch leur donnait
-    /// une piste d'OBS tout seul. Maintenant, comme dans OBS, chaque source coche ses pistes et chaque destination prend une piste.
-    /// Les mélanges déjà faits sont gardés : un mélange différent par piste (6 au plus, dans l'ordre), et les pistes restées libres
-    /// reçoivent toutes les sources, comme dans OBS.
+    /// Ce que MyChurch demande à OBS. Personne ne choisit de piste : la piste 1 reçoit tout le son, et chaque destination
+    /// qui veut d'autres sons reçoit sa piste (2 à 6), partagée avec celles qui veulent les mêmes. Les destinations actives
+    /// passent en premier. Un envoi vers une sortie de l'ordinateur ne reçoit jamais le « son de l'ordinateur » de cette même
+    /// sortie (sinon le son tournerait en rond et sifflerait). Le casque entend tout le son.
     /// </summary>
-    void MigrerPistes()
+    /// <param name="videoProjetee">La vidéo à l'écran (Display) : le son des vidéos la joue.</param>
+    /// <param name="actives">Les destinations qui tournent (enregistrements en cours) : elles gardent leur piste en priorité.</param>
+    public PlanAudio Planifier(string videoProjetee = "", ISet<string>? actives = null)
     {
-        var connues = Sources.Select(s => s.Id).ToHashSet();
-        var pisteDe = new Dictionary<string, int>();
-        var contenu = new Dictionary<int, HashSet<string>>();
-        foreach (var d in Profiles.Cast<IDestinationAudio>().Concat(VirtualSounds))
+        var plan = new PlanAudio();
+        var tous = Sons.Select(s => s.Id).ToList();
+        var destinations = new List<(string Id, string Nom, List<string>? Choix, string? Appareil, bool Actif)>
         {
-            var ids = (AnciennesSources(d) ?? new()).Where(connues.Contains).Distinct().OrderBy(x => x, StringComparer.Ordinal).ToList();
-            string cle = string.Join("|", ids);
-            if (!pisteDe.TryGetValue(cle, out int t) && pisteDe.Count < Pistes)
+            (IdCasque, "Casque", null, Casque.Appareil, Casque.Actif),
+        };
+        foreach (var v in VirtualSounds) destinations.Add((v.Id, v.Name, v.ChoixSons, v.ParCable ? null : v.DeviceId, v.Enabled));
+        foreach (var p in Profiles) destinations.Add((p.Id, p.Name, p.ChoixSons, null, actives?.Contains(p.Id) == true));
+        var cles = new Dictionary<string, int>();
+        int suivante = 2;
+        foreach (var d in destinations.OrderBy(d => d.Actif ? 0 : 1))
+        {
+            var sons = (d.Choix ?? tous).Where(tous.Contains).ToHashSet();
+            // jamais le son de l'ordinateur d'une sortie renvoyé vers cette même sortie (larsen)
+            if (d.Appareil != null)
+                sons.RemoveWhere(id => Sons.First(s => s.Id == id) is { Genre: GenreSon.Ordinateur } o && MemeAppareil(o.Appareil, d.Appareil));
+            int piste = 1;
+            if (!sons.SetEquals(tous))
             {
-                t = pisteDe.Count + 1;
-                pisteDe[cle] = t;
-                contenu[t] = ids.ToHashSet();
+                string cle = string.Join("|", sons.OrderBy(x => x, StringComparer.Ordinal));
+                if (cles.TryGetValue(cle, out int p)) piste = p;
+                else if (suivante <= Pistes) { piste = suivante++; cles[cle] = piste; plan.SonsDesPistes[piste] = sons.ToList(); }
+                else plan.Alertes.Add($"Trop de mélanges différents : « {d.Nom} » reçoit tout le son.");
             }
-            d.Track = t > 0 ? t : 1;
+            plan.Pistes[d.Id] = piste;
         }
-        foreach (var s in Sources)
+        plan.SonsDesPistes[1] = tous.ToList();
+        foreach (var s in Sons)
         {
-            int bits = 0;
-            for (int t = 1; t <= Pistes; t++)
-                if (!contenu.TryGetValue(t, out var ids) || ids.Contains(s.Id)) bits |= 1 << (t - 1);
-            s.Tracks = bits;
+            int masque = 1;
+            foreach (var (piste, ids) in plan.SonsDesPistes) if (piste > 1 && ids.Contains(s.Id)) masque |= 1 << (piste - 1);
+            plan.Moteur.Add(SourceMoteur(s, masque, videoProjetee));
         }
-        foreach (var p in Profiles) p.SourceIds = null;
-        foreach (var v in VirtualSounds) v.SourceIds = null;
+        foreach (var d in Destinations()) d.Track = plan.PisteDe(d.Id);
+        return plan;
     }
 
-    /// <summary>Remet les valeurs dans leurs bornes et reprend les réglages des anciennes versions.
-    /// Les sources du mixeur local de la 1.2 bêta ne sont pas reprises (autre nom JSON) : le mélangeur repart vide.</summary>
+    /// <summary>La source d'OBS d'un son : comment le capter, ses pistes, l'église (monitoring) et ses aides (filtres d'OBS).</summary>
+    static AudioSource SourceMoteur(Son s, int pistes, string videoProjetee)
+    {
+        var a = new AudioSource
+        {
+            Id = s.Id, Name = s.Nom, Kind = s.Capture, DeviceId = string.IsNullOrEmpty(s.Appareil) ? "default" : s.Appareil, DeviceName = s.NomAppareil,
+            Channel = s.Capture == AudioInputKind.Microphone ? s.Entree : 0, AsioCanaux = s.EntreesAsio.ToList(),
+            MediaPath = s.Genre == GenreSon.Video ? videoProjetee ?? "" : s.Fichier, FollowProjection = s.Genre == GenreSon.Video,
+            Loop = s.Genre == GenreSon.Fichier && s.Boucle, DemarrerArrete = s.Genre == GenreSon.Fichier,
+            VolumeDb = s.VolumeDb, Muted = s.Coupe,
+            // une voix est mono : un micro branché sur la seule entrée gauche s'entend des deux côtés
+            Mono = s.Genre == GenreSon.Voix,
+            Tracks = pistes, Monitoring = s.Eglise ? AudioMonitoring.AndOutput : AudioMonitoring.Off,
+        };
+        if (s.EnleverBruit)
+            a.Filters.Add(new AudioFilter { Id = s.Id + "-bruit", Kind = AudioFilterKind.NoiseSuppression, Method = "rnnoise" });
+        if (s.VolumeRegulier)
+        {
+            // les passages faibles remontent (seuil bas, gain de 6 dB) et les pointes sont rattrapées par le limiteur
+            a.Filters.Add(new AudioFilter { Id = s.Id + "-regulier", Kind = AudioFilterKind.Compressor, Ratio = 3, ThresholdDb = -24, AttackMs = 5, ReleaseMs = 100, OutputGainDb = 6 });
+            a.Filters.Add(new AudioFilter { Id = s.Id + "-limite", Kind = AudioFilterKind.Limiter, ThresholdDb = -2, ReleaseMs = 60 });
+        }
+        return a;
+    }
+
+    // ------------------------------------------------------------ bornes et reprise des anciens réglages
+    /// <summary>Remet les valeurs dans leurs bornes, reprend les réglages des versions précédentes, et garde le son des vidéos.</summary>
     public void Normalize()
     {
-        Sources ??= new(); Profiles ??= new(); VirtualSounds ??= new();
-        Sources.RemoveAll(s => s == null);
+        Sons ??= new(); Profiles ??= new(); VirtualSounds ??= new();
+        Eglise ??= new(); Casque ??= new();
+        Sons.RemoveAll(s => s == null);
         Profiles.RemoveAll(p => p == null);
         VirtualSounds.RemoveAll(v => v == null);
+        Reprendre();
+        var ids = new HashSet<string>();
+        Sons.RemoveAll(s => string.IsNullOrEmpty(s.Id) || !ids.Add(s.Id));
+        // un seul son des vidéos (le premier)
+        var premiereVideo = Sons.FirstOrDefault(s => s.Genre == GenreSon.Video);
+        Sons.RemoveAll(s => s.Genre == GenreSon.Video && s != premiereVideo);
+        if (Sons.Count > MaxSources) Sons.RemoveRange(MaxSources, Sons.Count - MaxSources);
+        // le son des vidéos de Display est toujours là, le dernier
+        int iv = Sons.FindIndex(s => s.Genre == GenreSon.Video);
+        if (iv < 0) Sons.Add(Son.Nouveau(GenreSon.Video, "Vidéos de Display"));
+        else if (iv != Sons.Count - 1) { var v = Sons[iv]; Sons.RemoveAt(iv); Sons.Add(v); }
+        foreach (var s in Sons)
+        {
+            s.Nom = string.IsNullOrWhiteSpace(s.Nom) ? NomGenre(s.Genre) : s.Nom.Trim();
+            if (!Enum.IsDefined(s.Genre)) s.Genre = GenreSon.Voix;
+            if (!Enum.IsDefined(s.Capture)) s.Capture = AudioInputKind.Microphone;
+            // la capture suit le genre
+            if (s.Genre == GenreSon.Ordinateur) s.Capture = AudioInputKind.Sortie;
+            else if (s.Genre is GenreSon.Video or GenreSon.Fichier) s.Capture = AudioInputKind.Media;
+            else if (s.Capture is not (AudioInputKind.Microphone or AudioInputKind.Asio)) s.Capture = AudioInputKind.Microphone;
+            if (string.IsNullOrEmpty(s.Appareil)) s.Appareil = "default";
+            s.NomAppareil ??= ""; s.Fichier ??= "";
+            s.EntreesAsio ??= new();
+            s.Entree = s.Capture == AudioInputKind.Microphone ? Math.Clamp(s.Entree, 0, MaxEntrees) : 0;
+            if (s.Capture == AudioInputKind.Asio)
+            {
+                if (s.EntreesAsio.Count == 0) s.EntreesAsio.Add(0);
+                if (s.EntreesAsio.Count > 2) s.EntreesAsio.RemoveRange(2, s.EntreesAsio.Count - 2);
+                for (int k = 0; k < s.EntreesAsio.Count; k++) s.EntreesAsio[k] = Math.Clamp(s.EntreesAsio[k], -1, MaxEntrees - 1);
+            }
+            if (s.Genre != GenreSon.Fichier) s.Boucle = false;
+            if (s.Genre == GenreSon.Video) { s.Fichier = ""; s.Appareil = "default"; s.NomAppareil = ""; }
+            // seule une voix se « nettoie » : la réduction du bruit abîmerait la musique (instrument, table de mixage, fichiers)
+            if (s.Genre != GenreSon.Voix) s.EnleverBruit = false;
+            s.VolumeDb = Bound(s.VolumeDb, -60, 6);
+        }
+        var known = Sons.Select(s => s.Id).ToHashSet();
+        var vids = new HashSet<string>();
+        VirtualSounds.RemoveAll(v => string.IsNullOrEmpty(v.Id) || !vids.Add(v.Id));
+        if (VirtualSounds.Count > MaxSortiesVirtuelles) VirtualSounds.RemoveRange(MaxSortiesVirtuelles, VirtualSounds.Count - MaxSortiesVirtuelles);
+        for (int i = 0; i < VirtualSounds.Count; i++)
+        {
+            var v = VirtualSounds[i];
+            v.Name = string.IsNullOrWhiteSpace(v.Name) ? (i == 0 ? "Zoom" : "Envoi " + (i + 1)) : v.Name.Trim();
+            v.DeviceId ??= ""; v.DeviceName ??= "";
+            v.ChoixSons = v.ChoixSons?.Where(known.Contains).Distinct().ToList();
+            v.SourceIds = null; v.PisteV6 = null; v.AncienVolumeDb = null; v.AncienneSourdine = null;
+        }
+        var pids = new HashSet<string>();
+        Profiles.RemoveAll(p => string.IsNullOrEmpty(p.Id) || !pids.Add(p.Id));
+        if (Profiles.Count > MaxEnregistrements) Profiles.RemoveRange(MaxEnregistrements, Profiles.Count - MaxEnregistrements);
+        for (int i = 0; i < Profiles.Count; i++)
+        {
+            var p = Profiles[i];
+            p.SourceIds = null; p.PisteV6 = null;
+            p.ChoixSons = p.ChoixSons?.Where(known.Contains).Distinct().ToList();
+            p.Name = string.IsNullOrWhiteSpace(p.Name) ? "Enregistrement " + (i + 1) : p.Name.Trim();
+            p.Color ??= "#B3261E"; p.Visuals ??= new(); p.Encoder ??= "auto"; p.Layout = p.Layout == "cote" ? "cote" : "incrustation";
+            p.DisplayIds = (p.DisplayIds ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Take(6).ToList();
+            if (p.DisplayIds.Count > 0) { p.AudioOnly = false; p.Format = "mkv"; }
+            else
+            {
+                p.AudioOnly = true;
+                // FLAC (sans perte) devient WAV (sans perte, lisible partout) ; le reste en MP3
+                p.Format = p.Format switch { "wav" or "flac" => "wav", "m4a" => "m4a", _ => "mp3" };
+            }
+            if (string.IsNullOrWhiteSpace(p.Directory)) p.Directory = Path.Combine(DossierEnregistrements, RecordingFiles.SafeName(p.Name));
+        }
+        if (string.IsNullOrEmpty(Eglise.Appareil)) Eglise.Appareil = "default";
+        Eglise.NomAppareil ??= "";
+        if (string.IsNullOrEmpty(Casque.Appareil)) Casque.Appareil = "default";
+        Casque.NomAppareil ??= "";
+        Version = Actuelle;
+    }
+
+    /// <summary>
+    /// Les réglages des versions précédentes : la sortie unique de la 3.0.0, les sources choisies par destination (avant la 4.2),
+    /// puis les pistes cochées « comme OBS » (1.0 à 1.2). Tout devient des sons et des destinations qui reçoivent « tout le son »
+    /// ou les sons qu'elles recevaient. Le monitoring d'OBS devient « Dans l'église », et son périphérique les haut-parleurs de l'église.
+    /// </summary>
+    void Reprendre()
+    {
+        if (AnciennesSources == null && AncienneSortie == null && AncienMonitoring == null) return;
+        var anciennes = (AnciennesSources ?? new()).Where(s => s != null).ToList();
+        var ids = new HashSet<string>();
+        anciennes.RemoveAll(s => string.IsNullOrEmpty(s.Id) || !ids.Add(s.Id));
         if (AncienneSortie is { } ancienne)
         {
-            // 3.0.0 : une seule sortie, qui recevait une piste choisie à la main ; ses sources deviennent celles de la sortie « Zoom »
+            // 3.0.0 : une seule sortie, qui recevait une piste choisie à la main
             if (Version < 4 && (ancienne.Enabled || !string.IsNullOrEmpty(ancienne.DeviceId)))
             {
-                int piste = Math.Clamp(ancienne.Track, 1, Pistes);
-                ancienne.SourceIds = Sources.Where(x => (x.Tracks & (1 << (piste - 1))) != 0).Select(x => x.Id).ToList();
+                int piste = Math.Clamp(ancienne.PisteV6 ?? 1, 1, Pistes);
+                ancienne.SourceIds = anciennes.Where(x => (x.Tracks & (1 << (piste - 1))) != 0).Select(x => x.Id).ToList();
                 ancienne.Name = "Zoom";
                 ancienne.Id = Guid.NewGuid().ToString("N");
                 VirtualSounds.Insert(0, ancienne);
             }
             AncienneSortie = null;
         }
-        var ids = new HashSet<string>();
-        Sources.RemoveAll(s => string.IsNullOrEmpty(s.Id) || !ids.Add(s.Id));
-        if (Sources.Count > MaxSources) Sources.RemoveRange(MaxSources, Sources.Count - MaxSources);
-        var vids = new HashSet<string>();
-        VirtualSounds.RemoveAll(v => string.IsNullOrEmpty(v.Id) || !vids.Add(v.Id));
-        if (VirtualSounds.Count > MaxSortiesVirtuelles) VirtualSounds.RemoveRange(MaxSortiesVirtuelles, VirtualSounds.Count - MaxSortiesVirtuelles);
-        var pids = new HashSet<string>();
-        Profiles.RemoveAll(p => string.IsNullOrEmpty(p.Id) || !pids.Add(p.Id));
-        if (Profiles.Count > MaxEnregistrements) Profiles.RemoveRange(MaxEnregistrements, Profiles.Count - MaxEnregistrements);
-        // 4.2 : les sources choisies par destination deviennent des pistes cochées, comme dans OBS
-        if (Version < 6) MigrerPistes();
-        Version = Actuelle;
-        if (string.IsNullOrEmpty(MonitorDeviceId)) MonitorDeviceId = "default";
-        MonitorDeviceName ??= "";
-        foreach (var s in Sources)
+        // avant la 4.2 : chaque destination choisissait ses sources ; on en fait des pistes, comme le faisait la 4.2
+        if (Version < 6) MigrerPistes(anciennes);
+        // 1.0 à 1.2 : les sources deviennent des sons
+        foreach (var a in anciennes)
         {
-            s.Name = string.IsNullOrWhiteSpace(s.Name) ? "Source" : s.Name.Trim();
-            if (string.IsNullOrEmpty(s.DeviceId)) s.DeviceId = "default";
-            s.DeviceName ??= ""; s.MediaPath ??= ""; s.Filters ??= new();
-            if (!Enum.IsDefined(s.Kind)) s.Kind = AudioInputKind.Microphone;
-            if (!Enum.IsDefined(s.Monitoring)) s.Monitoring = AudioMonitoring.Off;
-            s.Channel = s.Kind == AudioInputKind.Microphone ? Math.Clamp(s.Channel, 0, MaxEntrees) : 0;
-            if (s.Kind != AudioInputKind.Media) s.FollowProjection = false;
-            if (s.Kind is AudioInputKind.Media or AudioInputKind.Asio) s.UseDeviceTiming = null;
-            s.AsioCanaux ??= new();
-            if (s.Kind == AudioInputKind.Asio)
+            if (Sons.Any(s => s.Id == a.Id)) continue;
+            var genre = a.Kind switch
             {
-                if (s.AsioCanaux.Count == 0) s.AsioCanaux.Add(0);
-                if (s.AsioCanaux.Count > 2) s.AsioCanaux.RemoveRange(2, s.AsioCanaux.Count - 2);
-                for (int k = 0; k < s.AsioCanaux.Count; k++) s.AsioCanaux[k] = Math.Clamp(s.AsioCanaux[k], -1, MaxEntrees - 1);
-            }
-            s.VolumeDb = Bound(s.VolumeDb, -60, 6);
-            s.Balance = Bound(s.Balance, 0, 1, 0.5);
-            s.SyncOffsetMs = Math.Clamp(s.SyncOffsetMs, -950, 20000);
-            s.Tracks &= ToutesLesPistes;
-            var fids = new HashSet<string>();
-            s.Filters.RemoveAll(f => f == null || string.IsNullOrEmpty(f.Id) || !Enum.IsDefined(f.Kind) || !fids.Add(f.Id));
-            foreach (var f in s.Filters)
+                AudioInputKind.Media when a.FollowProjection => GenreSon.Video,
+                AudioInputKind.Media => GenreSon.Fichier,
+                AudioInputKind.Sortie => GenreSon.Ordinateur,
+                _ => DevinerGenre(a.Name),
+            };
+            var f = (a.Filters ?? new()).Where(x => x != null && x.Enabled).ToList();
+            Sons.Add(new Son
             {
-                f.Ratio = Bound(f.Ratio, 1, 32, 4); f.ThresholdDb = Bound(f.ThresholdDb, -60, 0, -18);
-                f.AttackMs = Bound(f.AttackMs, 1, 500, 6); f.ReleaseMs = Bound(f.ReleaseMs, 1, 1000, 60);
-                f.OutputGainDb = Bound(f.OutputGainDb, -32, 32);
-                f.OpenDb = Bound(f.OpenDb, -96, 0, -26); f.CloseDb = Bound(f.CloseDb, -96, 0, -32); f.HoldMs = Bound(f.HoldMs, 0, 3000, 200);
-                if (f.CloseDb > f.OpenDb) f.CloseDb = f.OpenDb;
-                f.SuppressDb = Bound(f.SuppressDb, -60, 0, -30);
-                if (f.Method != "speex") f.Method = "rnnoise";
+                Id = a.Id, Nom = a.Name ?? "", Genre = genre, Capture = a.Kind, Appareil = a.DeviceId ?? "default", NomAppareil = a.DeviceName ?? "",
+                Entree = a.Channel, EntreesAsio = a.AsioCanaux?.ToList() ?? new() { 0 }, Fichier = a.FollowProjection ? "" : a.MediaPath ?? "", Boucle = a.Loop,
+                // le son des vidéos s'entend maintenant dans l'église (avant la 1.3, la vidéo de Display était muette dans la salle)
+                VolumeDb = a.VolumeDb, Coupe = a.Muted, Eglise = genre == GenreSon.Video || a.Monitoring != AudioMonitoring.Off,
+                // ses filtres d'OBS deviennent les deux aides : enlever le bruit, volume régulier
+                EnleverBruit = f.Any(x => x.Kind == AudioFilterKind.NoiseSuppression),
+                VolumeRegulier = f.Any(x => x.Kind is AudioFilterKind.Compressor or AudioFilterKind.Limiter),
+            });
+        }
+        // chaque destination reçoit les sources de sa piste (toutes = « tout le son »)
+        var tous = anciennes.Select(s => s.Id).ToHashSet();
+        foreach (var d in Profiles.Cast<IDestinationAudio>().Concat(VirtualSounds))
+        {
+            int? piste = d switch { RecordingProfile p => p.PisteV6, VirtualSoundSettings v => v.PisteV6, _ => null };
+            if (piste is not { } t || t < 1 || t > Pistes) continue;
+            var recus = anciennes.Where(s => (s.Tracks & (1 << (t - 1))) != 0 && s.Monitoring != AudioMonitoring.Only).Select(s => s.Id).ToList();
+            d.ChoixSons = recus.ToHashSet().SetEquals(tous) ? null : recus;
+        }
+        foreach (var v in VirtualSounds)
+        {
+            // le volume et la sourdine propres à une sortie ont disparu : une sortie coupée est simplement désactivée
+            if (v.AncienneSourdine == true) v.Enabled = false;
+        }
+        if (!string.IsNullOrEmpty(AncienMonitoring))
+        {
+            Eglise.Appareil = AncienMonitoring;
+            Eglise.NomAppareil = AncienMonitoringNom ?? "";
+        }
+        AnciennesSources = null; AncienMonitoring = null; AncienMonitoringNom = null;
+    }
+
+    /// <summary>Un micro des versions précédentes : voix, instrument ou table de mixage, d'après son nom.</summary>
+    public static GenreSon DevinerGenre(string? nom)
+    {
+        string n = (nom ?? "").ToLowerInvariant();
+        string[] instruments = { "piano", "clavier", "keyboard", "guitare", "guitar", "basse", "bass", "batterie", "drum", "orgue", "synth", "instrument", "violon", "saxo", "trompette", "musique", "music" };
+        string[] tables = { "table", "console", "mixage", "mixer", "sono", "xr18", "x32" };
+        if (tables.Any(n.Contains)) return GenreSon.Table;
+        if (instruments.Any(n.Contains)) return GenreSon.Instrument;
+        return GenreSon.Voix;
+    }
+
+    static List<string>? AnciennesSourcesDe(IDestinationAudio d) => d switch
+    {
+        RecordingProfile p => p.SourceIds,
+        VirtualSoundSettings v => v.SourceIds,
+        _ => null,
+    };
+
+    /// <summary>Avant la 4.2 : chaque destination choisissait ses sources. La 4.2 en faisait des pistes cochées : un mélange par piste.</summary>
+    void MigrerPistes(List<AudioSource> anciennes)
+    {
+        var connues = anciennes.Select(s => s.Id).ToHashSet();
+        var pisteDe = new Dictionary<string, int>();
+        var contenu = new Dictionary<int, HashSet<string>>();
+        foreach (var d in Profiles.Cast<IDestinationAudio>().Concat(VirtualSounds))
+        {
+            var liste = (AnciennesSourcesDe(d) ?? new()).Where(connues.Contains).Distinct().OrderBy(x => x, StringComparer.Ordinal).ToList();
+            string cle = string.Join("|", liste);
+            if (!pisteDe.TryGetValue(cle, out int t) && pisteDe.Count < Pistes)
+            {
+                t = pisteDe.Count + 1;
+                pisteDe[cle] = t;
+                contenu[t] = liste.ToHashSet();
             }
+            if (d is RecordingProfile p) p.PisteV6 = t > 0 ? t : 1;
+            else if (d is VirtualSoundSettings v) v.PisteV6 = t > 0 ? t : 1;
         }
-        for (int i = 0; i < VirtualSounds.Count; i++)
+        foreach (var s in anciennes)
         {
-            var v = VirtualSounds[i];
-            v.Name = string.IsNullOrWhiteSpace(v.Name) ? "Sortie " + (char)('A' + i) : v.Name.Trim();
-            v.DeviceId ??= ""; v.DeviceName ??= "";
-            v.SourceIds = null;
-            v.VolumeDb = Bound(v.VolumeDb, -60, 6);
-            if (v.Track is < 1 or > Pistes) v.Track = 1;
+            int bits = 0;
+            for (int t = 1; t <= Pistes; t++)
+                if (!contenu.TryGetValue(t, out var liste) || liste.Contains(s.Id)) bits |= 1 << (t - 1);
+            s.Tracks = bits;
         }
-        for (int i = 0; i < Profiles.Count; i++)
-        {
-            var p = Profiles[i];
-            if (p.Track is < 1 or > Pistes) p.Track = 1;
-            p.SourceIds = null;
-            p.Name = string.IsNullOrWhiteSpace(p.Name) ? "Enregistrement " + (i + 1) : p.Name.Trim();
-            p.Color ??= "#B3261E"; p.Visuals ??= new(); p.Encoder ??= "auto"; p.Layout = p.Layout == "cote" ? "cote" : "incrustation";
-            p.DisplayIds = (p.DisplayIds ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Take(6).ToList();
-            if (p.DisplayIds.Count > 0) { p.AudioOnly = false; p.Format = "mkv"; }
-            else { p.AudioOnly = true; if (p.Format is not ("wav" or "flac")) p.Format = "wav"; }
-            if (string.IsNullOrWhiteSpace(p.Directory)) p.Directory = Path.Combine(DossierEnregistrements, RecordingFiles.SafeName(p.Name));
-        }
+        foreach (var p in Profiles) p.SourceIds = null;
+        foreach (var v in VirtualSounds) v.SourceIds = null;
     }
 }
 

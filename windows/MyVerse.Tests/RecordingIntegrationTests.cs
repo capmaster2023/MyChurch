@@ -136,7 +136,8 @@ public static class RecordingIntegrationTests
         string? executable = Environment.GetEnvironmentVariable("MYCHURCH_FFMPEG");
         string directory = Environment.GetEnvironmentVariable("MYCHURCH_AUDIO_FIXTURES") ?? Path.Combine(Path.GetTempPath(), "mychurch-recording-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
         var frame = new Frames(); var block = new float[AudioBlock.Samples];
-        var formats = executable == null ? new[] { "wav" } : new[] { "wav", "flac", "mkv" };
+        // MyChurch 1.3 : le son seul s'enregistre en MP3 (léger, à partager) ou en WAV (studio) ; M4A si l'encodeur MP3 manquait ; FLAC encore lu
+        var formats = executable == null ? new[] { "wav" } : new[] { "wav", "mp3", "m4a", "flac", "mkv" };
         foreach (string format in formats)
         {
             var profile = new RecordingProfile { Name = "integration-" + format, Format = format, AudioOnly = format != "mkv", Directory = directory, Width = 320, Height = 180, Fps = 30, Encoder = "mjpeg" };
@@ -204,7 +205,7 @@ public static class RecordingIntegrationTests
                     "Session x264 : vidéo H.264 + son de 3 s, finalisée sans blocage", $"{new FileInfo(chemin).Length} octets, {duree:0.00} s");
             }
         }
-        if (executable == null) Console.WriteLine("  FFmpeg non configuré : tests FLAC/MKV facultatifs ignorés (MYCHURCH_FFMPEG).");
+        if (executable == null) Console.WriteLine("  FFmpeg non configuré : tests MP3/FLAC/MKV facultatifs ignorés (MYCHURCH_FFMPEG).");
         if (Environment.GetEnvironmentVariable("MYCHURCH_AUDIO_FIXTURES") == null) Directory.Delete(directory, true);
     }
 }

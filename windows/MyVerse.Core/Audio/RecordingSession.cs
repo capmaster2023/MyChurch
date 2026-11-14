@@ -99,7 +99,13 @@ public sealed class RecordingSession : IDisposable
             args.AddRange(new[] { "-map", "0:v:0", "-map", "1:a:0", "-c:v", encoder, "-b:v", profile.VideoKbps + "k", "-pix_fmt", encoder == "mjpeg" ? "yuvj420p" : "yuv420p", "-c:a", "aac", "-b:a", profile.AudioKbps + "k", "-cluster_time_limit", "1000", "-f", "matroska" });
             if (encoder == "libx264") args.AddRange(new[] { "-preset", "veryfast" });
         }
-        else args.AddRange(new[] { "-c:a", "flac", "-f", "flac" });
+        else args.AddRange(profile.Format switch
+        {
+            // son seul, léger : MP3 (lisible partout, WhatsApp compris) ; M4A fragmenté si l'encodeur MP3 manque (lisible même après une coupure)
+            "mp3" => new[] { "-c:a", "libmp3lame", "-b:a", profile.AudioKbps + "k", "-f", "mp3" },
+            "m4a" => new[] { "-c:a", "aac", "-b:a", profile.AudioKbps + "k", "-movflags", "+frag_keyframe+empty_moov+default_base_moof", "-f", "mp4" },
+            _ => new[] { "-c:a", "flac", "-f", "flac" },
+        });
         args.Add(output); return args;
     }
     public async Task PrepareAsync()

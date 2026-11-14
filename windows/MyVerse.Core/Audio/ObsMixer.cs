@@ -35,7 +35,8 @@ public sealed class ObsPaths
         {
             var so = Path.Combine(lib, "libobs.so.0");
             if (!File.Exists(so)) continue;
-            var p = new ObsPaths { Library = so, DataPath = "/usr/share/obs/libobs/", Graphics = "libobs-opengl", MicrophoneId = "pulse_input_capture", OutputId = "pulse_output_capture" };
+            string gl = Directory.EnumerateFiles(lib, "libobs-opengl.so*").OrderBy(f => f.Length).FirstOrDefault() ?? "libobs-opengl";
+            var p = new ObsPaths { Library = so, DataPath = "/usr/share/obs/libobs/", Graphics = gl, MicrophoneId = "pulse_input_capture", OutputId = "pulse_output_capture" };
             foreach (var m in new[] { "linux-pulseaudio", "obs-filters", "obs-ffmpeg" })
                 p.Modules.Add((Path.Combine(lib, "obs-plugins", m + ".so"), "/usr/share/obs/obs-plugins/" + m));
             return p;
@@ -44,10 +45,14 @@ public sealed class ObsPaths
     }
 }
 
+/// <summary>État de lecture d'un fichier de musique (source média d'OBS).</summary>
+public enum EtatLecture { Aucun, Lecture, Pause, Arret, Fin, Erreur }
+
 /// <summary>
-/// Le mélangeur de MyChurch : une couche mince au-dessus de libobs. Chaque source du mélangeur est une source OBS
-/// (micro ou sortie WASAPI, média FFmpeg), chaque filtre un filtre d'obs-filters, l'écoute est le monitoring d'OBS
-/// et les pistes 1 à 6 sont ses six mélanges de sortie.
+/// Le moteur de MyChurch : une couche mince au-dessus de libobs. Chaque son est une source OBS (micro ou sortie WASAPI,
+/// média FFmpeg, entrée poussée par MyChurch), ses aides sont des filtres d'obs-filters, « Dans l'église » est le monitoring d'OBS
+/// et les six pistes d'OBS sont les mélanges que MyChurch donne aux destinations (enregistrements, Zoom, casque).
+/// L'utilisateur ne voit rien de tout cela : <see cref="AudioConfiguration.Planifier"/> prépare les sources.
 /// </summary>
 public sealed class ObsMixer : IDisposable
 {
@@ -69,6 +74,9 @@ public sealed class ObsMixer : IDisposable
         public long Vu;
         public double Balance = double.NaN;
         public long Synchro = long.MinValue;
+        /// <summary>Un fichier de musique : il ne part pas tout seul (création, changement de fichier) tant que « Lire » n'est pas demandé.</summary>
+        public bool Arrete;
+        public bool JoueVoulu;
     }
 
     static ObsMixer? courant;
@@ -208,6 +216,14 @@ public sealed class ObsMixer : IDisposable
         if (LibObs.obs_initialized()) throw new InvalidOperationException("libobs est déjà démarrée.");
         courant = this;
         LibObs.base_set_log_handler(journal, IntPtr.Zero);
+        // essais sous Linux (Xvfb) : l'écran X11 d'OpenGL, sans lequel OBS ne mélange pas les pistes
+        if (OperatingSystem.IsLinux() && LibObs.Has("obs_set_nix_platform_display"))
+            try
+            {
+                IntPtr ecran = LibObs.XOpenDisplay(IntPtr.Zero);
+                if (ecran != IntPtr.Zero) { LibObs.obs_set_nix_platform(1 /* X11 EGL */); LibObs.obs_set_nix_platform_display(ecran); }
+            }
+            catch (Exception) { }
         if (!LibObs.obs_startup("fr-FR", null, IntPtr.Zero)) throw new InvalidOperationException("libobs n'a pas démarré (obs_startup).");
         Version = LibObs.Str(LibObs.obs_get_version_string()) ?? "";
         if (LibObs.Has("obs_add_data_path")) LibObs.obs_add_data_path(p.DataPath);
@@ -463,18 +479,21 @@ public sealed class ObsMixer : IDisposable
         else if (etait != sera) LibObs.obs_source_set_monitoring_enabled(b.Source, sera);
     }
 
-    /// <summary>Aligne OBS sur les réglages : crée, met à jour ou retire sources et filtres. À appeler après chaque changement.</summary>
-    public void Apply(AudioConfiguration c)
+    /// <summary>
+    /// Aligne OBS sur les sources voulues : crée, met à jour ou retire sources et filtres. À appeler après chaque changement.
+    /// <paramref name="ecouteId"/> : où OBS fait entendre les sources « dans l'église » (son monitoring) ; « default » = sortie de Windows.
+    /// </summary>
+    public void Apply(IReadOnlyList<AudioSource> sources, string ecouteId = "default", string ecouteNom = "")
     {
         if (!Running) return;
-        string cible = string.IsNullOrEmpty(c.MonitorDeviceId) ? "default" : c.MonitorDeviceId;
+        string cible = string.IsNullOrEmpty(ecouteId) ? "default" : ecouteId;
         if (cible != moniteur)
         {
-            try { if (LibObs.obs_audio_monitoring_available()) LibObs.obs_set_audio_monitoring_device(c.MonitorDeviceName ?? "", cible); } catch (Exception) { }
+            try { if (LibObs.obs_audio_monitoring_available()) LibObs.obs_set_audio_monitoring_device(ecouteNom ?? "", cible); } catch (Exception) { }
             moniteur = cible;
         }
-        foreach (var id in bandes.Keys.Where(id => c.Sources.All(s => s.Id != id)).ToList()) Retirer(id);
-        foreach (var s in c.Sources)
+        foreach (var id in bandes.Keys.Where(id => sources.All(s => s.Id != id)).ToList()) Retirer(id);
+        foreach (var s in sources)
         {
             string type = TypeSource(s);
             if (bandes.TryGetValue(s.Id, out var b) && (b.Kind != s.Kind || b.Type != type)) { Retirer(s.Id); b = null; }
@@ -488,13 +507,14 @@ public sealed class ObsMixer : IDisposable
                 IntPtr source = LibObs.obs_source_create(type, "MyChurch " + s.Id, reglages, IntPtr.Zero);
                 LibObs.obs_data_release(reglages);
                 if (source == IntPtr.Zero) { Log?.Invoke(100, "MyChurch : source OBS refusée (" + type + ")"); continue; }
-                b = new Bande { Id = s.Id, Canal = canal, Source = source, Kind = s.Kind, Type = type, Signature = signature };
+                b = new Bande { Id = s.Id, Canal = canal, Source = source, Kind = s.Kind, Type = type, Signature = signature, Arrete = s.DemarrerArrete };
                 parCanal[canal] = b; bandes[s.Id] = b;
                 if (type == TypeEntree) lock (verrouEntrees) entrees[s.Id] = (source, IntPtr.Zero, 0);
                 b.Volmeter = LibObs.obs_volmeter_create(LibObs.FaderLog);
                 LibObs.obs_volmeter_add_callback(b.Volmeter, vumetre, (IntPtr)canal);
                 LibObs.obs_volmeter_attach_source(b.Volmeter, source);
                 LibObs.obs_set_output_source(canal, source);
+                ArreterSiVoulu(b);
             }
             else if (b.Signature != signature)
             {
@@ -502,7 +522,10 @@ public sealed class ObsMixer : IDisposable
                 LibObs.obs_source_update(b.Source, reglages);
                 LibObs.obs_data_release(reglages);
                 b.Signature = signature;
+                b.Arrete = s.DemarrerArrete;
+                ArreterSiVoulu(b);
             }
+            else b.Arrete = s.DemarrerArrete;
             LibObs.obs_source_set_volume(b.Source, (float)AudioMath.Linear(s.VolumeDb));
             LibObs.obs_source_set_muted(b.Source, s.Muted);
             if (b.Balance != s.Balance && LibObs.Has("obs_source_set_balance_value")) { LibObs.obs_source_set_balance_value(b.Source, (float)s.Balance); b.Balance = s.Balance; }
@@ -621,6 +644,60 @@ public sealed class ObsMixer : IDisposable
     public void RestartMedia(string id)
     {
         if (Running && bandes.TryGetValue(id, out var b) && b.Kind == AudioInputKind.Media) LibObs.obs_source_media_restart(b.Source);
+    }
+
+    // ------------------------------------------------------------ lecture d'un fichier de musique
+    /// <summary>Un fichier de musique créé ou changé reste arrêté tant que « Lire » n'a pas été demandé.</summary>
+    void ArreterSiVoulu(Bande b)
+    {
+        if (b.Kind != AudioInputKind.Media || !b.Arrete || b.JoueVoulu) return;
+        try { if (LibObs.Has("obs_source_media_stop")) LibObs.obs_source_media_stop(b.Source); } catch (Exception e) { Log?.Invoke(200, "MyChurch : arrêt d'un média : " + e.Message); }
+    }
+
+    Bande? Media(string id) => Running && bandes.TryGetValue(id, out var b) && b.Kind == AudioInputKind.Media ? b : null;
+
+    /// <summary>Lit le fichier : reprend après une pause, sinon repart du début.</summary>
+    public void Jouer(string id)
+    {
+        if (Media(id) is not { } b) return;
+        b.JoueVoulu = true;
+        var (etat, _, _) = Lecture(id);
+        if (etat == EtatLecture.Pause) LibObs.obs_source_media_play_pause(b.Source, false);
+        else if (etat != EtatLecture.Lecture) LibObs.obs_source_media_restart(b.Source);
+    }
+
+    public void Pause(string id)
+    {
+        if (Media(id) is not { } b) return;
+        b.JoueVoulu = false;
+        LibObs.obs_source_media_play_pause(b.Source, true);
+    }
+
+    public void Arreter(string id)
+    {
+        if (Media(id) is not { } b) return;
+        b.JoueVoulu = false;
+        LibObs.obs_source_media_stop(b.Source);
+    }
+
+    /// <summary>État, position et durée (ms) d'un fichier de musique.</summary>
+    public (EtatLecture Etat, long Position, long Duree) Lecture(string id)
+    {
+        if (Media(id) is not { } b || !LibObs.Has("obs_source_media_get_state")) return (EtatLecture.Aucun, 0, 0);
+        try
+        {
+            var etat = LibObs.obs_source_media_get_state(b.Source) switch
+            {
+                LibObs.MediaPlaying or LibObs.MediaOpening or LibObs.MediaBuffering => EtatLecture.Lecture,
+                LibObs.MediaPaused => EtatLecture.Pause,
+                LibObs.MediaStopped => EtatLecture.Arret,
+                LibObs.MediaEnded => EtatLecture.Fin,
+                LibObs.MediaError => EtatLecture.Erreur,
+                _ => EtatLecture.Aucun,
+            };
+            return (etat, Math.Max(0, LibObs.obs_source_media_get_time(b.Source)), Math.Max(0, LibObs.obs_source_media_get_duration(b.Source)));
+        }
+        catch (Exception) { return (EtatLecture.Aucun, 0, 0); }
     }
 
     void Arreter()

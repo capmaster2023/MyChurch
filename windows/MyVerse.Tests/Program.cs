@@ -302,7 +302,9 @@ if (Actif())
 {
     var d0 = Donnees.Charger(Temp(), res);
     Ok(d0.Chants.Count == 0 && d0.Agendas.Count == 0 && d0.Annonces.Count == 0 && d0.Duos.Count == 0, $"4.2 : premier démarrage vide, aucun chant ({d0.Chants.Count})");
-    Ok(d0.Reglages.Audio.Sources.Count == 0 && d0.Reglages.Audio.Profiles.Count == 0 && d0.Reglages.Audio.VirtualSounds.Count == 0, "4.2 : premier démarrage, mélangeur vide (aucune source créée)");
+    var a0 = d0.Reglages.Audio; a0.Normalize();
+    Ok(a0.Sons.Count == 1 && a0.Sons[0].Genre == MyVerse.Audio.GenreSon.Video && a0.Sons[0].Eglise && a0.Profiles.Count == 0 && a0.VirtualSounds.Count == 0,
+        "1.3 : premier démarrage, un seul son : celui des vidéos de Display (entendu dans l'église), aucun enregistrement ni envoi");
     var bibles0 = new Bibles(d0).Toutes();
     Ok(bibles0.Count == 2 && bibles0.Any(b => b.Id == "lsg" && b.Integree) && bibles0.Any(b => b.Id == "kjv" && b.Integree), "4.2 : seulement les Bibles libres de droits Louis Segond 1910 et King James", string.Join(", ", bibles0.Select(b => b.Id)));
     Egal(d0.Reglages.Bibles.Principale, "lsg", "Bible principale : Louis Segond 1910");
@@ -381,24 +383,22 @@ if (Actif())
     Egal(d12.Chants.Count, 1, "1.2 : chants conservés");
     var a12 = d12.Reglages.Audio;
     a12.Normalize();
-    Egal(a12.Sources.Count, 0, "1.2 : le mélangeur OBS repart vide (anciennes sources ignorées)");
-    Egal(a12.Profiles.Count, 0, "1.2 : anciens profils d'enregistrement non repris (aucun préréglage)");
-    Egal(a12.MonitorDeviceId, "default", "1.2 : écoute au casque sur le périphérique par défaut");
-    Egal(a12.Version, MyVerse.Audio.AudioConfiguration.Actuelle, "1.2 : version des réglages audio mise à jour");
-    // nouvelles sources : enregistrées sous « obsSources » et relues telles quelles
-    a12.Sources.Add(new MyVerse.Audio.AudioSource { Name = "Chaire", Kind = MyVerse.Audio.AudioInputKind.Microphone, Tracks = 5, Monitoring = MyVerse.Audio.AudioMonitoring.Only,
-        Filters = { new MyVerse.Audio.AudioFilter { Kind = MyVerse.Audio.AudioFilterKind.Compressor, Ratio = 6 } } });
+    Egal(string.Join(",", a12.Sons.Select(s => s.Genre)), "Video", "1.2 bêta : l'ancien mixeur n'est pas repris, seul le son des vidéos");
+    Egal(a12.Profiles.Count, 0, "1.2 bêta : anciens profils d'enregistrement non repris (aucun préréglage)");
+    Egal(a12.Eglise.Appareil, "default", "1.2 bêta : l'église sur la sortie de Windows");
+    Egal(a12.Version, MyVerse.Audio.AudioConfiguration.Actuelle, "1.2 bêta : version des réglages audio mise à jour");
+    // un son ajouté : écrit sous « sons », relu tel quel
+    var chaire = MyVerse.Audio.Son.Nouveau(MyVerse.Audio.GenreSon.Voix, "Chaire");
+    chaire.Appareil = "{umc}"; chaire.Entree = 2; chaire.VolumeDb = -4.5; chaire.Coupe = true;
+    a12.Ajouter(chaire);
     d12.SauverReglages();
     var json = File.ReadAllText(Path.Combine(dir, "reglages.json"));
-    Ok(json.Contains("\"obsSources\"") && !json.Contains("\"sources\""), "3.0 : sources écrites sous « obsSources »");
+    Ok(json.Contains("\"sons\"") && !json.Contains("\"obsSources\"") && !json.Contains("\"sources\"") && !json.Contains("Tracks") && !json.Contains("Monitoring"), "1.3 : sons écrits sous « sons », sans pistes ni monitoring");
     var r12 = Donnees.Charger(dir, res).Reglages.Audio;
     r12.Normalize();
-    Egal(r12.Sources.Count, 1, "3.0 : source relue");
-    Egal(r12.Sources.FirstOrDefault()?.Tracks, 5, "3.0 : pistes relues");
-    Egal(r12.Sources.FirstOrDefault()?.Monitoring, MyVerse.Audio.AudioMonitoring.Only, "3.0 : écoute relue");
-    Egal(r12.Sources.FirstOrDefault()?.Filters.FirstOrDefault()?.Ratio, 6.0, "3.0 : filtre relu");
-    var neuf = new MyVerse.Audio.AudioConfiguration(); neuf.Normalize();
-    Ok(neuf.Sources.Count == 0 && neuf.Profiles.Count == 0 && neuf.VirtualSounds.Count == 0, "nouveaux réglages : mélangeur vide, aucun enregistrement ni sortie (rien de préréglé)");
+    var relue = r12.Sons.FirstOrDefault(s => s.Nom == "Chaire");
+    Ok(relue is { Genre: MyVerse.Audio.GenreSon.Voix, Appareil: "{umc}", Entree: 2, VolumeDb: -4.5, Coupe: true, EnleverBruit: true, VolumeRegulier: true, Eglise: false }, "1.3 : son relu avec ses réglages");
+    Ok(r12.Sons.Count == 2 && r12.Sons[^1].Genre == MyVerse.Audio.GenreSon.Video, "le son des vidéos reste le dernier");
 }
 
 // ------------------------------------------------------------------ régie
@@ -1095,63 +1095,77 @@ if (Actif())
     var c4 = MyVerse.Audio.RecordingProfile.Cadres(4, "cote");
     Ok(c4.Count == 4 && c4.All(x => x.W == 0.5 && x.H == 0.5) && c4[3] == (0.5, 0.5, 0.5, 0.5), "côte à côte : 4 sources en grille 2 × 2");
 
-    // 3.1 : une bande par entrée d'une carte son (entrée 0 = toutes ensemble)
+    // une entrée d'une carte son (0 = toutes ensemble), bornée ; 0 hors micro
     var ent = new MyVerse.Audio.AudioConfiguration();
-    ent.Sources.Add(new MyVerse.Audio.AudioSource { Id = "e3", Kind = MyVerse.Audio.AudioInputKind.Microphone, Channel = 3 });
-    ent.Sources.Add(new MyVerse.Audio.AudioSource { Id = "trop", Kind = MyVerse.Audio.AudioInputKind.Microphone, Channel = 99 });
-    ent.Sources.Add(new MyVerse.Audio.AudioSource { Id = "neg", Kind = MyVerse.Audio.AudioInputKind.Microphone, Channel = -2 });
-    ent.Sources.Add(new MyVerse.Audio.AudioSource { Id = "media", Kind = MyVerse.Audio.AudioInputKind.Media, Channel = 2 });
+    ent.Sons.Add(new MyVerse.Audio.Son { Id = "e3", Genre = MyVerse.Audio.GenreSon.Voix, Entree = 3 });
+    ent.Sons.Add(new MyVerse.Audio.Son { Id = "trop", Genre = MyVerse.Audio.GenreSon.Voix, Entree = 99 });
+    ent.Sons.Add(new MyVerse.Audio.Son { Id = "neg", Genre = MyVerse.Audio.GenreSon.Instrument, Entree = -2 });
+    ent.Sons.Add(new MyVerse.Audio.Son { Id = "fichier", Genre = MyVerse.Audio.GenreSon.Fichier, Entree = 2 });
     ent.Normalize();
-    Ok(ent.Sources.Select(x => x.Channel).SequenceEqual(new[] { 3, MyVerse.Audio.AudioConfiguration.MaxEntrees, 0, 0 }), "entrée d'un micro : gardée, bornée, et 0 hors micro", string.Join(",", ent.Sources.Select(x => x.Channel)));
-    var entJson = System.Text.Json.JsonSerializer.Serialize(ent, Donnees.Json);
-    var entRelu = System.Text.Json.JsonSerializer.Deserialize<MyVerse.Audio.AudioConfiguration>(entJson, Donnees.Json)!;
-    Ok(entRelu.Sources[0].Channel == 3, "l'entrée d'une bande est enregistrée dans les réglages");
-    var ancien = System.Text.Json.JsonSerializer.Deserialize<MyVerse.Audio.AudioConfiguration>("{\"obsSources\":[{\"Id\":\"m\",\"Name\":\"Micro\",\"Kind\":0}]}", Donnees.Json)!;
-    ancien.Normalize();
-    Ok(ancien.Sources.Count == 1 && ancien.Sources[0].Channel == 0, "réglages de la 3.0 : un micro garde toutes ses entrées ensemble");
+    Ok(ent.Sons.Take(4).Select(x => x.Entree).SequenceEqual(new[] { 3, MyVerse.Audio.AudioConfiguration.MaxEntrees, 0, 0 }), "entrée d'un micro : gardée, bornée, et 0 hors micro", string.Join(",", ent.Sons.Select(x => x.Entree)));
+    var entRelu = System.Text.Json.JsonSerializer.Deserialize<MyVerse.Audio.AudioConfiguration>(System.Text.Json.JsonSerializer.Serialize(ent, Donnees.Json), Donnees.Json)!;
+    Ok(entRelu.Sons[0].Entree == 3, "l'entrée d'un son est enregistrée dans les réglages");
+
+    // 1.3 : chaque destination reçoit « tout le son » ou les sons choisis ; MyChurch donne les pistes d'OBS tout seul
     var cfg = new MyVerse.Audio.AudioConfiguration();
-    foreach (var n in new[] { "guitare", "piano", "chanteur", "pasteur" }) cfg.Sources.Add(new MyVerse.Audio.AudioSource { Id = n, Name = n });
-    var louange = new MyVerse.Audio.RecordingProfile { Name = "Louange", Track = 2 };
-    var predication = new MyVerse.Audio.RecordingProfile { Name = "Prédication", Track = 3, DisplayIds = { "projection", "camera1" }, Layout = "cote" };
-    cfg.Profiles.Add(louange); cfg.Profiles.Add(predication);
-    var zoom = new MyVerse.Audio.VirtualSoundSettings { Name = "Zoom", Enabled = true, Track = 9 };
-    var flux = new MyVerse.Audio.VirtualSoundSettings { Name = "Direct YouTube", Track = 2 };
+    foreach (var n in new[] { "guitare", "piano", "chanteur", "pasteur" }) cfg.Ajouter(new MyVerse.Audio.Son { Id = n, Nom = n, Genre = MyVerse.Audio.GenreSon.Voix });
+    var louange = new MyVerse.Audio.RecordingProfile { Name = "Louange", ChoixSons = new() { "guitare", "piano", "chanteur" } };
+    var predication = new MyVerse.Audio.RecordingProfile { Name = "Prédication", ChoixSons = new() { "pasteur", "inconnu" }, DisplayIds = { "projection", "camera1" }, Layout = "cote" };
+    var culte = new MyVerse.Audio.RecordingProfile { Name = "Culte" };
+    cfg.Profiles.Add(louange); cfg.Profiles.Add(predication); cfg.Profiles.Add(culte);
+    var zoom = new MyVerse.Audio.VirtualSoundSettings { Name = "Zoom", Enabled = true };
+    var flux = new MyVerse.Audio.VirtualSoundSettings { Name = "Direct YouTube", Enabled = true, ChoixSons = new() { "piano", "chanteur", "guitare" } };
     cfg.VirtualSounds.Add(zoom); cfg.VirtualSounds.Add(flux);
     cfg.Normalize();
-    Ok(louange.AudioOnly && louange.Format == "wav" && !predication.AudioOnly && predication.Format == "mkv", "sans source Display : son seulement (WAV) ; avec : vidéo MKV");
+    Ok(louange.AudioOnly && louange.Format == "mp3" && !predication.AudioOnly && predication.Format == "mkv", "sans source Display : le son seul, en MP3 ; avec : vidéo MKV");
     Ok(louange.Directory.EndsWith("Louange"), "dossier propre à chaque enregistrement : Vidéos\\MyChurch\\Louange");
     var vis = predication.VisuelsDisplay();
     Ok(vis.Count == 2 && vis[0].Kind == "projection" && vis[1].Kind == "annonce" && vis[1].Annonce == "camera1" && vis[1].X == 0.5, "vidéo : la projection et la caméra côte à côte");
-    // 4.2 : comme dans OBS, chaque destination prend une piste et chaque source coche ses pistes
-    Ok(louange.Track == 2 && predication.Track == 3 && flux.Track == 2 && zoom.Track == 1, "chaque destination garde sa piste (piste inconnue ramenée à 1)", $"{louange.Track} {predication.Track} {flux.Track} {zoom.Track}");
-    Ok(cfg.Sources.All(x => x.Tracks == MyVerse.Audio.AudioConfiguration.ToutesLesPistes), "par défaut, chaque source va dans les 6 pistes (comme OBS)");
-    foreach (var x in cfg.Sources) x.Tracks = x.Id == "pasteur" ? 0b000101 : 0b000011;
-    Egal(string.Join(",", cfg.SourcesDeLaPiste(3).Select(x => x.Id)), "pasteur", "piste 3 (Prédication) : le pasteur seul");
-    Egal(string.Join(",", cfg.SourcesDeLaPiste(2).Select(x => x.Id)), "guitare,piano,chanteur", "piste 2 (Louange et YouTube) : les musiciens");
-    cfg.Sources.First(x => x.Id == "guitare").Monitoring = MyVerse.Audio.AudioMonitoring.Only;
-    Egal(string.Join(",", cfg.SourcesDeLaPiste(2).Select(x => x.Id)), "piano,chanteur", "monitoring uniquement : la source ne va dans aucune piste");
-    var piste = cfg.Sources.First(x => x.Id == "piano");
-    piste.Tracks = 0x7FF; cfg.Normalize();
-    Egal(piste.Tracks, MyVerse.Audio.AudioConfiguration.ToutesLesPistes, "pistes au-delà de 6 ignorées");
-    var relu = System.Text.Json.JsonSerializer.Deserialize<MyVerse.Audio.AudioConfiguration>(System.Text.Json.JsonSerializer.Serialize(cfg, Donnees.Json), Donnees.Json)!;
-    relu.Normalize();
-    Ok(relu.Profiles[0].Track == 2 && relu.Sources.First(x => x.Id == "pasteur").Tracks == 0b000101, "pistes relues");
-    // plus de 5 enregistrements ou 4 sorties
+    Ok(predication.ChoixSons!.SequenceEqual(new[] { "pasteur" }), "un son inconnu est oublié");
+    var plan = cfg.Planifier();
+    Ok(culte.Track == 1 && zoom.Track == 1 && plan.PisteDe(MyVerse.Audio.AudioConfiguration.IdCasque) == 1, "tout le son : la piste 1 (Culte, Zoom, casque)", $"{culte.Track} {zoom.Track}");
+    Ok(flux.Track == louange.Track && louange.Track > 1 && predication.Track > 1 && predication.Track != louange.Track, "les mêmes sons choisis : la même piste ; d'autres sons : une autre piste", $"louange {louange.Track}, YouTube {flux.Track}, prédication {predication.Track}");
+    Ok(flux.Track == 2, "les destinations actives passent en premier (YouTube, actif, reçoit la piste 2)", flux.Track.ToString());
+    string Pistes(string id) => string.Concat(Enumerable.Range(1, 6).Select(t => plan.Moteur.First(x => x.Id == id).DansPiste(t) ? t.ToString() : "·"));
+    Egal(Pistes("pasteur"), "1·3···", "Pasteur : tout le son et Prédication");
+    Egal(Pistes("piano"), "12····", "Piano : tout le son et Louange (avec YouTube)");
+    Egal(Pistes(cfg.SonVideos.Id), "1·····", "Vidéos : tout le son seulement");
+    Egal(cfg.Recoit(predication), "pasteur seulement", "ce que reçoit une destination, en mots");
+    Egal(cfg.Recoit(louange), "guitare, piano et chanteur", "plusieurs sons, en mots");
+    Egal(cfg.Recoit(zoom), "Tout le son", "tout le son, en mots");
+    flux.Enabled = false;
+    cfg.Planifier(actives: new HashSet<string> { predication.Id });
+    Ok(predication.Track == 2, "un enregistrement qui tourne passe en priorité pour sa piste", predication.Track.ToString());
+    // retirer un son : il disparaît des choix ; le son des vidéos ne se retire pas
+    Ok(cfg.Retirer(cfg.Sons.First(x => x.Id == "pasteur")) && predication.ChoixSons!.Count == 0 && !cfg.Retirer(cfg.SonVideos), "retirer un son l'enlève des destinations ; le son des vidéos reste");
+    Egal(cfg.Recoit(predication), "Aucun son", "plus aucun son choisi");
+    // trop de mélanges différents : les suivants reçoivent tout le son, avec une alerte
+    var beaucoup = new MyVerse.Audio.AudioConfiguration();
+    for (int i = 0; i < 7; i++) beaucoup.Ajouter(new MyVerse.Audio.Son { Id = "s" + i, Nom = "Son " + i });
+    for (int i = 0; i < 5; i++) beaucoup.Profiles.Add(new MyVerse.Audio.RecordingProfile { Name = "E" + i, ChoixSons = new() { "s" + i } });
+    for (int i = 0; i < 2; i++) beaucoup.VirtualSounds.Add(new MyVerse.Audio.VirtualSoundSettings { Name = "V" + i, ChoixSons = new() { "s" + (5 + i) } });
+    beaucoup.Normalize();
+    var pb = beaucoup.Planifier();
+    Ok(pb.Alertes.Count == 2 && beaucoup.Destinations().Count(d => d.Track == 1) == 2 && beaucoup.Destinations().Select(d => d.Track).Where(t => t > 1).Distinct().Count() == 5,
+        "6 pistes : 5 mélanges choisis au plus, les autres reçoivent tout le son (avec une alerte)", string.Join(" | ", pb.Alertes));
+    // plus de 5 enregistrements ou 4 envois
     var trop = new MyVerse.Audio.AudioConfiguration();
     for (int i = 0; i < 7; i++) trop.Profiles.Add(new MyVerse.Audio.RecordingProfile());
     for (int i = 0; i < 6; i++) trop.VirtualSounds.Add(new MyVerse.Audio.VirtualSoundSettings());
     trop.Normalize();
-    Ok(trop.Profiles.Count == 5 && trop.VirtualSounds.Count == 4, "5 enregistrements et 4 sorties au plus");
+    Ok(trop.Profiles.Count == 5 && trop.VirtualSounds.Count == 4, "5 enregistrements et 4 envois au plus");
     // réglages de la 3.0.0 : une seule sortie MyVirtualSound sur une piste choisie à la main
-    var json30 = """{"version":3,"virtualSound":{"enabled":true,"deviceId":"","track":2},"obsSources":[{"id":"a","name":"Micro","tracks":2},{"id":"b","name":"Ordi","tracks":1}],"profiles":[{"name":"Enregistrement","track":1}]}""";
+    var json30 = """{"version":3,"virtualSound":{"enabled":true,"deviceId":"","track":2},"obsSources":[{"id":"a","name":"Micro","tracks":2},{"id":"b","name":"Ordi","kind":1,"tracks":1}],"profiles":[{"name":"Enregistrement","track":1}]}""";
     var a30 = System.Text.Json.JsonSerializer.Deserialize<MyVerse.Audio.AudioConfiguration>(json30, Donnees.Json)!;
     a30.Normalize();
     var z30 = a30.VirtualSounds.FirstOrDefault();
-    Ok(a30.VirtualSounds.Count == 1 && z30 is { Name: "Zoom", Enabled: true, Track: 1 } && a30.Sources[0].DansPiste(1) && !a30.Sources[1].DansPiste(1),
-        "3.0.0 : la sortie MyVirtualSound devient « Zoom », sur une piste avec les sources de son ancienne piste");
+    Ok(a30.VirtualSounds.Count == 1 && z30 is { Name: "Zoom", Enabled: true } && z30.ChoixSons is ["a"],
+        "3.0.0 : la sortie MyVirtualSound devient « Zoom », avec les sources de son ancienne piste", string.Join(",", z30?.ChoixSons ?? new()));
+    Ok(a30.Sons.Select(x => x.Genre).SequenceEqual(new[] { MyVerse.Audio.GenreSon.Voix, MyVerse.Audio.GenreSon.Ordinateur, MyVerse.Audio.GenreSon.Video }), "3.0.0 : un micro, le son de l'ordinateur, puis le son des vidéos");
     Ok(a30.Profiles.Count == 0 && a30.AncienneSortie == null && a30.Version == MyVerse.Audio.AudioConfiguration.Actuelle, "3.0.0 : le profil automatique n'est pas repris");
     var relu30 = System.Text.Json.JsonSerializer.Serialize(a30, Donnees.Json);
-    Ok(relu30.Contains("\"sortiesVirtuelles\"") && relu30.Contains("\"enregistrements\"") && !relu30.Contains("\"virtualSound\"") && !relu30.Contains("SourceIds"), "enregistré sous les nouveaux noms, sans les anciennes listes de sources");
+    Ok(relu30.Contains("\"sortiesVirtuelles\"") && relu30.Contains("\"enregistrements\"") && relu30.Contains("\"sons\"") && !relu30.Contains("\"virtualSound\"") && !relu30.Contains("SourceIds")
+        && !relu30.Contains("obsSources") && !relu30.Contains("\"track\""), "enregistré sous les nouveaux noms, sans les anciennes listes ni pistes", relu30);
 }
 
 Groupe("MyCam H.264 (4.1)");
@@ -1411,29 +1425,80 @@ if (Actif())
     Ok(tel.Cameras.InfoDe("tel-cam") is { Diffuse: false }, "téléphone parti : MyCam ne diffuse plus");
 }
 
-Groupe("Audio simplifié comme OBS (4.2)");
+Groupe("Son simple (1.3)");
 if (Actif())
 {
-    // une nouvelle source : comme dans OBS
-    var e = new MyVerse.Audio.AudioSource { Kind = MyVerse.Audio.AudioInputKind.Microphone };
-    var so = new MyVerse.Audio.AudioSource { Kind = MyVerse.Audio.AudioInputKind.Sortie };
-    var me = new MyVerse.Audio.AudioSource { Kind = MyVerse.Audio.AudioInputKind.Media };
-    Ok(e.Tracks == 0b111111 && e.UseDeviceTiming == null && !e.Horodatage && so.Horodatage && !me.Horodatage,
-        "nouvelle source : pistes 1 à 6, horodatage du périphérique comme OBS (non pour une entrée, oui pour une sortie)");
-    e.UseDeviceTiming = true; so.UseDeviceTiming = false;
-    Ok(e.Horodatage && !so.Horodatage, "« Utiliser l'horodatage du périphérique » choisi : gardé");
-    Egal(MyVerse.Audio.AudioConfiguration.NomType(e) + " | " + MyVerse.Audio.AudioConfiguration.NomType(so) + " | " + MyVerse.Audio.AudioConfiguration.NomType(me),
-        "Capture audio (entrée) | Capture audio (sortie) | Média", "noms des types de sources d'OBS");
-    var noms = new MyVerse.Audio.AudioConfiguration();
-    noms.Sources.Add(new MyVerse.Audio.AudioSource { Name = "Capture audio (entrée)" });
-    Egal(noms.NomLibre("Capture audio (entrée)"), "Capture audio (entrée) 2", "nom suivant, comme OBS");
-    var bornes = new MyVerse.Audio.AudioSource { Balance = 3, SyncOffsetMs = 50000, Kind = MyVerse.Audio.AudioInputKind.Media, UseDeviceTiming = true };
-    var bornes2 = new MyVerse.Audio.AudioSource { Balance = double.NaN, SyncOffsetMs = -5000, Channel = 99 };
-    noms.Sources.Add(bornes); noms.Sources.Add(bornes2); noms.Normalize();
-    Ok(bornes.Balance == 1 && bornes2.Balance == 0.5 && bornes.SyncOffsetMs == 20000 && bornes2.SyncOffsetMs == -950, "balance (0 à 1) et décalage de synchro (−950 à 20 000 ms) dans les bornes d'OBS");
-    Ok(bornes.UseDeviceTiming == null && bornes2.Channel == MyVerse.Audio.AudioConfiguration.MaxEntrees, "un média n'a pas d'horodatage de périphérique ; entrée bornée");
+    // un nouveau son : les réglages intelligents de son genre
+    var voix = MyVerse.Audio.Son.Nouveau(MyVerse.Audio.GenreSon.Voix, "Pasteur");
+    var piano = MyVerse.Audio.Son.Nouveau(MyVerse.Audio.GenreSon.Instrument, "Piano");
+    var table = MyVerse.Audio.Son.Nouveau(MyVerse.Audio.GenreSon.Table, "Table");
+    var ordi = MyVerse.Audio.Son.Nouveau(MyVerse.Audio.GenreSon.Ordinateur, "Ordinateur");
+    var musique = MyVerse.Audio.Son.Nouveau(MyVerse.Audio.GenreSon.Fichier, "Attente");
+    Ok(voix is { EnleverBruit: true, VolumeRegulier: true, Eglise: false, Capture: MyVerse.Audio.AudioInputKind.Microphone }, "micro : bruit enlevé, volume régulier, pas dans les haut-parleurs (larsen)");
+    Ok(piano is { EnleverBruit: false, VolumeRegulier: false, Eglise: false } && table is { EnleverBruit: false, Eglise: false }, "instrument et table de mixage : la musique n'est pas « nettoyée »");
+    Ok(ordi.Capture == MyVerse.Audio.AudioInputKind.Sortie && !ordi.Eglise && musique is { Capture: MyVerse.Audio.AudioInputKind.Media, Eglise: true }, "ordinateur : capté sur sa sortie ; musique : entendue dans l'église");
+    var cfg = new MyVerse.Audio.AudioConfiguration();
+    foreach (var s in new[] { voix, piano, table, ordi, musique }) cfg.Ajouter(s);
+    cfg.Normalize();
+    Ok(cfg.Sons.Count == 6 && cfg.Sons[^1].Genre == MyVerse.Audio.GenreSon.Video && cfg.Sons[^1].Nom == "Vidéos de Display", "le son des vidéos est ajouté tout seul, à la fin");
+    var deuxieme = MyVerse.Audio.Son.Nouveau(MyVerse.Audio.GenreSon.Voix, "Chorale"); cfg.Ajouter(deuxieme);
+    Ok(cfg.Sons[^1].Genre == MyVerse.Audio.GenreSon.Video && cfg.Sons[^2] == deuxieme, "un son ajouté passe avant le son des vidéos");
+    cfg.Retirer(deuxieme);
+    Egal(cfg.NomLibre("pasteur"), "pasteur 2", "nom suivant (sans tenir compte des majuscules)");
+    Egal(MyVerse.Audio.AudioConfiguration.Description(new MyVerse.Audio.Son { Genre = MyVerse.Audio.GenreSon.Voix, Appareil = "{umc}", NomAppareil = "Line In (Behringer UMC404HD)", Entree = 2 }),
+        "Micro · Behringer UMC404HD · entrée 2", "description : ce que c'est et où c'est branché");
+    Egal(MyVerse.Audio.AudioConfiguration.Description(ordi), "Tout ce que joue l'ordinateur", "description du son de l'ordinateur");
+    var plan = cfg.Planifier("C:\\videos\\annonce.mp4");
+    var mv = plan.Moteur.First(x => x.Id == voix.Id);
+    Ok(mv.Mono && mv.Filters.Select(f => f.Kind).SequenceEqual(new[] { MyVerse.Audio.AudioFilterKind.NoiseSuppression, MyVerse.Audio.AudioFilterKind.Compressor, MyVerse.Audio.AudioFilterKind.Limiter })
+        && mv.Monitoring == MyVerse.Audio.AudioMonitoring.Off && mv.Kind == MyVerse.Audio.AudioInputKind.Microphone, "moteur : une voix est mono, nettoyée et régulière, hors de l'église");
+    var mm = plan.Moteur.First(x => x.Id == musique.Id);
+    Ok(mm.DemarrerArrete && !mm.Mono && mm.Filters.Count == 0 && mm.Monitoring == MyVerse.Audio.AudioMonitoring.AndOutput, "moteur : la musique attend « Lire », stéréo, dans l'église");
+    var mvid = plan.Moteur.First(x => x.Id == cfg.SonVideos.Id);
+    Ok(mvid.FollowProjection && mvid.MediaPath == "C:\\videos\\annonce.mp4" && !mvid.DemarrerArrete && mvid.Monitoring == MyVerse.Audio.AudioMonitoring.AndOutput, "moteur : le son des vidéos joue la vidéo à l'écran, dans l'église");
+    var filtres = plan.Moteur.SelectMany(x => x.Filters.Select(f => f.Id)).ToList();
+    Ok(filtres.Distinct().Count() == filtres.Count, "chaque aide a son propre identifiant dans OBS");
+    piano.EnleverBruit = true; ordi.Entree = 3; ordi.Capture = MyVerse.Audio.AudioInputKind.Microphone; cfg.Normalize();
+    Ok(!piano.EnleverBruit && ordi.Capture == MyVerse.Audio.AudioInputKind.Sortie && ordi.Entree == 0, "une musique ne se nettoie pas ; le son de l'ordinateur reste capté sur sa sortie");
+    // un envoi vers une sortie de l'ordinateur ne reçoit pas le son de cette même sortie (sinon : larsen)
+    var salle = new MyVerse.Audio.VirtualSoundSettings { Name = "Salle 2", Enabled = true, DeviceId = "default" };
+    var cable = new MyVerse.Audio.VirtualSoundSettings { Name = "Zoom", Enabled = true };
+    cfg.VirtualSounds.Add(salle); cfg.VirtualSounds.Add(cable); cfg.Casque.Actif = true;
+    var p2 = cfg.Planifier();
+    Ok(cable.Track == 1 && salle.Track > 1 && !p2.SonsDesPistes[salle.Track].Contains(ordi.Id) && p2.SonsDesPistes[salle.Track].Contains(voix.Id), "un envoi vers la sortie de Windows ne reçoit pas le son de l'ordinateur (pas de larsen)");
+    Ok(p2.PisteDe(MyVerse.Audio.AudioConfiguration.IdCasque) == salle.Track, "le casque sur la sortie de Windows : pareil");
+    cfg.Casque.Appareil = "{casque-usb}";
+    Ok(cfg.Planifier().PisteDe(MyVerse.Audio.AudioConfiguration.IdCasque) == 1, "le casque sur son propre appareil : tout le son");
+    Ok(MyVerse.Audio.AudioConfiguration.DevinerGenre("Piano droit") == MyVerse.Audio.GenreSon.Instrument && MyVerse.Audio.AudioConfiguration.DevinerGenre("Table de mixage") == MyVerse.Audio.GenreSon.Table
+        && MyVerse.Audio.AudioConfiguration.DevinerGenre("Micro pasteur") == MyVerse.Audio.GenreSon.Voix, "un ancien micro est reconnu d'après son nom (piano, table, voix)");
 
-    // réglages de la 4.1 (audio « comme OBS 32 ») : tout ce qui a disparu est oublié, les mélanges sont gardés en pistes
+    // le volume en % : 100 % = normal
+    Ok(MyVerse.Audio.VolumeCurseur.Pourcent(0) == 100 && MyVerse.Audio.VolumeCurseur.Pourcent(6) == 125 && MyVerse.Audio.VolumeCurseur.Pourcent(-60) == 0 && MyVerse.Audio.VolumeCurseur.Pourcent(-18) == 50,
+        "volume en % : 100 % = normal, 125 % au plus, 50 % ≈ −18 dB");
+    var courbe = Enumerable.Range(0, 101).Select(i => MyVerse.Audio.VolumeCurseur.Db(i / 100.0)).ToList();
+    Ok(courbe.Zip(courbe.Skip(1)).All(x => x.Second >= x.First) && Math.Abs(MyVerse.Audio.VolumeCurseur.Db(MyVerse.Audio.VolumeCurseur.Position(-7.5)) + 7.5) < 1e-9, "le curseur de volume monte toujours, et retombe sur le même volume");
+    Egal(MyVerse.Audio.VolumeCurseur.Texte(-60), "Muet", "volume au minimum : Muet");
+    // ce que dit la carte d'un son
+    var suivi = new MyVerse.Audio.SuiviNiveau();
+    suivi.Ajouter(double.NegativeInfinity, 0); Egal(suivi.Verdict(0), MyVerse.Audio.VerdictNiveau.Silence, "rien : silence");
+    suivi.Ajouter(-40, 100); Egal(suivi.Verdict(100), MyVerse.Audio.VerdictNiveau.Faible, "−40 dBFS : un peu faible");
+    suivi.Ajouter(-12, 200); Egal(suivi.Verdict(200), MyVerse.Audio.VerdictNiveau.Bon, "−12 dBFS : bon niveau");
+    suivi.Ajouter(-0.2, 300); Egal(suivi.Verdict(1500), MyVerse.Audio.VerdictNiveau.TropFort, "le plafond touché : trop fort, pendant 2 s");
+    Egal(suivi.Verdict(2400), MyVerse.Audio.VerdictNiveau.Bon, "puis de nouveau bon");
+    Egal(suivi.Verdict(3500), MyVerse.Audio.VerdictNiveau.Silence, "3 s sans rien : silence");
+    // la protection anti-saturation des destinations
+    var prot = new MyVerse.Audio.ProtectionSaturation();
+    var fort = Enumerable.Range(0, 4800).Select(i => (float)(1.8 * Math.Sin(i / 10.0))).ToArray();
+    prot.Traiter(fort, fort.Length);
+    Ok(fort.All(x => Math.Abs(x) <= 0.8913f) && prot.Retenu(), "protection : un son trop fort ne dépasse jamais −1 dBFS", fort.Max(Math.Abs).ToString("0.0000"));
+    var doux = Enumerable.Range(0, 4800).Select(i => (float)(0.3 * Math.Sin(i / 10.0))).ToArray(); var copie = doux.ToArray();
+    var prot2 = new MyVerse.Audio.ProtectionSaturation(); prot2.Traiter(doux, doux.Length);
+    Ok(doux.SequenceEqual(copie) && !prot2.Retenu(), "protection : un son normal passe sans changement");
+    var pic = new float[96000]; pic[0] = pic[1] = 1.5f; for (int i = 2; i < pic.Length; i++) pic[i] = 0.5f;
+    var prot3 = new MyVerse.Audio.ProtectionSaturation(); prot3.Traiter(pic, pic.Length);
+    Ok(Math.Abs(pic[^1] - 0.5f) < 0.01f, "protection : après une pointe, le son revient à son niveau", pic[^1].ToString("0.000"));
+
+    // réglages de la 4.1 (audio « comme OBS 32 ») : les sources deviennent des sons, chaque destination reçoit ses sources
     var dir41 = Temp();
     File.WriteAllText(Path.Combine(dir41, "reglages.json"), """
     {"version":4,"theme":"nuit","audio":{"Version":5,"SampleRate":44100,"Channels":"5.1","MeterDecay":"lente","PeakMeter":"reelle","DisableDucking":true,"LowLatency":true,
@@ -1453,44 +1518,63 @@ if (Actif())
     var d41 = Donnees.Charger(dir41, res);
     var a41 = d41.Reglages.Audio;
     a41.Normalize();
-    Egal(string.Join(",", a41.Sources.Select(x => x.Name)), "Audio du bureau,Micro/Aux,Pasteur,Chorale,Guitare", "4.1 : toutes les sources gardées, dans le même ordre (les globales et les masquées deviennent des sources ordinaires)");
-    var pasteur41 = a41.Sources.First(x => x.Id == "pasteur");
-    Ok(pasteur41 is { Channel: 1, Balance: 0.25, SyncOffsetMs: 120, VolumeDb: -3, DeviceId: "{umc}" } && a41.Sources.First(x => x.Id == "guitare").Mono && a41.Sources.First(x => x.Id == "chorale").Monitoring == MyVerse.Audio.AudioMonitoring.AndOutput,
-        "4.1 : entrée, volume, balance, synchro, mono et monitoring gardés");
+    Egal(string.Join(",", a41.Sons.Select(x => x.Nom)), "Audio du bureau,Micro/Aux,Pasteur,Chorale,Guitare,Vidéos de Display", "4.1 : toutes les sources deviennent des sons, dans le même ordre ; le son des vidéos s'ajoute à la fin");
+    Egal(string.Join(",", a41.Sons.Select(x => x.Genre)), "Ordinateur,Voix,Voix,Voix,Instrument,Video", "4.1 : chaque son reconnu (l'ordinateur, des micros, une guitare)");
+    var pasteur41 = a41.Sons.First(x => x.Id == "pasteur");
+    Ok(pasteur41 is { Entree: 1, VolumeDb: -3, Appareil: "{umc}", NomAppareil: "Line (UMC404HD)", Eglise: false } && a41.Sons.First(x => x.Id == "chorale").Eglise,
+        "4.1 : entrée, volume et appareil gardés ; le monitoring devient « dans l'église »");
     var culte41 = a41.Profiles.First(x => x.Id == "culte"); var pred41 = a41.Profiles.First(x => x.Id == "predication"); var zoom41 = a41.VirtualSounds.First();
-    Ok(culte41.Track == 1 && pred41.Track == 2 && zoom41.Track == 3, "4.1 : un mélange différent par piste (Culte 1, Prédication 2, Zoom 3)", $"{culte41.Track} {pred41.Track} {zoom41.Track}");
-    string Pistes(string id) => string.Concat(Enumerable.Range(1, 6).Select(t => a41.Sources.First(x => x.Id == id).DansPiste(t) ? t.ToString() : "·"));
-    Egal(Pistes("pasteur"), "123456", "Pasteur : dans Culte, Prédication et Zoom (et les pistes libres)");
-    Egal(Pistes("chorale"), "1·3456", "Chorale : Culte et Zoom");
-    Egal(Pistes("guitare"), "1··456", "Guitare : Culte seulement");
-    Egal(Pistes("bureau"), "1··456", "Audio du bureau : Culte seulement");
-    Egal(Pistes("micro"), "···456", "Micro/Aux : dans aucun mélange, seulement les pistes libres");
-    Ok(a41.MonitorDeviceId == "{casque}" && a41.MonitorDeviceName == "Casque (USB)" && zoom41 is { Enabled: true, VolumeDb: -2 }, "4.1 : périphérique de monitoring et sortie Zoom gardés");
-    Egal(a41.Version, MyVerse.Audio.AudioConfiguration.Actuelle, "4.1 : réglages audio passés en version 6");
+    Egal(a41.Recoit(culte41), "Audio du bureau, Pasteur, Chorale et Guitare", "4.1 : Culte reçoit ses sources (sans Micro/Aux)");
+    Egal(a41.Recoit(pred41), "Pasteur seulement", "4.1 : Prédication, le pasteur seul");
+    Egal(a41.Recoit(zoom41), "Pasteur et Chorale", "4.1 : Zoom, le pasteur et la chorale");
+    Ok(a41.Eglise.Appareil == "{casque}" && a41.Eglise.NomAppareil == "Casque (USB)" && zoom41.Enabled && culte41.Format == "wav" && pred41.Format == "wav",
+        "4.1 : le périphérique de monitoring devient les haut-parleurs de l'église ; Zoom gardé ; FLAC devient WAV");
+    Egal(a41.Version, MyVerse.Audio.AudioConfiguration.Actuelle, "4.1 : réglages audio passés en version 7");
     d41.SauverReglages();
-    var json42 = File.ReadAllText(Path.Combine(dir41, "reglages.json"));
-    var oublies = new[] { "SampleRate", "Channels", "MeterDecay", "PeakMeter", "DisableDucking", "LowLatency", "AutoAddInputs", "KnownInputs", "GlobalsInitialized", "ShowHidden", "HiddenRight", "VerticalLayout", "FfmpegPath", "MicrophoneId", "\"Global\"", "Pinned", "Hidden", "PushToTalk", "MuteOthers", "SourceIds" };
-    Ok(oublies.All(x => !json42.Contains(x)), "4.2 : les réglages disparus ne sont plus écrits", string.Join(", ", oublies.Where(json42.Contains)));
-    var r42 = Donnees.Charger(dir41, res).Reglages.Audio; r42.Normalize();
-    Ok(r42.Sources.First(x => x.Id == "chorale").Tracks == a41.Sources.First(x => x.Id == "chorale").Tracks && r42.Profiles[1].Track == 2, "4.2 relue : les pistes ne sont pas recalculées");
-    r42.Sources[0].UseDeviceTiming = false; r42.Sources[1].UseDeviceTiming = true;
-    var dir42 = Temp();
-    var d42 = Donnees.Charger(dir42, res);
-    d42.Reglages.Audio.Sources.AddRange(r42.Sources);
-    d42.SauverReglages();
-    var r42b = Donnees.Charger(dir42, res).Reglages.Audio; r42b.Normalize();
-    Ok(r42b.Sources[0].UseDeviceTiming == false && r42b.Sources[1].UseDeviceTiming == true && r42b.Sources[2].UseDeviceTiming == null, "horodatage du périphérique relu");
-    Ok(!File.ReadAllText(Path.Combine(dir42, "reglages.json")).Contains("Horodatage"), "« Horodatage » (valeur calculée) n'est pas écrit");
-    // MyChurch 1.1 : capture ASIO (pilote, Mono / Stéréo, canaux OBS)
+    var json13 = File.ReadAllText(Path.Combine(dir41, "reglages.json"));
+    var oublies = new[] { "SampleRate", "Channels", "MeterDecay", "PeakMeter", "DisableDucking", "LowLatency", "AutoAddInputs", "KnownInputs", "GlobalsInitialized", "ShowHidden", "HiddenRight",
+        "VerticalLayout", "FfmpegPath", "MicrophoneId", "\"Global\"", "Pinned", "Hidden", "PushToTalk", "MuteOthers", "SourceIds", "obsSources", "Tracks", "Monitoring", "MonitorDevice", "\"track\"", "\"muted\"" };
+    Ok(oublies.All(x => !json13.Contains(x, StringComparison.OrdinalIgnoreCase)), "1.3 : les anciens réglages ne sont plus écrits (ni pistes ni monitoring)", string.Join(", ", oublies.Where(x => json13.Contains(x, StringComparison.OrdinalIgnoreCase))));
+    var r13 = Donnees.Charger(dir41, res).Reglages.Audio; r13.Normalize();
+    Ok(r13.Sons.Select(x => x.Id).SequenceEqual(a41.Sons.Select(x => x.Id)) && r13.Recoit(r13.Profiles.First(x => x.Id == "culte")) == a41.Recoit(culte41) && r13.Recoit(r13.VirtualSounds[0]) == "Pasteur et Chorale",
+        "1.3 relue : les sons et ce que reçoit chaque destination sont gardés");
+
+    // réglages de la 1.2 (version 6, « comme OBS ») : la piste 6 de Zoom, une capture ASIO, la vidéo projetée sans église
+    var dir12 = Temp();
+    File.WriteAllText(Path.Combine(dir12, "reglages.json"), """
+    {"version":4,"theme":"nuit","audio":{"Version":6,"MonitorDeviceId":"default","MonitorDeviceName":"","PanelVisible":true,
+      "sortiesVirtuelles":[{"Id":"zoom","Name":"Zoom","Enabled":true,"DeviceId":"","DeviceName":"","Track":6,"VolumeDb":0,"Muted":false}],
+      "obsSources":[
+        {"Id":"micro","Name":"Capture audio (entrée)","Kind":0,"DeviceId":"{umc}","DeviceName":"Micro (UMC)","Channel":1,"VolumeDb":-2,"Muted":false,"Mono":false,"Tracks":63,"Monitoring":0,
+         "Filters":[{"Id":"f1","Kind":0,"Enabled":true},{"Id":"f2","Kind":1,"Enabled":true}],"Balance":0.5,"SyncOffsetMs":0},
+        {"Id":"piano","Name":"Piano","Kind":0,"DeviceId":"{umc}","Channel":2,"Tracks":31,"Monitoring":0,"Filters":[]},
+        {"Id":"video","Name":"Vidéo Display","Kind":2,"FollowProjection":true,"Tracks":63,"Monitoring":0},
+        {"Id":"asio","Name":"Chant","Kind":3,"DeviceId":"Focusrite USB ASIO","AsioCanaux":[1],"Tracks":63}],
+      "enregistrements":[{"Id":"culte","Name":"Culte","Track":1,"Format":"flac","AudioOnly":true,"DisplayIds":[]},
+                         {"Id":"film","Name":"Vidéo","Track":6,"Format":"mkv","AudioOnly":false,"DisplayIds":["projection"]}]}}
+    """);
+    var a6 = Donnees.Charger(dir12, res).Reglages.Audio; a6.Normalize();
+    Egal(string.Join(",", a6.Sons.Select(x => x.Nom + ":" + x.Genre)), "Capture audio (entrée):Voix,Piano:Instrument,Chant:Voix,Vidéo Display:Video", "1.2 : chaque source devient un son ; la vidéo projetée passe à la fin");
+    Ok(a6.Sons.Count(x => x.Genre == MyVerse.Audio.GenreSon.Video) == 1 && a6.SonVideos.Id == "video" && a6.SonVideos.Eglise, "1.2 : le son de la vidéo projetée est gardé (un seul) et s'entend maintenant dans l'église");
+    Ok(a6.Sons.First(x => x.Id == "micro") is { EnleverBruit: true, VolumeRegulier: false, Entree: 1, VolumeDb: -2 }, "1.2 : réduction du bruit gardée ; entrée et volume gardés");
+    var asio6 = a6.Sons.First(x => x.Id == "asio");
+    Ok(asio6.Capture == MyVerse.Audio.AudioInputKind.Asio && asio6.EntreesAsio.SequenceEqual(new[] { 1 }) && asio6.Appareil == "Focusrite USB ASIO", "1.2 : capture ASIO gardée");
+    Egal(a6.Recoit(a6.Profiles.First(x => x.Id == "culte")), "Tout le son", "1.2 : piste 1 (toutes les sources) → tout le son");
+    Egal(a6.Recoit(a6.VirtualSounds[0]), "Capture audio (entrée), Chant et Vidéo Display", "1.2 : la piste 6 de Zoom → ses sources");
+    Egal(a6.Recoit(a6.Profiles.First(x => x.Id == "film")), "Capture audio (entrée), Chant et Vidéo Display", "1.2 : la vidéo sur la piste 6 → les mêmes sources");
+    a6.Planifier();
+    Ok(a6.VirtualSounds[0].Track == a6.Profiles.First(x => x.Id == "film").Track && a6.VirtualSounds[0].Track == 2, "1.2 : Zoom et la vidéo partagent une piste, donnée par MyChurch", a6.VirtualSounds[0].Track.ToString());
+
+    // capture ASIO : une entrée (mono) ou deux (stéréo)
     var asio = new MyVerse.Audio.AudioConfiguration();
-    asio.Sources.Add(new MyVerse.Audio.AudioSource { Id = "chanteur", Name = "CHANTEUR", Kind = MyVerse.Audio.AudioInputKind.Asio, DeviceId = "Focusrite USB ASIO", AsioCanaux = new() { 0 }, UseDeviceTiming = true });
-    asio.Sources.Add(new MyVerse.Audio.AudioSource { Id = "clavier", Name = "Clavier", Kind = MyVerse.Audio.AudioInputKind.Asio, DeviceId = "Focusrite USB ASIO", AsioCanaux = new() { 0, 1, 5 } });
-    asio.Sources.Add(new MyVerse.Audio.AudioSource { Id = "vide", Name = "Vide", Kind = MyVerse.Audio.AudioInputKind.Asio, DeviceId = "X", AsioCanaux = new() { -7 } });
+    asio.Ajouter(new MyVerse.Audio.Son { Id = "chanteur", Nom = "CHANTEUR", Genre = MyVerse.Audio.GenreSon.Voix, Capture = MyVerse.Audio.AudioInputKind.Asio, Appareil = "Focusrite USB ASIO", EntreesAsio = new() { 0 } });
+    asio.Ajouter(new MyVerse.Audio.Son { Id = "clavier", Nom = "Clavier", Genre = MyVerse.Audio.GenreSon.Instrument, Capture = MyVerse.Audio.AudioInputKind.Asio, Appareil = "Focusrite USB ASIO", EntreesAsio = new() { 0, 1, 5 } });
+    asio.Ajouter(new MyVerse.Audio.Son { Id = "vide", Nom = "Vide", Genre = MyVerse.Audio.GenreSon.Voix, Capture = MyVerse.Audio.AudioInputKind.Asio, Appareil = "X", EntreesAsio = new() { -7 } });
     asio.Normalize();
-    Ok(asio.Sources[0].AsioCanaux.SequenceEqual(new[] { 0 }) && asio.Sources[0].UseDeviceTiming == null, "ASIO mono : Input 1, pas d'horodatage");
-    Ok(asio.Sources[1].AsioCanaux.SequenceEqual(new[] { 0, 1 }), "ASIO stéréo : deux canaux OBS au plus");
-    Ok(asio.Sources[2].AsioCanaux.SequenceEqual(new[] { -1 }), "ASIO : canal hors limites ramené à Muet");
-    Ok(MyVerse.Audio.AudioConfiguration.NomType(asio.Sources[0]) == "Capture ASIO", "type « Capture ASIO »");
+    Ok(asio.Sons[0].EntreesAsio.SequenceEqual(new[] { 0 }), "ASIO mono : Input 1");
+    Ok(asio.Sons[1].EntreesAsio.SequenceEqual(new[] { 0, 1 }), "ASIO stéréo : deux entrées au plus");
+    Ok(asio.Sons[2].EntreesAsio.SequenceEqual(new[] { -1 }), "ASIO : entrée hors limites ramenée à Muet");
+    Egal(MyVerse.Audio.AudioConfiguration.Description(asio.Sons[0]), "Micro · Focusrite USB ASIO · entrée 1", "description d'une capture ASIO");
 }
 
 Groupe("Projecteur (1.0)");

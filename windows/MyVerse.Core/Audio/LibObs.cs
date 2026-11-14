@@ -84,6 +84,10 @@ public static class LibObs
     [DllImport(Lib)] public static extern void obs_post_load_modules();
     [DllImport(Lib)] public static extern IntPtr obs_get_audio();
     [DllImport(Lib)] public static extern void obs_set_output_source(uint channel, IntPtr source);
+    /// <summary>Linux (essais seulement) : libobs dessine avec OpenGL sur l'écran X11 donné (Xvfb), ce qui active les pistes.</summary>
+    [DllImport(Lib)] public static extern void obs_set_nix_platform(int platform);
+    [DllImport(Lib)] public static extern void obs_set_nix_platform_display(IntPtr display);
+    [DllImport("libX11.so.6")] public static extern IntPtr XOpenDisplay(IntPtr name);
 
     // ---------------------------------------------------------------- réglages (obs_data)
     [DllImport(Lib)] public static extern IntPtr obs_data_create();
@@ -120,6 +124,16 @@ public static class LibObs
     [DllImport(Lib)] public static extern void obs_source_set_balance_value(IntPtr source, float balance);
     /// <summary>Décalage de synchronisation, en nanosecondes.</summary>
     [DllImport(Lib)] public static extern void obs_source_set_sync_offset(IntPtr source, long offset);
+
+    // ---------------------------------------------------------------- lecture d'un fichier (source média d'OBS)
+    /// <summary>enum obs_media_state : rien, lecture, ouverture, mise en mémoire, pause, arrêt, fin, erreur.</summary>
+    public const int MediaNone = 0, MediaPlaying = 1, MediaOpening = 2, MediaBuffering = 3, MediaPaused = 4, MediaStopped = 5, MediaEnded = 6, MediaError = 7;
+    [DllImport(Lib)] public static extern void obs_source_media_play_pause(IntPtr source, [MarshalAs(UnmanagedType.U1)] bool pause);
+    [DllImport(Lib)] public static extern void obs_source_media_stop(IntPtr source);
+    [DllImport(Lib)] public static extern int obs_source_media_get_state(IntPtr source);
+    /// <summary>Position et durée en millisecondes.</summary>
+    [DllImport(Lib)] public static extern long obs_source_media_get_time(IntPtr source);
+    [DllImport(Lib)] public static extern long obs_source_media_get_duration(IntPtr source);
 
     // ---------------------------------------------------------------- périphériques
     [DllImport(Lib)] public static extern IntPtr obs_get_source_properties([MarshalAs(UnmanagedType.LPUTF8Str)] string id);

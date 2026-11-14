@@ -27,8 +27,8 @@ public static class RecordingFiles
     public static void Validate(RecordingProfile p)
     {
         if (string.IsNullOrWhiteSpace(p.Directory)) throw new InvalidDataException("Choisissez un dossier de destination.");
-        if (p.Track < 1 || p.Track > AudioConfiguration.Pistes) throw new InvalidDataException("Piste audio : choisissez une piste de 1 à 6.");
-        if (p.AudioOnly && p.Format is not ("wav" or "flac") || !p.AudioOnly && p.Format != "mkv") throw new InvalidDataException("Audio : WAV ou FLAC. Vidéo : MKV.");
+        if (p.Track < 1 || p.Track > AudioConfiguration.Pistes) p.Track = 1;
+        if (p.AudioOnly && p.Format is not ("wav" or "flac" or "mp3" or "m4a") || !p.AudioOnly && p.Format != "mkv") throw new InvalidDataException("Son : MP3 ou WAV. Vidéo : MKV.");
         if (!p.AudioOnly && (p.Width < 320 || p.Width > 1920 || p.Height < 180 || p.Height > 1080 || p.Width % 2 != 0 || p.Height % 2 != 0 || p.Fps is not (24 or 25 or 30 or 50 or 60))) throw new InvalidDataException("Vidéo : dimensions paires, de 320 × 180 à 1920 × 1080 ; 24, 25, 30, 50 ou 60 images/s.");
         if (p.VideoKbps < 500 || p.VideoKbps > 50000 || p.AudioKbps < 64 || p.AudioKbps > 512) throw new InvalidDataException("Débit audio ou vidéo hors limites.");
         if (!p.AudioOnly && (p.Visuals.Count == 0 || !p.Visuals.Any(v => v.Visible))) throw new InvalidDataException("Ajoutez un contenu visuel visible.");

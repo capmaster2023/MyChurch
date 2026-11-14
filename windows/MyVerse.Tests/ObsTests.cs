@@ -67,8 +67,8 @@ public static class ObsTests
         return (blocs, g, d);
     }
 
-    /// <summary>Ce que règlent les propriétés audio avancées d'OBS : balance et décalage de synchronisation.</summary>
-    static void ReglagesAvances(ObsMixer m, AudioConfiguration c, AudioSource s, Action<bool, string, string?> ok)
+    /// <summary>Ce que le moteur sait encore faire (balance, décalage de synchronisation), même si MyChurch 1.3 ne les montre plus.</summary>
+    static void ReglagesAvances(ObsMixer m, List<AudioSource> c, AudioSource s, Action<bool, string, string?> ok)
     {
         s.Muted = false; s.VolumeDb = 0; s.Filters.Clear(); s.Monitoring = AudioMonitoring.Off; s.Tracks = 1;
         m.Apply(c);
@@ -91,13 +91,13 @@ public static class ObsTests
     }
 
     /// <summary>MyChurch 3.1 : chaque entrée d'une carte son est sa propre bande (type de source « entrée » de MyChurch, son poussé).</summary>
-    static void EntreesSeparees(ObsMixer m, AudioConfiguration c, Action<bool, string, string?> ok)
+    static void EntreesSeparees(ObsMixer m, List<AudioSource> c, Action<bool, string, string?> ok)
     {
         ok(m.EntreesSeparees, "OBS accepte le type de source « entrée séparée » de MyChurch", null);
         if (!m.EntreesSeparees) return;
         var e1 = new AudioSource { Name = "Pasteur", Kind = AudioInputKind.Microphone, DeviceId = "default", Channel = 1, Tracks = 1 };
         var e2 = new AudioSource { Name = "Chorale", Kind = AudioInputKind.Microphone, DeviceId = "default", Channel = 2, Tracks = 1 };
-        c.Sources.Clear(); c.Sources.Add(e1); c.Sources.Add(e2); c.Normalize(); m.Apply(c);
+        c.Clear(); c.Add(e1); c.Add(e2); m.Apply(c);
         ok(m.Has(e1.Id) && m.Has(e2.Id) && m.EstEntree(e1.Id) && m.EstEntree(e2.Id), "deux entrées du même périphérique : deux sources dans OBS", null);
         // l'entrée 1 à −6 dBFS (48 kHz), l'entrée 2 à −20 dBFS (44,1 kHz : OBS rééchantillonne) ; chacune sur sa bande, des deux côtés
         var pousse = Task.Run(() => PousserSinus(m, new[] { (e1.Id, 0.5f, 48000), (e2.Id, 0.1f, 44100) }, 4500));
@@ -114,9 +114,77 @@ public static class ObsTests
         e1.Channel = 3; m.Apply(c);
         ok(m.EstEntree(e1.Id), "puis entrée 3 : de nouveau une entrée séparée", null);
         pousse.Wait();
-        c.Sources.Clear(); m.Apply(c);
+        c.Clear(); m.Apply(c);
         ok(!m.Has(e1.Id) && !m.Has(e2.Id) && !m.Pousser(e2.Id, new float[480], 480, 48000), "entrées retirées : plus rien n'est poussé vers OBS", null);
     }
+
+    /// <summary>MyChurch 1.3 : une musique (fichier) attend « Lire » ; Lire, Pause, Arrêter, comme un lecteur.</summary>
+    static void Musique(ObsMixer m, string sinus, Action<bool, string, string?> ok)
+    {
+        var f = new AudioSource { Name = "Attente", Kind = AudioInputKind.Media, MediaPath = sinus, Loop = true, Tracks = 1, DemarrerArrete = true };
+        var c = new List<AudioSource> { f };
+        m.Apply(c);
+        Thread.Sleep(1500);
+        float v = m.Level(f.Id).L;
+        ok(float.IsNegativeInfinity(v) || v < -60, "une musique ajoutée ne part pas toute seule", v.ToString("0.0"));
+        var (etat, _, _) = m.Lecture(f.Id);
+        ok(etat is EtatLecture.Arret or EtatLecture.Aucun, "état de la musique : arrêtée", etat.ToString());
+        m.Jouer(f.Id);
+        v = Attendre(m, () => m.Level(f.Id).L, x => x > -8 && x < -4);
+        ok(v > -8 && v < -4, "Lire : la musique joue (−6 dBFS)", v.ToString("0.0"));
+        var lecture = m.Lecture(f.Id);
+        ok(lecture.Etat == EtatLecture.Lecture && lecture.Duree > 3000 && lecture.Duree < 5000, "état de la musique : lecture, durée de 4 s", $"{lecture.Etat} {lecture.Position}/{lecture.Duree} ms");
+        m.Pause(f.Id);
+        v = Attendre(m, () => m.Level(f.Id).L, x => float.IsNegativeInfinity(x) || x < -60);
+        ok((float.IsNegativeInfinity(v) || v < -60) && m.Lecture(f.Id).Etat == EtatLecture.Pause, "Pause : la musique se tait", v.ToString("0.0"));
+        m.Jouer(f.Id);
+        v = Attendre(m, () => m.Level(f.Id).L, x => x > -8);
+        ok(v > -8, "Lire après Pause : la musique reprend", v.ToString("0.0"));
+        f.Loop = false; m.Apply(c);
+        Thread.Sleep(600);
+        ok(m.Lecture(f.Id).Etat == EtatLecture.Lecture, "une musique qui joue continue quand on change un réglage", m.Lecture(f.Id).Etat.ToString());
+        m.Arreter(f.Id);
+        v = Attendre(m, () => m.Level(f.Id).L, x => float.IsNegativeInfinity(x) || x < -60);
+        ok(float.IsNegativeInfinity(v) || v < -60, "Arrêter : silence", v.ToString("0.0"));
+        f.Loop = true; m.Apply(c);
+        Thread.Sleep(1200);
+        v = m.Level(f.Id).L;
+        ok(float.IsNegativeInfinity(v) || v < -60, "une musique arrêtée reste arrêtée quand on change un réglage", v.ToString("0.0"));
+        c.Clear(); m.Apply(c);
+    }
+
+    /// <summary>MyChurch 1.3 de bout en bout : des sons, ce que MyChurch en fait (pistes, aides, église), et ce qu'OBS fait entendre.</summary>
+    static void PlanComplet(ObsMixer m, string sinus, Action<bool, string, string?> ok)
+    {
+        var cfg = new AudioConfiguration();
+        var musique = Son.Nouveau(GenreSon.Fichier, "Attente"); musique.Fichier = sinus; musique.Boucle = true; musique.Eglise = false;
+        var voix = Son.Nouveau(GenreSon.Voix, "Pasteur");
+        cfg.Ajouter(musique); cfg.Ajouter(voix);
+        var zoom = new VirtualSoundSettings { Name = "Zoom", Enabled = true, ChoixSons = new() { musique.Id } };
+        var culte = new RecordingProfile { Name = "Culte", ChoixSons = new() { voix.Id } };
+        cfg.VirtualSounds.Add(zoom); cfg.Profiles.Add(culte);
+        cfg.Normalize();
+        var plan = cfg.Planifier();
+        m.Apply(plan.Moteur, cfg.Eglise.Appareil, cfg.Eglise.NomAppareil);
+        ok(plan.Moteur.All(x => m.Has(x.Id)), "plan de MyChurch : chaque son est une source d'OBS (musique, micro, vidéos)", string.Join(", ", plan.Moteur.Select(x => x.Name)));
+        ok(!journalRefus(), "les aides de la voix (bruit, volume régulier) acceptées par OBS", null);
+        m.Jouer(musique.Id);
+        float v = Attendre(m, () => m.Level(musique.Id).L, x => x > -8);
+        ok(v > -8 && v < -4, "plan : la musique joue à son volume normal (100 %)", v.ToString("0.0"));
+        musique.VolumeDb = VolumeCurseur.Db(VolumeCurseur.Normal / 2);
+        m.Apply(cfg.Planifier().Moteur, cfg.Eglise.Appareil, cfg.Eglise.NomAppareil);
+        v = Attendre(m, () => m.Level(musique.Id).L, x => x > -27 && x < -22);
+        ok(v > -27 && v < -22, "volume à 50 % : environ −18 dB de moins", v.ToString("0.0"));
+        if (m.TracksActive)
+        {
+            float pz = Attendre(m, () => m.TrackLevel(zoom.Track - 1), x => x > -30);
+            float pc = Attendre(m, () => m.TrackLevel(culte.Track - 1), x => float.IsNegativeInfinity(x) || x < -80);
+            ok(zoom.Track != culte.Track && pz > -30 && (float.IsNegativeInfinity(pc) || pc < -80), "Zoom reçoit la musique, l'enregistrement du culte ne reçoit que le micro", $"Zoom (piste {zoom.Track}) {pz:0.0}, Culte (piste {culte.Track}) {pc:0.0}");
+        }
+        m.Apply(new List<AudioSource>());
+        ok(plan.Moteur.All(x => !m.Has(x.Id)), "plan vidé : plus aucune source dans OBS", null);
+    }
+    static Func<bool> journalRefus = () => false;
 
     public static void Run(Action<bool, string, string?> ok)
     {
@@ -125,6 +193,7 @@ public static class ObsTests
         if (chemins == null || !chemins.Present) { Console.WriteLine("  (libobs absente : essais du mélangeur OBS non faits)"); return; }
         var journal = new List<string>();
         ObsMixer.Log += (niveau, texte) => { lock (journal) journal.Add(niveau + " " + texte); };
+        journalRefus = () => { lock (journal) return journal.Any(l => l.Contains("refusé")); };
         string dossier = Path.Combine(Path.GetTempPath(), "mychurch-obs-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dossier);
         var m = new ObsMixer();
         try
@@ -137,9 +206,9 @@ public static class ObsTests
             _ = m.Microphones(); _ = m.Outputs(); _ = m.MonitoringDevices();
             ok(true, "listes de périphériques lues sans erreur", null);
 
-            var c = new AudioConfiguration();
+            var c = new List<AudioSource>();
             var s = new AudioSource { Name = "Sinus", Kind = AudioInputKind.Media, MediaPath = Sinus(dossier), Loop = true, Tracks = 1 };
-            c.Sources.Add(s); c.Normalize(); m.Apply(c);
+            c.Add(s); m.Apply(c);
             ok(m.Has(s.Id), "source média créée dans OBS", null);
             float v = Attendre(m, () => m.Level(s.Id).L, x => x > -8 && x < -4);
             ok(v > -8 && v < -4, "vumètre OBS : sinus à −6 dBFS", v.ToString("0.0"));
@@ -238,18 +307,20 @@ public static class ObsTests
             ok(t.Tracks == AudioConfiguration.ToutesLesPistes, "nouvelle source : pistes 1 à 6 cochées, comme dans OBS", t.Tracks.ToString());
             if (m.TracksActive)
             {
-                s.Tracks = 0b000100; c.Sources.Add(t); t.Tracks = 0b000001; m.Apply(c);
+                s.Tracks = 0b000100; c.Add(t); t.Tracks = 0b000001; m.Apply(c);
                 v = Attendre(m, () => m.TrackLevel(2), x => x > -8);
                 float p2 = Attendre(m, () => m.TrackLevel(1), x => x < -80 || float.IsNegativeInfinity(x));
                 ok(v > -8 && (p2 < -80 || float.IsNegativeInfinity(p2)), "piste 3 cochée pour une source, piste 2 pour aucune : la piste 2 se tait", $"p2 {p2:0.0}, p3 {v:0.0}");
-                c.Sources.Remove(t); s.Tracks = 1; m.Apply(c);
+                c.Remove(t); s.Tracks = 1; m.Apply(c);
             }
-            else c.Sources.Remove(t);
+            else c.Remove(t);
 
-            c.Sources.Clear(); m.Apply(c);
+            c.Clear(); m.Apply(c);
             ok(!m.Has(s.Id), "source retirée d'OBS", null);
 
             EntreesSeparees(m, c, ok);
+            Musique(m, s.MediaPath, ok);
+            PlanComplet(m, s.MediaPath, ok);
         }
         catch (Exception e) { ok(false, "mélangeur OBS", e.ToString()); }
         finally
