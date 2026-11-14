@@ -42,7 +42,7 @@ Textes, versets, chants, images, caméras et fenêtres peuvent être épinglés.
 
 La fenêtre **Capture de fenêtre** ressemble à celle d'OBS : l'image de la fenêtre choisie **en direct** en haut, la liste **« [Zoom.exe] : Zoom Meeting »** (seulement les vraies fenêtres, rangées par programme), **Actualiser**, **Zone client seulement** (sans la barre de titre ni les bords, coché d'office) et le nom dans Display. Elle demande aussi **où va la fenêtre** :
 
-- **Dans l'église** : seulement sur l'écran de projection. MyVirtualCam et OBS ne la reçoivent pas (image noire). C'est le choix pour **montrer Zoom dans l'église** : Zoom ne reçoit plus sa propre fenêtre, plus d'effet miroir à l'infini. MyChurch le propose d'office pour Zoom, Teams, Webex…
+- **Dans l'église** : seulement sur l'écran de projection. MyVirtualCam (Zoom) montre **l'écran par défaut** à la place (le logo, une image, le fond seul…), OBS ne reçoit rien. C'est le choix pour **montrer Zoom dans l'église** : Zoom ne reçoit plus sa propre fenêtre, plus d'effet miroir à l'infini. MyChurch le propose d'office pour Zoom, Teams, Webex…
 - **En streaming** : seulement vers MyVirtualCam et OBS. L'écran de projection garde l'écran par défaut (noir, fond seul ou écran principal).
 - **Les deux** : partout, comme les autres sources.
 
@@ -79,7 +79,7 @@ Le bouton **Projection** (en bas à droite) propose les moniteurs détectés, le
 - **Au démarrage**, la projection laissée ouverte se rouvre sur le dernier écran, jamais en plein écran sur l'écran de la régie. **Arrêter la projection** : elle ne se rouvre plus toute seule.
 - **Échap** retire ce qui est à l'écran, sauf dans un champ de saisie : dans une recherche (Bible, chants, numéro, Ctrl K), Échap annule la recherche sans toucher au direct, et un 2e Échap quitte le champ.
 
-**MyVirtualCam** reçoit automatiquement la sortie en 720p30, Duo compris. Elle s'enregistre une fois avec l'autorisation Windows et reste disponible, avec une image noire, quand MyChurch est fermé. Elle vise les applications compatibles DirectShow et ne transporte pas d'audio.
+**MyVirtualCam** reçoit automatiquement la sortie en 720p30 : tout ce que montre l'écran de l'église, Duo et écran par défaut compris (1.3.2), sauf une capture de fenêtre « Dans l'église », remplacée par l'écran par défaut. Elle s'enregistre une fois avec l'autorisation Windows et reste disponible, avec une image noire, quand MyChurch est fermé. Elle vise les applications compatibles DirectShow et ne transporte pas d'audio.
 
 La capture de fenêtre nécessite une fenêtre ouverte et non réduite (elle attend qu'on la rouvre ou la restaure). Certains contenus protégés ne permettent pas la capture. Les périphériques vidéo physiques nécessitent les pilotes et permissions Windows appropriés.
 

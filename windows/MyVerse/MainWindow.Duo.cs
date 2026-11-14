@@ -114,7 +114,7 @@ public partial class MainWindow
         CulteRendu.ImageDuo(b);
         ecran?.Rendu.ImageDuo(b);
         // 1.3.1 : un contenu épinglé « Dans l'église » ne part pas vers MyVirtualCam
-        App.CameraVirtuelle?.MediaDuo(diffusionDuo ? b : null);
+        App.CameraVirtuelle?.MediaDuo(cameraDuo ? b : null);
     }
 
     // ------------------------------------------------------------ pour le test automatique

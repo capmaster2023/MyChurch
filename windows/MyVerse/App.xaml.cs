@@ -41,8 +41,11 @@ public partial class App : Application
     public static SourcesDisplay Sources { get; private set; } = null!;
     /// <summary>Capture du contenu épinglé (Duo), en même temps que celle de l'écran principal.</summary>
     public static SourcesDisplay SourcesDuo { get; private set; } = null!;
-    /// <summary>1.3.1 : capture de l'écran par défaut que la salle garde pendant une source « En streaming » (rien n'est publié pour OBS).</summary>
-    public static SourcesDisplay SourcesSalle { get; private set; } = null!;
+    /// <summary>
+    /// Capture de l'écran par défaut montré à la place du direct : dans la salle pendant une source « En streaming » (1.3.1),
+    /// sur MyVirtualCam pendant une source « Dans l'église » (1.3.2). Jamais les deux à la fois ; rien n'est publié pour OBS.
+    /// </summary>
+    public static SourcesDisplay SourcesDefaut { get; private set; } = null!;
     public static MyVirtualCam? CameraVirtuelle { get; private set; }
     public static Audio.ChurchAudioService Audio { get; private set; } = null!;
     public static Telephone Telephone { get; private set; } = null!;
@@ -143,7 +146,7 @@ public partial class App : Application
 
         Sources = new SourcesDisplay();
         SourcesDuo = new SourcesDisplay("display-duo.jpg");
-        SourcesSalle = new SourcesDisplay("");
+        SourcesDefaut = new SourcesDisplay("");
         if (AutoTest == null || Environment.GetEnvironmentVariable("MYCHURCH_TEST_CAM") == "1")
             try { CameraVirtuelle = new MyVirtualCam(); } catch (Exception ex) { Journal.Erreur("MyVirtualCam démarrage", ex); }
         Audio = new Audio.ChurchAudioService(Donnees.Reglages.Audio);
@@ -202,7 +205,7 @@ public partial class App : Application
         Audio?.Dispose();
         Sources?.Dispose();
         SourcesDuo?.Dispose();
-        SourcesSalle?.Dispose();
+        SourcesDefaut?.Dispose();
         CameraVirtuelle?.Dispose();
         try { Telephone?.Dispose(); } catch (Exception) { }
         Journal.Sauver();

@@ -76,7 +76,7 @@ public sealed class CaptureFenetreWindow : FenetreDialogue
         corps.Children.Add(nom);
 
         corps.Children.Add(Libelle("Où va cette fenêtre ?"));
-        eglise = Option("Dans l'église", "Seulement sur l'écran de projection. MyVirtualCam et OBS ne la reçoivent pas : pour montrer Zoom dans l'église, sans effet miroir.", existante?.EgliseSeulement == true);
+        eglise = Option("Dans l'église", "Seulement sur l'écran de projection. Zoom (MyVirtualCam) voit l'écran principal à la place, OBS rien : pour projeter Zoom dans l'église, sans effet miroir.", existante?.EgliseSeulement == true);
         streaming = Option("En streaming", "Seulement vers MyVirtualCam et OBS (Zoom, YouTube, Facebook). Sur l'écran de projection, l'écran par défaut reste affiché.", existante?.StreamingSeulement == true);
         lesDeux = Option("Les deux", "Sur l'écran de projection et en streaming, comme les autres sources.", existante != null && existante.Diffusion == null);
         foreach (var o in new[] { eglise, streaming, lesDeux })
@@ -143,7 +143,9 @@ public sealed class CaptureFenetreWindow : FenetreDialogue
     /// <summary>Un grand choix à cliquer : un titre et une phrase.</summary>
     static RadioButton Option(string titre, string detail, bool coche)
     {
-        var p = new StackPanel { Margin = new Thickness(4, 0, 0, 0) };
+        // le bouton radio d'origine pose son contenu dans une pile horizontale (largeur sans limite) : sans largeur maximale,
+        // l'explication ne passe pas à la ligne et se coupe à droite (1.3.1)
+        var p = new StackPanel { Margin = new Thickness(4, 0, 0, 0), MaxWidth = 640 };
         p.Children.Add(new TextBlock { Text = titre, FontSize = 15, FontWeight = FontWeights.SemiBold });
         p.Children.Add(new TextBlock { Text = detail, FontSize = 12.5, Foreground = Pinceau("Brume"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
         return new RadioButton { Content = p, IsChecked = coche, GroupName = "diffusion", Margin = new Thickness(0, 0, 0, 10), VerticalContentAlignment = VerticalAlignment.Top };
@@ -218,7 +220,7 @@ public sealed class CaptureFenetreWindow : FenetreDialogue
         bool risque = appel && eglise.IsChecked != true;
         conseil.Text = !appel ? ""
             : risque ? $"{NomProgramme(f!)} reçoit sans doute l'image de MyVirtualCam : en streaming, il recevrait sa propre fenêtre (effet miroir à l'infini). Choisissez « Dans l'église »."
-            : $"{NomProgramme(f!)} reste dans l'église : MyVirtualCam et OBS ne reçoivent pas sa fenêtre, Zoom ne se voit pas lui-même.";
+            : $"{NomProgramme(f!)} reste dans l'église : MyVirtualCam envoie l'écran principal à la place de sa fenêtre, Zoom ne se voit pas lui-même.";
         conseil.Foreground = Pinceau(risque ? "Danger" : "Brume");
         conseil.Visibility = appel ? Visibility.Visible : Visibility.Collapsed;
     }

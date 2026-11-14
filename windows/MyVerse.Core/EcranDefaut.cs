@@ -111,15 +111,27 @@ public sealed partial class Regie
     static EtatEcran SansContenu(EtatEcran b) => b with { Mode = "vide", Media = null, Lignes = Array.Empty<string>(), Ref = "", Second = null };
 
     /// <summary>
-    /// Ce qui part vers OBS, la caméra virtuelle et la page publique : l'écran par défaut est pour la salle, eux restent vides
-    /// (le contenu épinglé du Duo reste), comme quand on retirait les paroles avant la 3.3.
-    /// Une source « Dans l'église » (1.3.1) ne part pas non plus, ni en grand ni épinglée : une fenêtre Zoom projetée dans l'église
-    /// ne revient pas dans Zoom par MyVirtualCam (l'effet miroir à l'infini).
+    /// Ce qui part vers OBS et la page publique : l'écran par défaut est pour la salle, eux restent vides (le contenu épinglé du Duo
+    /// reste), comme quand on retirait les paroles avant la 3.3 ; la page OBS reste transparente par-dessus la caméra d'OBS.
+    /// Une source « Dans l'église » (1.3.1) ne part pas non plus, ni en grand ni épinglée. MyVirtualCam, elle, suit <see cref="EtatCamera"/>.
     /// </summary>
     public EtatEcran EtatDiffusion(EtatEcran e)
     {
         var r = e.Duo?.Etat.Media is { EgliseSeulement: true } ? e with { Duo = null } : e;
         return Cible is CibleDefaut || r is { Mode: "media", Media.EgliseSeulement: true } ? SansContenu(r) : r;
+    }
+
+    /// <summary>
+    /// Ce que montre MyVirtualCam, la caméra de Zoom (1.3.2) : comme l'écran de projection, sauf une source « Dans l'église »
+    /// (ni en grand, ni épinglée) : à sa place, l'écran par défaut (le logo, une image, le fond seul…). Une fenêtre Zoom projetée
+    /// dans l'église ne revient pas dans Zoom (pas d'effet miroir), et Zoom voit l'écran principal au lieu d'un écran noir.
+    /// L'écran par défaut lui-même part aussi vers MyVirtualCam (jusqu'à la 1.3.1, elle restait noire).
+    /// </summary>
+    public EtatEcran EtatCamera(EtatEcran e)
+    {
+        var r = e.Duo?.Etat.Media is { EgliseSeulement: true } ? e with { Duo = null } : e;
+        if (r is not { Mode: "media", Media.EgliseSeulement: true }) return r;
+        return EcranDefautSur(SansContenu(r), s => !s.EgliseSeulement);
     }
 
     /// <summary>
@@ -131,16 +143,19 @@ public sealed partial class Regie
     {
         var r = e.Duo?.Etat.Media is { StreamingSeulement: true } ? e with { Duo = null } : e;
         if (r is not { Mode: "media", Media.StreamingSeulement: true }) return r;
-        var vide = SansContenu(r);
-        // l'écran par défaut lui-même est « En streaming » : la salle reste vide
-        if (Cible is CibleDefaut) return vide;
-        return EcranDefaut switch
-        {
-            "noir" => vide,
-            "fond" => EtatFond(vide),
-            var id => ElementDuDeroule(id) is { } el && el.Source is not { StreamingSeulement: true } ? EtatPrincipal(el, vide) : vide,
-        };
+        return EcranDefautSur(SansContenu(r), s => !s.StreamingSeulement);
     }
+
+    /// <summary>
+    /// L'écran par défaut posé sur <paramref name="vide"/> (même habillage, même Duo) : rien pour « noir », le fond seul, ou l'écran
+    /// principal choisi. Un écran principal dont la source ne peut pas aller là (<paramref name="permis"/>) laisse l'écran vide.
+    /// </summary>
+    EtatEcran EcranDefautSur(EtatEcran vide, Func<SourceDisplay, bool> permis) => EcranDefaut switch
+    {
+        "noir" => vide,
+        "fond" => EtatFond(vide),
+        var id => ElementDuDeroule(id) is { } el && (el.Source == null || permis(el.Source)) ? EtatPrincipal(el, vide) : vide,
+    };
 
     /// <summary>Un écran principal affiché depuis le déroulé (clic, Suivant) : il reste à l'écran et devient l'écran par défaut.</summary>
     void AfficherPrincipal(ElementAgenda e)

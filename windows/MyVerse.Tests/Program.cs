@@ -1015,6 +1015,46 @@ if (Actif())
         "changer de type, ou une source absente : refusé");
 }
 
+Groupe("MyVirtualCam : l'écran principal au lieu du noir (1.3.2)");
+if (Actif())
+{
+    var don = Donnees.Charger(Temp(), res);
+    var rg = new Regie(don, new Bibles(don));
+    var zoom = rg.NouveauDisplay("Zoom", new SourceDisplay { Type = "fenetre", Fenetre = 77, Processus = 7, Exe = "Zoom.exe", Titre = "Zoom Meeting", Diffusion = SourceDisplay.Eglise });
+    var logo = rg.NouveauDisplay("Logo", new SourceDisplay { Type = "image", Chemin = "logo.png" });
+    var eLogo = rg.AjouterPrincipalAgenda(logo.Id)!;
+
+    rg.AfficherAnnonce(zoom);
+    Ok(rg.EtatCamera(rg.Etat).Vide, "écran par défaut noir : MyVirtualCam reste noire pendant Zoom");
+    rg.ChoisirEcranDefaut("fond");
+    Ok(rg.EtatCamera(rg.Etat).Mode == "fond", "écran par défaut « fond seul » : MyVirtualCam montre l'habillage pendant Zoom");
+    rg.ChoisirEcranDefaut(eLogo.Id);
+    Ok(rg.Etat.Media == zoom.Source && rg.EtatSalle(rg.Etat).Media == zoom.Source, "Zoom reste à l'écran de l'église");
+    Ok(rg.EtatCamera(rg.Etat) is { Mode: "media" } c1 && c1.Media?.Chemin == "logo.png",
+        "pendant Zoom dans l'église : MyVirtualCam montre l'écran principal (le logo), pas du noir");
+    Ok(rg.EtatDiffusion(rg.Etat).Vide, "OBS et la page publique : rien, comme avant");
+
+    rg.Effacer();
+    Ok(rg.Cible is CibleDefaut && rg.EtatCamera(rg.Etat).Media?.Chemin == "logo.png" && rg.EtatDiffusion(rg.Etat).Vide,
+        "Retirer : l'écran principal va dans l'église et sur MyVirtualCam (OBS reste vide)");
+    rg.AfficherVerset(42, 3, 16, 16);
+    Ok(rg.EtatCamera(rg.Etat) == rg.Etat, "un verset : MyVirtualCam comme l'écran de projection");
+
+    rg.AfficherAnnonce(zoom);
+    rg.Epingler("Zoom");
+    rg.AfficherVerset(42, 3, 17, 17);
+    Ok(rg.EtatCamera(rg.Etat) is { Mode: "verset" } c2 && c2.Duo == null, "Zoom épinglé : MyVirtualCam montre le verset, sans Zoom");
+    rg.Desepingler();
+
+    // Zoom lui-même comme écran principal : il ne repart jamais vers MyVirtualCam
+    var eZoom = rg.AjouterPrincipalAgenda(zoom.Id)!;
+    rg.ChoisirEcranDefaut(eZoom.Id);
+    rg.AfficherAnnonce(zoom);
+    Ok(rg.EtatCamera(rg.Etat).Vide, "écran principal « Dans l'église » : MyVirtualCam reste vide plutôt que de renvoyer Zoom");
+    rg.Effacer();
+    Ok(rg.Cible is CibleDefaut && rg.EtatSalle(rg.Etat).Media == zoom.Source && rg.EtatCamera(rg.Etat).Vide, "… même affiché comme écran par défaut");
+}
+
 Groupe("Dossiers Duo");
 if (Actif())
 {

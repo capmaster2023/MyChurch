@@ -946,23 +946,26 @@ public partial class MainWindow : Window
         // écran noir : le texte est caché sans être perdu ; une nouvelle diapositive le rallume
         if (noir && !ReferenceEquals(R.Etat, etatNoir)) noir = false;
         var e = EtatProjete();
-        // l'écran par défaut (3.3) est pour la salle : OBS et la caméra virtuelle restent vides, comme avant ;
-        // 1.3.1 : une source « Dans l'église » ne part pas vers MyVirtualCam ni OBS (Zoom projeté ne revient pas dans Zoom),
-        // une source « En streaming » ne va pas sur l'écran de projection (la salle garde l'écran par défaut)
+        // OBS et la page publique : l'écran par défaut (3.3) et une source « Dans l'église » (1.3.1) n'y vont pas ;
+        // MyVirtualCam (Zoom, 1.3.2) : tout ce que voit l'église, écran par défaut compris, sauf une source « Dans l'église »,
+        // remplacée par l'écran par défaut (Zoom projeté ne revient pas dans Zoom) ;
+        // l'écran de projection (1.3.1) : tout, sauf une source « En streaming », remplacée par l'écran par défaut
         var diffusion = R.EtatDiffusion(e);
+        var camera = R.EtatCamera(e);
         var salle = R.EtatSalle(e);
         mediaSalle = salle is { Mode: "media", Media: { } ms } && ms != e.Media ? ms : null;
-        diffusionMedia = diffusion.Mode == "media";
-        diffusionDuo = diffusion.Duo != null;
+        mediaCamera = camera is { Mode: "media", Media: { } mc } && mc != e.Media ? mc : null;
+        cameraDirect = mediaCamera == null && camera.Mode == "media";
+        cameraDuo = camera.Duo != null;
         App.Sources.Choisir(e);
-        App.SourcesSalle.ChoisirSource(mediaSalle);
+        App.SourcesDefaut.ChoisirSource(mediaSalle ?? mediaCamera);
         ChoisirSourceDuo(e);
         ApercuRendu.Afficher(e);
-        App.CameraVirtuelle?.Afficher(diffusion);
-        App.CameraVirtuelle?.Media(diffusionMedia ? App.Sources.Image : null);
+        App.CameraVirtuelle?.Afficher(camera);
+        App.CameraVirtuelle?.Media(mediaCamera != null ? App.SourcesDefaut.Image : cameraDirect ? App.Sources.Image : null);
         ecran?.Rendu.Afficher(salle);
         ApercuRendu.ImageDisplay(App.Sources.Image);
-        ecran?.Rendu.ImageDisplay(mediaSalle != null ? App.SourcesSalle.Image : App.Sources.Image);
+        ecran?.Rendu.ImageDisplay(mediaSalle != null ? App.SourcesDefaut.Image : App.Sources.Image);
         CulteRendu.ImageDisplay(App.Sources.Image);
         ImagesDuo();
         App.SortieObs.Ecrire(diffusion);
@@ -1007,7 +1010,7 @@ public partial class MainWindow : Window
         EcranInfo.Text = PastilleTexte.Text;
         EcranInfo.Foreground = Pinceau(dif == SourceDisplay.Streaming ? "OrVif" : ouvert && !noir ? "Vert" : attente ? "OrVif" : "Brume");
         EcranInfo.ToolTip = dif == SourceDisplay.Streaming ? "En streaming seulement : MyVirtualCam et OBS reçoivent cette source, l'écran de projection garde l'écran par défaut"
-            : dif == SourceDisplay.Eglise ? "Dans l'église seulement : MyVirtualCam et OBS ne reçoivent pas cette source (pas d'effet miroir dans Zoom)"
+            : dif == SourceDisplay.Eglise ? "Dans l'église seulement : MyVirtualCam (Zoom) montre l'écran par défaut à la place, OBS ne reçoit rien (pas d'effet miroir dans Zoom)"
             : ecran != null && m != null ? $"{m.Nom} · {m.W} × {m.H}"
             : attente ? $"Projecteur débranché ({m?.Nom}) : la projection se rouvrira toute seule dès qu'il sera branché"
             : "Aucun écran de projection : Projection, en bas à droite";

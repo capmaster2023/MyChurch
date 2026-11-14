@@ -30,23 +30,27 @@ public partial class MainWindow
         {
             var b = App.Sources.Image;
             ApercuRendu.ImageDisplay(b); CulteRendu.ImageDisplay(b);
-            // 1.3.1 : la salle montre peut-être un autre média (l'écran par défaut pendant une source « En streaming ») ;
-            // une source « Dans l'église » ne part pas vers MyVirtualCam
+            // la salle (1.3.1) ou MyVirtualCam (1.3.2) montrent peut-être l'écran par défaut à la place du direct : il a sa capture
             if (mediaSalle == null) ecran?.Rendu.ImageDisplay(b);
-            App.CameraVirtuelle?.Media(diffusionMedia ? b : null);
+            if (mediaCamera == null) App.CameraVirtuelle?.Media(cameraDirect ? b : null);
             if (duoMemeSource) ImagesDuo();
             DisplaySourceInfo.Text = App.Sources.Statut;
         };
-        App.SourcesSalle.Change += () => { if (mediaSalle != null) ecran?.Rendu.ImageDisplay(App.SourcesSalle.Image); };
+        App.SourcesDefaut.Change += () =>
+        {
+            if (mediaSalle != null) ecran?.Rendu.ImageDisplay(App.SourcesDefaut.Image);
+            if (mediaCamera != null) App.CameraVirtuelle?.Media(App.SourcesDefaut.Image);
+        };
     }
 
     /// <summary>
-    /// 1.3.1 : le média que l'écran de projection montre à la place du direct (l'écran par défaut pendant une source « En streaming »),
-    /// avec sa propre capture (<see cref="App.SourcesSalle"/>) ; null quand la salle montre le direct.
+    /// Le média montré à la place du direct, avec sa propre capture (<see cref="App.SourcesDefaut"/>) : sur l'écran de projection,
+    /// l'écran par défaut pendant une source « En streaming » (1.3.1) ; sur MyVirtualCam, l'écran par défaut pendant une source
+    /// « Dans l'église » (1.3.2). Jamais les deux à la fois. Null : le direct.
     /// </summary>
-    SourceDisplay? mediaSalle;
-    /// <summary>1.3.1 : MyVirtualCam reçoit le média en direct et le contenu épinglé (faux pour une source « Dans l'église »).</summary>
-    bool diffusionMedia = true, diffusionDuo = true;
+    SourceDisplay? mediaSalle, mediaCamera;
+    /// <summary>MyVirtualCam montre le média en direct et le contenu épinglé (pas une source « Dans l'église »).</summary>
+    bool cameraDirect = true, cameraDuo = true;
 
     ContextMenu MenuAjouterSource()
     {

@@ -936,14 +936,37 @@ public static class AutoTest
                 Ok(R.Etat.Mode == "media" && R.EtatSalle(R.Etat).Media?.EgliseSeulement == true && App.Sources.Image != null && !Rouge(),
                     "1.3.1 : source « Dans l'église » : à l'écran de projection, MyVirtualCam ne la reçoit pas");
                 Ok(w.TestStatutProjection is "Église seulement" or "Aperçu seulement", "1.3.1 : pastille d'une source « Dans l'église » : " + w.TestStatutProjection);
+                // 1.3.2 : à la place, MyVirtualCam (Zoom) montre l'écran par défaut, ici une image verte, au lieu d'un écran noir
+                var vertPath = Path.Combine(App.Donnees.Dossier, "test-ecran-defaut.png");
+                var dessinVert = new DrawingVisual();
+                using (var dcv = dessinVert.RenderOpen()) dcv.DrawRectangle(new SolidColorBrush(Color.FromRgb(20, 160, 60)), null, new Rect(0, 0, 1280, 720));
+                var bitmapVert = new RenderTargetBitmap(1280, 720, 96, 96, PixelFormats.Pbgra32); bitmapVert.Render(dessinVert);
+                var pngVert = new PngBitmapEncoder(); pngVert.Frames.Add(BitmapFrame.Create(bitmapVert));
+                using (var fv = File.Create(vertPath)) pngVert.Save(fv);
+                bool Vert() => vueDif.ReadByte(milieu) == 60 && vueDif.ReadByte(milieu + 1) == 160 && vueDif.ReadByte(milieu + 2) == 20;
+                var logoVert = R.NouveauDisplay("Écran par défaut de test", new SourceDisplay { Type = "image", Chemin = vertPath });
+                var principalVert = R.AjouterPrincipalAgenda(logoVert.Id);
+                if (principalVert != null) R.ChoisirEcranDefaut(principalVert.Id);
+                Ok(principalVert != null && R.EcranDefaut == principalVert.Id, "1.3.2 : un écran principal choisi comme écran par défaut");
+                await Attendre(1500);
+                Ok(Vert() && R.Etat.Media?.Chemin == imagePath && R.EtatSalle(R.Etat).Media?.Chemin == imagePath,
+                    "1.3.2 : source « Dans l'église » à l'écran : MyVirtualCam montre l'écran par défaut (pas un écran noir)");
                 R.ModifierSource(img.Id, "", sourceImage with { Diffusion = SourceDisplay.Streaming });
                 await Attendre(1300);
-                Ok(Rouge() && R.EtatSalle(R.Etat).Media?.Chemin != imagePath, "1.3.1 : source « En streaming » : MyVirtualCam la reçoit, pas l'écran de projection");
+                Ok(Rouge() && R.EtatSalle(R.Etat).Media?.Chemin == vertPath, "1.3.1 : source « En streaming » : MyVirtualCam la reçoit, l'écran de projection garde l'écran par défaut");
                 Ok(w.TestStatutProjection == "Streaming seulement", "1.3.1 : pastille « Streaming seulement » : " + w.TestStatutProjection);
                 if (w.Ecran != null) Capture(w.Ecran, "26b-ecran-streaming-seulement.png");
                 R.ModifierSource(img.Id, "", sourceImage with { Diffusion = null });
                 await Attendre(1300);
                 Ok(Rouge() && R.EtatSalle(R.Etat).Media?.Chemin == imagePath, "1.3.1 : les deux : MyVirtualCam et l'écran de projection la reçoivent de nouveau");
+                R.Effacer();
+                await Attendre(1500);
+                Ok(R.Cible is CibleDefaut && Vert() && R.EtatDiffusion(R.Etat).Vide, "1.3.2 : l'écran par défaut part aussi sur MyVirtualCam (OBS reste vide)");
+                R.ChoisirEcranDefaut("noir");
+                if (principalVert != null) R.RetirerAgenda(principalVert.Id);
+                R.SupprimerAnnonce(logoVert.Id);
+                R.AfficherAnnonce(img);
+                await Attendre(1300);
             }
             // 1.3.1 : la fenêtre « Capture de fenêtre » comme celle d'OBS (image en direct, liste « [programme] : titre », où elle va)
             await Fenetre(w, () => new CaptureFenetreWindow(null, ""), "25c-capture-fenetre.png");
