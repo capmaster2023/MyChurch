@@ -289,13 +289,16 @@ public sealed class ObsMixer : IDisposable
     /// OBS le reçoit comme une source stéréo (le canal sur les deux côtés) et applique volume, filtres, écoute et pistes.
     /// Faux si la bande n'est pas (ou plus) une entrée séparée.
     /// </summary>
-    public bool Pousser(string id, float[] echantillons, int frames, int rate)
+    public bool Pousser(string id, float[] echantillons, int frames, int rate) => Pousser(id, echantillons, null, frames, rate);
+
+    /// <summary>Le son d'une entrée en stéréo : gauche et droite séparés (capture ASIO en « Stéréo ») ; droite null = mono des deux côtés.</summary>
+    public bool Pousser(string id, float[] echantillons, float[]? droite, int frames, int rate)
     {
-        if (frames <= 0 || rate <= 0 || frames > echantillons.Length) return false;
+        if (frames <= 0 || rate <= 0 || frames > echantillons.Length || (droite != null && frames > droite.Length)) return false;
         lock (verrouEntrees)
         {
             if (!Running || !entrees.TryGetValue(id, out var e)) return false;
-            int octets = frames * sizeof(float);
+            int octets = frames * sizeof(float) * (droite != null ? 2 : 1);
             if (e.Octets < octets)
             {
                 if (e.Tampon != IntPtr.Zero) Marshal.FreeHGlobal(e.Tampon);
@@ -303,10 +306,12 @@ public sealed class ObsMixer : IDisposable
                 entrees[id] = e;
             }
             Marshal.Copy(echantillons, 0, e.Tampon, frames);
+            IntPtr d = e.Tampon;
+            if (droite != null) { d = e.Tampon + frames * sizeof(float); Marshal.Copy(droite, 0, d, frames); }
             ulong duree = (ulong)frames * 1_000_000_000UL / (ulong)rate, maintenant = LibObs.os_gettime_ns();
             var son = new LibObs.SourceAudioData
             {
-                Data0 = e.Tampon, Data1 = e.Tampon, Frames = (uint)frames, Speakers = LibObs.SpeakersStereo,
+                Data0 = e.Tampon, Data1 = d, Frames = (uint)frames, Speakers = LibObs.SpeakersStereo,
                 Format = LibObs.AudioFormatFloatPlanar, SamplesPerSec = (uint)rate, Timestamp = maintenant > duree ? maintenant - duree : 0,
             };
             LibObs.obs_source_output_audio(e.Source, ref son);
@@ -362,6 +367,7 @@ public sealed class ObsMixer : IDisposable
     static IntPtr Reglages(Action<IntPtr> remplir) { var d = LibObs.obs_data_create(); remplir(d); return d; }
     string TypeSource(AudioSource s) => s.Kind switch
     {
+        AudioInputKind.Asio => TypeEntree,
         AudioInputKind.Microphone when s.Channel > 0 && entreesPossibles => TypeEntree,
         AudioInputKind.Microphone => chemins.MicrophoneId,
         AudioInputKind.Sortie => chemins.OutputId,
@@ -420,7 +426,12 @@ public sealed class ObsMixer : IDisposable
         }
     });
     static string Signature(AudioFilter f) => string.Join("|", f.Kind, f.Ratio, f.ThresholdDb, f.AttackMs, f.ReleaseMs, f.OutputGainDb, f.OpenDb, f.CloseDb, f.HoldMs, f.Method, f.SuppressDb);
-    static string Signature(AudioSource s) => s.Kind == AudioInputKind.Media ? s.MediaPath + "|" + s.Loop : s.DeviceId + "|" + s.Horodatage;
+    static string Signature(AudioSource s) => s.Kind switch
+    {
+        AudioInputKind.Media => s.MediaPath + "|" + s.Loop,
+        AudioInputKind.Asio => s.DeviceId + "|" + string.Join(",", s.AsioChannels),
+        _ => s.DeviceId + "|" + s.Horodatage,
+    };
 
     /// <summary>Les trois choix d'OBS. Depuis libobs 33 l'écoute est un simple oui/non : « écoute seule » y revient
     /// à écouter la source sans l'envoyer dans aucune piste, ce que fait Apply en vidant ses pistes.</summary>

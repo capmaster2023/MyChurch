@@ -377,6 +377,9 @@ public sealed class AudioPanel : Border
     internal static string Description(AudioSource s)
     {
         string type = AudioConfiguration.NomType(s);
+        if (s.Kind == AudioInputKind.Asio)
+            return type + " · " + (s.DeviceId is "" or "default" ? "aucun pilote" : s.DeviceId) + " · "
+                + (s.AsioChannels.Count > 1 ? "stéréo, " : "") + string.Join(" + ", s.AsioChannels.Select(k => k < 0 ? "muet" : $"entrée {k + 1}"));
         if (s.Kind == AudioInputKind.Media)
             return s.FollowProjection ? type : type + " · " + (s.MediaPath.Length > 0 ? Path.GetFileName(s.MediaPath) : "aucun fichier") + (s.Loop ? " · en boucle" : "");
         string peripherique = s.DeviceId == "default" || s.DeviceName.Length == 0 ? "Par défaut" : s.DeviceName;
@@ -388,7 +391,7 @@ public sealed class AudioPanel : Border
         var s = b.S;
         bool inactive = A.Inactive(s);
         b.Nom.Text = s.Name;
-        string probleme = s.Kind == AudioInputKind.Microphone && s.Channel > 0 && !inactive ? A.StatutEntrees(s.DeviceId) : "";
+        string probleme = inactive ? "" : s.Kind == AudioInputKind.Microphone && s.Channel > 0 ? A.StatutEntrees(s.DeviceId) : s.Kind == AudioInputKind.Asio ? A.StatutAsio(s.DeviceId) : "";
         b.Nom.ToolTip = s.Name + "\n" + Description(s)
             + (inactive ? "\nInactif : " + (s.Kind == AudioInputKind.Media ? "fichier introuvable" : "périphérique débranché (la source revient quand il est rebranché)") : "")
             + (probleme.Length > 0 ? "\n" + probleme : "") + "\nCliquer : propriétés, filtres, renommer…";
@@ -809,6 +812,7 @@ public sealed class AudioPanel : Border
     {
         var m = new ContextMenu();
         m.Items.Add(Article("Capture audio (entrée)…", () => AjouterCapture(AudioInputKind.Microphone), true, "Un micro, une carte son ou une table de mixage"));
+        m.Items.Add(Article("Capture ASIO…", () => AjouterCapture(AudioInputKind.Asio), true, "Une carte son en ASIO (Focusrite, Behringer, PreSonus…) : pilote, Mono ou Stéréo, entrées"));
         m.Items.Add(Article("Capture audio (sortie)…", () => AjouterCapture(AudioInputKind.Sortie), true, "Le son d'une sortie : l'ordinateur, un navigateur, Zoom…"));
         m.Items.Add(Article("Média…", AjouterFichier, true, "Un fichier audio ou vidéo"));
         m.Items.Add(Article("Son de la vidéo projetée (Display)", AjouterProjection, true, "Le son des vidéos envoyées à l'écran depuis Display"));
@@ -835,7 +839,8 @@ public sealed class AudioPanel : Border
     void AjouterCapture(AudioInputKind kind)
     {
         if (!Place()) return;
-        var s = new AudioSource { Kind = kind, Name = C.NomLibre(kind == AudioInputKind.Microphone ? "Capture audio (entrée)" : "Capture audio (sortie)") };
+        var s = new AudioSource { Kind = kind, Name = C.NomLibre(AudioConfiguration.NomType(new AudioSource { Kind = kind })) };
+        if (kind == AudioInputKind.Asio) s.DeviceId = ChurchAudioService.PilotesAsio().FirstOrDefault() ?? "";
         var w = new ProprietesSourceWindow(s, true);
         Placer(w);
         w.ShowDialog();

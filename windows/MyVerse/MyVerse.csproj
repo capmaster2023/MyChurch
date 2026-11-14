@@ -35,6 +35,8 @@
     <PackageReference Include="OpenCvSharp4" Version="4.10.0.20241108" />
     <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20241108" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <!-- capture ASIO (Focusrite, Behringer, PreSonus…), comme le plugin ASIO d OBS -->
+    <PackageReference Include="NAudio.Asio" Version="2.2.1" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="PdfPig" Version="0.1.9" />
   </ItemGroup>

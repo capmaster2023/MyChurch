@@ -25,6 +25,12 @@ public sealed class ProprietesSourceWindow : FenetreDialogue
     readonly CheckBox boucle = new() { Content = "Lire en boucle", FontSize = 14.5 };
     readonly TextBlock erreur = new() { FontSize = 13.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12), Visibility = Visibility.Collapsed };
     readonly List<UIElement> ligneEntree = new();
+    // capture ASIO, comme le plugin ASIO d'OBS : Device, Format, OBS Channel 1 / 2, Control Panel
+    readonly ComboBox piloteAsio = new() { MinHeight = 38 };
+    readonly ComboBox formatAsio = new() { MinHeight = 38 };
+    readonly ComboBox[] canalAsio = { new() { MinHeight = 38 }, new() { MinHeight = 38 } };
+    readonly List<UIElement> ligneCanal2 = new();
+    List<string> nomsEntrees = new();
     bool remplissage;
 
     /// <summary>L'utilisateur a cliqué « OK » : la source a reçu les nouveaux réglages.</summary>
@@ -37,7 +43,7 @@ public sealed class ProprietesSourceWindow : FenetreDialogue
         this.nouvelle = nouvelle;
         Title = $"Propriétés pour « {s.Name} »";
         Width = 660;
-        Height = s.Kind == AudioInputKind.Media ? 330 : 400;
+        Height = s.Kind == AudioInputKind.Media ? 330 : s.Kind == AudioInputKind.Asio ? 480 : 400;
         MinWidth = 520;
         MinHeight = 280;
         ResizeMode = ResizeMode.CanResize;
@@ -69,6 +75,30 @@ public sealed class ProprietesSourceWindow : FenetreDialogue
                 boucle.IsChecked = s.Loop;
                 Ligne("", boucle);
             }
+        }
+        else if (s.Kind == AudioInputKind.Asio)
+        {
+            Ligne("Périphérique", piloteAsio);
+            piloteAsio.ToolTip = "Le pilote ASIO de la carte son (Focusrite USB ASIO, UMC ASIO Driver…)";
+            formatAsio.Items.Add(new ComboBoxItem { Content = "Mono", Tag = 1 });
+            formatAsio.Items.Add(new ComboBoxItem { Content = "Stéréo", Tag = 2 });
+            Ligne("Format", formatAsio);
+            Ligne("Canal OBS 1", canalAsio[0]);
+            ligneCanal2.AddRange(Ligne("Canal OBS 2", canalAsio[1]));
+            var panneau = new Button { Style = Style_("Btn"), Content = "Panneau de configuration", Height = 40, Padding = new Thickness(16, 0, 16, 0), HorizontalAlignment = HorizontalAlignment.Left };
+            panneau.ToolTip = "Le panneau du fabricant : fréquence, taille du tampon (latence)…";
+            panneau.Click += (_, _) =>
+            {
+                try { A.PanneauAsio(PiloteAsioChoisi); }
+                catch (Exception x) { Erreur("Le panneau du pilote ne s'ouvre pas : " + x.Message); }
+            };
+            Ligne("", panneau);
+            RemplirPilotes(s.DeviceId);
+            formatAsio.SelectedIndex = s.AsioChannels.Count > 1 ? 1 : 0;
+            RemplirCanaux(s.AsioChannels);
+            piloteAsio.SelectionChanged += (_, _) => { if (!remplissage) RemplirCanaux(new List<int> { 0, 1 }.Take(FormatAsio).ToList()); };
+            formatAsio.SelectionChanged += (_, _) => { if (!remplissage) MajFormat(); };
+            MajFormat();
         }
         else
         {
@@ -111,6 +141,7 @@ public sealed class ProprietesSourceWindow : FenetreDialogue
         Loaded += (_, _) =>
         {
             if (nouvelle) { nom.Focus(); nom.SelectAll(); }
+            else if (s.Kind == AudioInputKind.Asio) piloteAsio.Focus();
             else if (s.Kind != AudioInputKind.Media) peripherique.Focus();
         };
     }
@@ -128,6 +159,61 @@ public sealed class ProprietesSourceWindow : FenetreDialogue
         formulaire.Children.Add(t);
         formulaire.Children.Add(controle);
         return new List<UIElement> { t, controle };
+    }
+
+    // ------------------------------------------------------------ capture ASIO
+    string PiloteAsioChoisi => (piloteAsio.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+    int FormatAsio => (formatAsio.SelectedItem as ComboBoxItem)?.Tag is int f ? f : 1;
+    List<int> CanauxAsio => canalAsio.Take(FormatAsio).Select(c => (c.SelectedItem as ComboBoxItem)?.Tag is int k ? k : -1).ToList();
+
+    /// <summary>Les pilotes ASIO installés ; un pilote choisi mais absent reste affiché.</summary>
+    void RemplirPilotes(string choisi)
+    {
+        remplissage = true;
+        try
+        {
+            piloteAsio.Items.Clear();
+            var liste = ChurchAudioService.PilotesAsio();
+            foreach (var p in liste) piloteAsio.Items.Add(new ComboBoxItem { Content = p, Tag = p });
+            if (choisi is not ("" or "default") && !liste.Contains(choisi)) piloteAsio.Items.Add(new ComboBoxItem { Content = choisi + NonConnecte, Tag = choisi });
+            piloteAsio.SelectedItem = piloteAsio.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag! == choisi) ?? (piloteAsio.Items.Count > 0 ? piloteAsio.Items[0] : null);
+            if (piloteAsio.Items.Count == 0) Erreur("Aucun pilote ASIO installé. Installez le pilote de la carte son (Focusrite Control, Behringer UMC…), puis rouvrez cette fenêtre.");
+        }
+        finally { remplissage = false; }
+    }
+
+    /// <summary>« Muet », puis les entrées du pilote (« Input 1 », « Input 2 »…), pour chaque canal OBS.</summary>
+    void RemplirCanaux(List<int> choisis)
+    {
+        remplissage = true;
+        try
+        {
+            nomsEntrees = PiloteAsioChoisi.Length > 0 ? A.EntreesAsio(PiloteAsioChoisi) : new();
+            if (PiloteAsioChoisi.Length > 0 && nomsEntrees.Count == 0)
+            {
+                string st = A.StatutAsio(PiloteAsioChoisi);
+                Erreur(st.Length > 0 ? st : "Ce pilote ASIO ne s'ouvre pas (carte son débranchée, ou utilisée par OBS ?).");
+            }
+            else erreur.Visibility = Visibility.Collapsed;
+            for (int c = 0; c < canalAsio.Length; c++)
+            {
+                var combo = canalAsio[c];
+                int voulu = c < choisis.Count ? choisis[c] : Math.Min(c, Math.Max(0, nomsEntrees.Count - 1));
+                combo.Items.Clear();
+                combo.Items.Add(new ComboBoxItem { Content = "Muet", Tag = -1 });
+                for (int k = 0; k < Math.Max(nomsEntrees.Count, voulu + 1); k++)
+                    combo.Items.Add(new ComboBoxItem { Content = k < nomsEntrees.Count ? nomsEntrees[k] : $"Input {k + 1}" + NonConnecte, Tag = k });
+                combo.SelectedItem = combo.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (int)i.Tag! == voulu) ?? combo.Items[0];
+            }
+        }
+        finally { remplissage = false; }
+    }
+
+    /// <summary>Mono : un canal OBS ; Stéréo : deux (gauche et droite).</summary>
+    void MajFormat()
+    {
+        foreach (var e in ligneCanal2) e.Visibility = FormatAsio > 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (FormatAsio > 1 && (canalAsio[1].SelectedItem as ComboBoxItem)?.Tag is -1 && canalAsio[1].Items.Count > 2) canalAsio[1].SelectedIndex = 2;
     }
 
     /// <summary>« Par défaut » puis les périphériques de Windows ; un périphérique choisi mais débranché reste affiché.</summary>
@@ -191,6 +277,14 @@ public sealed class ProprietesSourceWindow : FenetreDialogue
     void Defauts()
     {
         if (source.Kind == AudioInputKind.Media) { boucle.IsChecked = false; return; }
+        if (source.Kind == AudioInputKind.Asio)
+        {
+            if (piloteAsio.Items.Count > 0) piloteAsio.SelectedIndex = 0;
+            remplissage = true; formatAsio.SelectedIndex = 0; remplissage = false;
+            RemplirCanaux(new List<int> { 0 });
+            MajFormat();
+            return;
+        }
         peripherique.SelectedIndex = 0;
         RemplirEntrees(0);
         horodatage.IsChecked = AudioConfiguration.HorodatageParDefaut(source.Kind);
@@ -209,6 +303,15 @@ public sealed class ProprietesSourceWindow : FenetreDialogue
                 source.MediaPath = fichier.Text.Trim();
                 source.Loop = boucle.IsChecked == true;
             }
+        }
+        else if (source.Kind == AudioInputKind.Asio)
+        {
+            if (PiloteAsioChoisi.Length == 0) { Erreur("Choisissez un pilote ASIO."); return; }
+            source.DeviceId = PiloteAsioChoisi;
+            source.DeviceName = PiloteAsioChoisi;
+            source.AsioChannels = CanauxAsio;
+            source.Channel = 0;
+            source.UseDeviceTiming = null;
         }
         else
         {

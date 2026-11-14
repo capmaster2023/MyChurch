@@ -11,6 +11,7 @@ public sealed class ChurchAudioService : IDisposable
 {
     readonly ObsMixer mixer = new();
     readonly CaptureEntrees entrees;
+    readonly CaptureAsio asio;
     readonly System.Windows.Threading.DispatcherTimer sauvegarde = new() { Interval = TimeSpan.FromMilliseconds(600) };
     readonly System.Windows.Threading.DispatcherTimer veille = new() { Interval = TimeSpan.FromMilliseconds(500) };
     /// <summary>Relevé des périphériques toutes les 2 s : une source dont le périphérique est débranché devient inactive, puis revient.</summary>
@@ -45,6 +46,7 @@ public sealed class ChurchAudioService : IDisposable
         Config = config;
         Config.Normalize();
         entrees = new CaptureEntrees(mixer.Pousser);
+        asio = new CaptureAsio(mixer.Pousser);
         Recorder = new(this);
         Sorties = new(this);
         releve.Tick += (_, _) => Relever();
@@ -120,6 +122,9 @@ public sealed class ChurchAudioService : IDisposable
         // entrées séparées : MyChurch écoute la carte son et donne à chaque source son canal
         try { entrees.Apply(mixer.EntreesSeparees ? Config.Sources : Enumerable.Empty<AudioSource>()); }
         catch (Exception e) { Journal.Erreur("entrées séparées", e); }
+        // capture ASIO : MyChurch ouvre le pilote et donne à chaque source ses canaux, comme le plugin ASIO d'OBS
+        try { asio.Apply(mixer.EntreesSeparees ? Config.Sources : Enumerable.Empty<AudioSource>()); }
+        catch (Exception e) { Journal.Erreur("ASIO", e); }
         Recorder.SuivrePistes();
         Changed?.Invoke();
     }
@@ -147,6 +152,7 @@ public sealed class ChurchAudioService : IDisposable
         return s.Kind switch
         {
             AudioInputKind.Microphone => s.DeviceId == "default" ? micros.Count == 0 : micros.All(d => d.Id != s.DeviceId),
+            AudioInputKind.Asio => !CaptureAsio.Pilotes().Contains(s.DeviceId),
             AudioInputKind.Sortie => s.DeviceId == "default" ? sortiesAudio.Count == 0 : sortiesAudio.All(d => d.Id != s.DeviceId),
             _ => !s.FollowProjection && (s.MediaPath.Length == 0 || !File.Exists(s.MediaPath)),
         };
@@ -205,6 +211,14 @@ public sealed class ChurchAudioService : IDisposable
     public static int Entrees(string deviceId) => CaptureEntrees.Entrees(deviceId);
     /// <summary>Problème d'écoute d'un périphérique (vide si tout va bien).</summary>
     public string StatutEntrees(string deviceId) => entrees.Statut(deviceId);
+    /// <summary>Pilotes ASIO installés.</summary>
+    public static List<string> PilotesAsio() => CaptureAsio.Pilotes();
+    /// <summary>Noms des entrées d'un pilote ASIO (vide s'il ne s'ouvre pas).</summary>
+    public List<string> EntreesAsio(string pilote) => asio.Entrees(pilote);
+    /// <summary>Le panneau de configuration du fabricant (« Control Panel » d'OBS).</summary>
+    public void PanneauAsio(string pilote) => asio.PanneauConfiguration(pilote);
+    /// <summary>Problème du pilote ASIO d'une source (vide si tout va bien).</summary>
+    public string StatutAsio(string pilote) => asio.Statut(pilote);
     public void RestartMedia(AudioSource s) => mixer.RestartMedia(s.Id);
     internal void AddTrackConsumer(int piste, Action<float[]> c) => mixer.AddTrackConsumer(piste, c);
     internal void RemoveTrackConsumer(int piste, Action<float[]> c) => mixer.RemoveTrackConsumer(piste, c);
@@ -214,6 +228,7 @@ public sealed class ChurchAudioService : IDisposable
         sauvegarde.Stop(); veille.Stop(); releve.Stop();
         try { Sorties.Dispose(); } catch (Exception e) { Journal.Erreur("MyVirtualSound", e); }
         try { Recorder.Dispose(); } catch (Exception e) { Journal.Erreur("fin d'enregistrement", e); }
+        try { asio.Dispose(); } catch (Exception e) { Journal.Erreur("ASIO", e); }
         try { entrees.Dispose(); } catch (Exception e) { Journal.Erreur("entrées séparées", e); }
         try { mixer.Dispose(); } catch (Exception e) { Journal.Erreur("arrêt d'OBS", e); }
     }
