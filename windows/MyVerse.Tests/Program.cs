@@ -1737,6 +1737,21 @@ if (Actif())
 
 Groupe("Audio OBS");
 if (Actif()) MyVerse.Tests.ObsTests.Run(Ok);
+Groupe("Recherche 1.4.0 : recueil + numéro, paroles mal écrites");
+if (Actif())
+{
+    var don = Donnees.Charger(Temp(), res);
+    var rg = new Regie(don, new Bibles(don));
+    rg.AjouterChants(new[] { new Chant { Title = "45 - Ndashima", Sections = { new Section { Label = "Couplet 1", Text = "Je leva les yeux vers Dieu\nIl m'a sauvé" } } } }, "Nyimbo za Wokovu");
+    rg.AjouterChants(new[] { new Chant { Title = "45 - Autre", Sections = { new Section { Label = "Couplet 1", Text = "Rien à voir" } } } }, "Cantiques");
+    var w = rg.Commande("wokovu 45");
+    Ok(w.Count > 0 && w[0].Titre == "45 - Ndashima", "« wokovu 45 » : le chant 45 du recueil Wokovu");
+    Ok(!w.Any(x => x.Titre == "45 - Autre"), "« wokovu 45 » : pas le 45 d'un autre recueil");
+    Ok(rg.Commande("wokovo 45").Any(x => x.Titre == "45 - Ndashima"), "faute dans le nom du recueil tolérée");
+    Ok(rg.Commande("je lava vers dieu").Any(x => x.Titre == "45 - Ndashima"), "« je lava vers dieu » trouve « je leva les yeux vers Dieu »");
+    Ok(!rg.Commande("bonjour la maison").Any(x => x.Titre == "45 - Ndashima"), "des mots sans rapport ne trouvent pas le chant");
+}
+
 Groupe("Enregistrement");
 if (Actif()) MyVerse.Tests.RecordingIntegrationTests.RunAsync(Ok).GetAwaiter().GetResult();
 

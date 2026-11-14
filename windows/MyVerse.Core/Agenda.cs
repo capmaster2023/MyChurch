@@ -471,11 +471,94 @@ public sealed partial class Regie
                 res.Add(new ResultatCommande("BIBLE", Livres.Libelle(r.B, r.C), $"Chapitre entier · {vs.Count} versets", Ref: new Ref(r.B, r.C, 0, 0)));
         }
 
+        // 1.4.0 : « wokovu 45 » : nom (ou morceau du nom) d'un recueil, puis le numéro
+        var mr = Regex.Match(n, @"^(.*\D)\s*(\d{1,5})$");
+        if (num == null && mr.Success && mr.Groups[1].Value.Trim().Length >= 2)
+        {
+            var nomR = mr.Groups[1].Value.Trim();
+            foreach (var rec in RecueilsProches(nomR))
+                foreach (var c in ParNumero(mr.Groups[2].Value, rec))
+                    if (vus.Add(c.Id) && res.Count < 9)
+                        res.Add(new ResultatCommande("CHANT", c.Title, rec, ChantId: c.Id));
+        }
+
         // titre ou paroles d'un chant
         if (n.Length >= 3)
             foreach (var c in Filtrer(q, null).Take(8))
                 if (vus.Add(c.Id) && res.Count < 9)
                     res.Add(new ResultatCommande("CHANT", c.Title, c.Author.Length > 0 ? c.Author : "Sans recueil", ChantId: c.Id));
+
+        // 1.4.0 : paroles mal écrites (« je lava vers dieu » trouve « je leva les yeux vers Dieu »)
+        var mots = Recherche.Mots(q);
+        if (mots.Count >= 2 && res.Count < 9)
+            foreach (var (c, extrait) in ParolesProches(mots).Take(6))
+                if (vus.Add(c.Id) && res.Count < 9)
+                    res.Add(new ResultatCommande("CHANT", c.Title, (c.Author.Length > 0 ? c.Author + " · " : "") + "« " + extrait + " »", ChantId: c.Id));
+
+        // 1.4.0 : mots d'un verset (même mal écrits), quand ce n'est pas une référence
+        if (mots.Count >= 3 && !res.Any(x => x.Type == "BIBLE") && res.Count < 9)
+        {
+            try
+            {
+                foreach (var v in Recherche.Chercher(new[] { B }, q, 4, out _).Take(9 - res.Count))
+                    res.Add(new ResultatCommande("BIBLE", Livres.Libelle(v.B, v.C, v.V), v.Texte, Ref: new Ref(v.B, v.C, v.V, v.V)));
+            }
+            catch { }
+        }
         return res;
+    }
+
+    /// <summary>Recueils dont le nom ressemble à la saisie (« wokovu » → « Nyimbo za Wokovu »), fautes de frappe tolérées.</summary>
+    public List<string> RecueilsProches(string saisie)
+    {
+        var sm = Recherche.Mots(saisie);
+        if (sm.Count == 0) return new();
+        var res = new List<(string R, int D)>();
+        foreach (var rec in Chants.Select(c => c.Author ?? "").Where(a => a.Length > 0).Distinct())
+        {
+            var rm = Recherche.Mots(rec);
+            int total = 0; bool ok = true;
+            foreach (var w in sm)
+            {
+                int best = rm.Count == 0 ? 99 : rm.Min(x => x.StartsWith(w) ? 0 : Recherche.Distance(w, x.Length > w.Length + 1 ? x[..(w.Length)] : x, 2));
+                if (best > (w.Length >= 5 ? 2 : w.Length >= 3 ? 1 : 0)) { ok = false; break; }
+                total += best;
+            }
+            if (ok) res.Add((rec, total));
+        }
+        return res.OrderBy(x => x.D).Select(x => x.R).ToList();
+    }
+
+    /// <summary>
+    /// Chants dont les paroles contiennent les mots cherchés dans l'ordre, chacun pouvant avoir une faute de frappe
+    /// (1 pour un mot de 3 à 5 lettres, 2 au-delà) et des mots en plus entre eux. Rend aussi la ligne trouvée.
+    /// </summary>
+    public IEnumerable<(Chant C, string Extrait)> ParolesProches(List<string> q)
+    {
+        var res = new List<(Chant, string, int)>();
+        foreach (var c in Chants)
+        {
+            foreach (var sec in c.Sections)
+                foreach (var ligne in (sec.Text ?? "").Split('\n'))
+                {
+                    var lm = Recherche.Mots(ligne);
+                    if (lm.Count == 0) continue;
+                    int i = 0, cout = 0, saut = 0;
+                    foreach (var w in q)
+                    {
+                        int tol = w.Length >= 6 ? 2 : w.Length >= 3 ? 1 : 0, j = i, trouve = -1;
+                        for (; j < lm.Count && j <= i + 3; j++)
+                        {
+                            int d = Recherche.Distance(w, lm[j], tol);
+                            if (d <= tol) { trouve = j; cout += d; saut += j - i; break; }
+                        }
+                        if (trouve < 0) { cout = -1; break; }
+                        i = trouve + 1;
+                    }
+                    if (cout >= 0) { res.Add((c, ligne.Trim(), cout * 3 + saut)); goto suivant; }
+                }
+            suivant:;
+        }
+        return res.OrderBy(x => x.Item3).Select(x => (x.Item1, x.Item2));
     }
 }

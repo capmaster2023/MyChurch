@@ -84,9 +84,11 @@ public partial class MainWindow
         InitVignettes();
 
         // ---------- recherche du culte (Ctrl K)
+        CmdEffacer.Click += (_, _) => { Cmd.Clear(); CmdPopup.IsOpen = false; Cmd.Focus(); };
         Cmd.TextChanged += (_, _) =>
         {
             CmdIndice.Visibility = Cmd.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+            CmdEffacer.Visibility = Cmd.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
             minuterieCmd.Stop();
             minuterieCmd.Start();
         };

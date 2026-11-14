@@ -375,12 +375,15 @@
                             </Grid.ColumnDefinitions>
                             <Path Data="M9,2 A7,7 0 1 1 8.99,2 Z M14,14 L19,19" Stroke="{StaticResource Brume2}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" VerticalAlignment="Center" Width="20" Height="20" Stretch="None" />
                             <TextBlock x:Name="CmdIndice" Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="14" Foreground="{StaticResource Brume2}" IsHitTestVisible="False"
-                                       Text="jean 3 16, chant 45, ou des mots du chant" TextTrimming="CharacterEllipsis" />
+                                       Text="jean 3 16, wokovu 45, ou des paroles (même mal écrites)" TextTrimming="CharacterEllipsis" />
                             <TextBox x:Name="Cmd" Grid.Column="1" Margin="8,0,0,0" FontSize="14.5" Background="Transparent" BorderThickness="0" Foreground="{StaticResource Blanc}"
                                      CaretBrush="{StaticResource Blanc}" SelectionBrush="{StaticResource OrVif}" VerticalContentAlignment="Center" Padding="0,10" FocusVisualStyle="{x:Null}" />
-                            <Border Grid.Column="2" Style="{StaticResource Touche}" Margin="6,0,0,0">
-                                <TextBlock Text="Ctrl K" FontFamily="{StaticResource Mono}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Brume}" />
-                            </Border>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="CmdEffacer" Style="{StaticResource BtnPlat}" Padding="8,2" Content="×" FontSize="18" Foreground="{StaticResource Brume}" Visibility="Collapsed" ToolTip="Annuler la recherche" />
+                                <Border Style="{StaticResource Touche}" Margin="6,0,0,0">
+                                    <TextBlock Text="Ctrl K" FontFamily="{StaticResource Mono}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Brume}" />
+                                </Border>
+                            </StackPanel>
                         </Grid>
                     </Border>
                     <Popup x:Name="CmdPopup" PlacementTarget="{Binding ElementName=RechercheCulte}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" Focusable="False"

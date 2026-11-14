@@ -15,9 +15,9 @@ public sealed class Palette : INotifyPropertyChanged
     static readonly Dictionary<string, (string Clair, string Sombre)> Couleurs = new()
     {
         // fonds (3.3 : ivoire et sable en clair, brun très foncé en sombre)
-        ["Page"] = ("#FAF8F4", "#14120F"),
-        ["Rail"] = ("#F3EFE7", "#100E0B"),
-        ["RailActif"] = ("#FFF6E3", "#1E1B16"),
+        ["Page"] = ("#FBF9F9", "#141111"),
+        ["Rail"] = ("#F5F0F0", "#100D0D"),
+        ["RailActif"] = ("#FBEAEA", "#2A1717"),
         ["Encre"] = ("#FFFFFF", "#1E1B16"),
         ["Nuit"] = ("#FFFFFF", "#1E1B16"),
         ["Nuit2"] = ("#F6F2EB", "#27231D"),
@@ -30,18 +30,18 @@ public sealed class Palette : INotifyPropertyChanged
         ["Brume"] = ("#646C7E", "#A99F92"),
         ["Brume2"] = ("#6E7587", "#8F8576"),
         // accent or
-        ["Or"] = ("#8A5A0B", "#F5A524"),
-        ["Or2"] = ("#6E4708", "#FFC15A"),
-        ["OrVif"] = ("#C8962E", "#F5A524"),
-        ["OrLeger"] = ("#FFF6E3", "#2B2215"),
-        ["OrBord"] = ("#EBCB8B", "#5A4520"),
-        ["SurOr"] = ("#1E1404", "#1E1404"),
-        ["OrDegrade"] = ("#C8962E", "#F5A524"),
-        ["OrDegradeClair"] = ("#D9A944", "#FFB53F"),
+        ["Or"] = ("#930000", "#FF6B5E"),
+        ["Or2"] = ("#6E0000", "#FF8A80"),
+        ["OrVif"] = ("#930000", "#E0453A"),
+        ["OrLeger"] = ("#FBEAEA", "#2E1414"),
+        ["OrBord"] = ("#E5B3B3", "#5E2525"),
+        ["SurOr"] = ("#FFFFFF", "#FFFFFF"),
+        ["OrDegrade"] = ("#930000", "#B3261E"),
+        ["OrDegradeClair"] = ("#B01E1E", "#D33A2F"),
         // bouton principal (Suivant, Importer…) : bleu nuit en clair, or en sombre
-        ["Primaire"] = ("#1B2742", "#F5A524"),
-        ["PrimaireSurvol"] = ("#2A3A5E", "#FFB53F"),
-        ["SurPrimaire"] = ("#FFFFFF", "#1E1404"),
+        ["Primaire"] = ("#930000", "#B3261E"),
+        ["PrimaireSurvol"] = ("#B01212", "#D33A2F"),
+        ["SurPrimaire"] = ("#FFFFFF", "#FFFFFF"),
         // en direct, sourdine, erreurs
         ["Rouge"] = ("#D92D20", "#F04438"),
         ["Direct"] = ("#D92D20", "#F04438"),
@@ -61,7 +61,7 @@ public sealed class Palette : INotifyPropertyChanged
         ["TypePrincipal"] = ("#A87618", "#E3B762"),
         // divers
         ["BleuFonce"] = ("#152C91", "#9DB0FF"),
-        ["Marque"] = ("#FFE9C2", "#3A2E14"),
+        ["Marque"] = ("#FBDADA", "#3A1A1A"),
         ["Surligne"] = ("#FFE3A3", "#4A3A12"),
         ["TuileFond"] = ("#17130E", "#0E0C09"),
         ["TuileSource"] = ("#2A241C", "#26211A"),
