@@ -35,19 +35,19 @@ public static class RecordingIntegrationTests
     /// Le son comme OBS le donne : des blocs de 10 ms horodatés à l'instant de leur capture (t0 + n × 10 ms), livrés en temps réel
     /// avec le retard du mélange d'OBS (<paramref name="retardSonMs"/>). Clap : son fort des blocs 50 à 59 (0,5 à 0,6 s du monde).
     /// </summary>
-    static async Task AlimenterAsync(RecordingSession session, long t0, int retardSonMs, int blocs = 150)
+    static async Task AlimenterAsync(RecordingSession session, long t0, int retardSonMs, int blocs = 150, int clap = 50)
     {
         var block = new float[AudioBlock.Samples];
         for (int n = 0; n < blocs; n++)
         {
             long quand = t0 + n * 10 * Horloge.Milliseconde + retardSonMs * Horloge.Milliseconde;
             while (Horloge.Ns() < quand) await Task.Delay(1);
-            FillAudio(block, n);
+            FillAudio(block, n, clap);
             if (!session.Accept(block, t0 + n * 10 * Horloge.Milliseconde)) throw new IOException(session.Error ?? "bloc refusé");
         }
     }
-    /// <summary>L'image du monde : claire de 0,5 à 0,6 s après t0 (le clap), sombre sinon.</summary>
-    static Func<long, byte> Clap(long t0) => monde => monde - t0 >= 500 * Horloge.Milliseconde && monde - t0 < 600 * Horloge.Milliseconde ? (byte)240 : (byte)25;
+    /// <summary>L'image du monde : claire pendant 0,1 s à partir de <paramref name="debutMs"/> après t0 (le clap), sombre sinon.</summary>
+    static Func<long, byte> Clap(long t0, int debutMs = 500) => monde => monde - t0 >= debutMs * Horloge.Milliseconde && monde - t0 < (debutMs + 100) * Horloge.Milliseconde ? (byte)240 : (byte)25;
     static async Task<string> ProcessAsync(string exe, IEnumerable<string> args)
     {
         var info = new ProcessStartInfo(exe) { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
@@ -92,10 +92,11 @@ public static class RecordingIntegrationTests
         string path = RecordingFiles.ReservePath(directory, profile.Name, "mkv");
         using (var session = new RecordingSession(profile, path, ffmpeg, "mjpeg", frame))
         {
+            // le clap à 1 s : le début du fichier (le temps que le premier son arrive) n'a pas d'image du passé
             long t0 = Horloge.Ns();
-            frame.Selon(Clap(t0));
+            frame.Selon(Clap(t0, 1000));
             await session.PrepareAsync();
-            await AlimenterAsync(session, t0, retardSonMs);
+            await AlimenterAsync(session, t0, retardSonMs, 200, 100);
             await session.StopAsync();
         }
         return await ClapAsync(ffmpeg, path);
@@ -122,11 +123,11 @@ public static class RecordingIntegrationTests
         await session.StopAsync();
         return path;
     }
-    static void FillAudio(float[] block, int n)
+    static void FillAudio(float[] block, int n, int clap = 50)
     {
         for (int i = 0; i < block.Length; i += 2)
         {
-            double amplitude = n >= 50 && n < 60 ? .8 : .02;
+            double amplitude = n >= clap && n < clap + 10 ? .8 : .02;
             block[i] = block[i + 1] = (float)(amplitude * Math.Sin(2 * Math.PI * 1000 * (n * 480 + i / 2) / 48000));
         }
     }
@@ -176,7 +177,7 @@ public static class RecordingIntegrationTests
                     var (son, image) = await ClapAsync(executable, path);
                     ok(son != null && image != null && Math.Abs(son.Value - image.Value) < 0.05, "Synchro image/son mesurée dans le MKV", $"son {son:0.000} s · image {image:0.000} s");
                     // MyChurch 1.2 : synchro automatique, le son en retard (mélange d'OBS) et la caméra en retard (MyCam)
-                    foreach (var (retardSon, retardCamera) in new[] { (150, 0), (150, 100), (0, 250), (300, 120) })
+                    foreach (var (retardSon, retardCamera) in new[] { (150, 0), (150, 100), (0, 250), (300, 120), (500, 0) })
                     {
                         var (s2, i2) = await SessionClapAsync(executable, directory, retardSon, retardCamera);
                         ok(s2 != null && i2 != null && Math.Abs(s2.Value - i2.Value) < 0.05,

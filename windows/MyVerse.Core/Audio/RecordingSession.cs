@@ -211,20 +211,23 @@ public sealed class RecordingSession : IDisposable
     /// <summary>
     /// Le fil vidéo : la n-ième image est celle du monde à l'instant « origine + n / ips » (l'instant du son à la même place),
     /// demandée à la composition dès qu'elle est prête (cet instant + le retard des caméras), à cadence exacte.
-    /// Rien n'attend ffmpeg ni le son écrit : pas de blocage avec un encodeur qui retient des images (x264, carte graphique).
+    /// Les images composées attendent dans une file qu'un autre fil les écrive pour ffmpeg : quand ffmpeg retient la vidéo
+    /// le temps que le son (en retard) la rattrape, la composition, elle, reste à l'heure.
     /// </summary>
     void EcrireVideo()
     {
         bool precision = false;
+        Thread? ecrivain = null;
+        int size = profile.Width * profile.Height * 4;
+        // au plus ~256 Mo d'images en attente (2 s en 720p) : au-delà, ffmpeg ne suit plus
+        int maxFile = Math.Clamp((int)(256L * 1024 * 1024 / size), 8, profile.Fps * 4);
         try
         {
             videoPipe!.WaitForConnection();
-            int size = profile.Width * profile.Height * 4;
-            var image = new byte[size];
+            ecrivain = new Thread(() => EcrireImages(size)) { IsBackground = true, Name = "MyChurch vidéo (ffmpeg)", Priority = ThreadPriority.AboveNormal };
+            ecrivain.Start();
             // une première image tout de suite : ffmpeg ouvre alors le tube du son
-            compositor!.CopyFrame(image, Horloge.Ns() - compositor.Retard);
-            videoPipe.Write(image, 0, size);
-            Interlocked.Increment(ref imagesEcrites);
+            Composer(Horloge.Ns() - compositor!.Retard, size);
             while (Volatile.Read(ref origine) == long.MinValue)
             {
                 if (cancel.IsCancellationRequested || Volatile.Read(ref finished) || audioDone) return;
@@ -241,10 +244,12 @@ public sealed class RecordingSession : IDisposable
                 if (fini && monde >= depart + (primeFrames + Interlocked.Read(ref accepted)) * Horloge.Seconde / AudioBlock.Rate) break;
                 long quand = monde + Math.Clamp(compositor.Retard, 0, 2 * Horloge.Seconde);
                 if (!fini && Horloge.Ns() < quand) { Attendre(quand); continue; }
-                if (!fini && Horloge.Ns() - quand > 2 * Horloge.Seconde) { Fail("L’encodeur vidéo ne suit plus le son. Arrêt pour préserver la synchronisation."); break; }
-                compositor.CopyFrame(image, monde);
-                videoPipe.Write(image, 0, size);
-                Interlocked.Increment(ref imagesEcrites);
+                if (!fini && (Horloge.Ns() - quand > 2 * Horloge.Seconde || fileImages.Count > maxFile))
+                {
+                    Fail("L’encodeur vidéo ne suit plus le son. Arrêt pour préserver la synchronisation.");
+                    break;
+                }
+                Composer(monde, size);
                 n++;
             }
         }
@@ -256,6 +261,42 @@ public sealed class RecordingSession : IDisposable
         finally
         {
             if (precision) Minuterie(false);
+            try { fileImages.CompleteAdding(); } catch (ObjectDisposedException) { }
+            // l'écrivain finit d'écrire la file, puis ferme le tube (ffmpeg termine alors la vidéo)
+            if (ecrivain == null) { try { videoPipe?.Dispose(); } catch (Exception) { } videoFin.TrySetResult(); }
+        }
+    }
+
+    readonly System.Collections.Concurrent.BlockingCollection<byte[]> fileImages = new();
+    readonly System.Collections.Concurrent.ConcurrentBag<byte[]> imagesLibres = new();
+
+    /// <summary>Compose l'image de l'instant <paramref name="monde"/> et la met dans la file de l'écrivain.</summary>
+    void Composer(long monde, int size)
+    {
+        if (!imagesLibres.TryTake(out var image) || image.Length != size) image = new byte[size];
+        compositor!.CopyFrame(image, monde);
+        fileImages.Add(image);
+    }
+
+    /// <summary>L'écrivain : les images de la file, dans l'ordre, vers ffmpeg (il peut attendre ffmpeg sans retarder la composition).</summary>
+    void EcrireImages(int size)
+    {
+        try
+        {
+            foreach (var image in fileImages.GetConsumingEnumerable())
+            {
+                videoPipe!.Write(image, 0, size);
+                Interlocked.Increment(ref imagesEcrites);
+                imagesLibres.Add(image);
+            }
+        }
+        catch (Exception e) when (e is IOException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)
+        {
+            if (!cancel.IsCancellationRequested && !Volatile.Read(ref finished)) error ??= "Vidéo : " + e.Message;
+        }
+        catch (Exception e) { error ??= "Vidéo : " + e.Message; }
+        finally
+        {
             try { videoPipe?.Dispose(); } catch (Exception) { }
             videoFin.TrySetResult();
         }
