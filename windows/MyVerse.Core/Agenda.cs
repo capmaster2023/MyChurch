@@ -29,6 +29,32 @@ public sealed record SourceDisplay
     [JsonPropertyName("peripherique")] public string Peripherique { get; init; } = "";
     [JsonPropertyName("fenetre")] public long Fenetre { get; init; }
     [JsonPropertyName("processus")] public int Processus { get; init; }
+    /// <summary>
+    /// Capture de fenêtre (1.3.1) : le programme (« Zoom.exe »), la classe et le titre de la fenêtre choisie. Fermée puis rouverte
+    /// (Zoom qui change de réunion, un programme relancé), MyChurch la retrouve : même programme et même titre, sinon même type de fenêtre.
+    /// </summary>
+    [JsonPropertyName("exe"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Exe { get; init; }
+    [JsonPropertyName("classe"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Classe { get; init; }
+    [JsonPropertyName("titre"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Titre { get; init; }
+    /// <summary>Capture de fenêtre (1.3.1) : seulement l'intérieur de la fenêtre, sans sa barre de titre ni ses bords (« Zone client » d'OBS).</summary>
+    [JsonPropertyName("zoneClient"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public bool ZoneClient { get; init; }
+    /// <summary>
+    /// Où va la source (1.3.1) : <see cref="Eglise"/> (seulement l'écran de projection), <see cref="Streaming"/> (seulement MyVirtualCam
+    /// et OBS), null = les deux, comme avant. Une fenêtre Zoom montrée dans l'église ne repart pas vers Zoom : pas d'effet miroir.
+    /// </summary>
+    [JsonPropertyName("diffusion"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Diffusion { get; init; }
+
+    public const string Eglise = "eglise", Streaming = "streaming";
+    [JsonIgnore] public bool EgliseSeulement => Diffusion == Eglise;
+    [JsonIgnore] public bool StreamingSeulement => Diffusion == Streaming;
+
+    /// <summary>« Dans l'église seulement », « En streaming seulement » ou « Église et streaming ».</summary>
+    public static string NomDiffusion(string? diffusion) => diffusion switch
+    {
+        Eglise => "Dans l'église seulement",
+        Streaming => "En streaming seulement",
+        _ => "Église et streaming",
+    };
 }
 
 public sealed record CibleDisplay(string Id) : Cible;
@@ -41,7 +67,7 @@ public sealed class Annonce
     [JsonPropertyName("source"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SourceDisplay? Source { get; set; }
     /// <summary>Dans la grille de Display (un clic = en direct).</summary>
     [JsonPropertyName("grille")] public bool Grille { get; set; }
-    [JsonIgnore] public string Description => Source?.Type switch { "duo" => "Duo · 2 éléments ensemble", "camera" => "Périphérique de capture vidéo · " + Source.Peripherique, "mycam" => "Téléphone MyCam", "fenetre" => "Capture de fenêtre · " + Titre, "image" => "Image · " + Path.GetFileName(Source.Chemin), "video" => "Vidéo · " + Path.GetFileName(Source.Chemin), _ => Texte };
+    [JsonIgnore] public string Description => Source?.Type switch { "duo" => "Duo · 2 éléments ensemble", "camera" => "Périphérique de capture vidéo · " + Source.Peripherique, "mycam" => "Téléphone MyCam", "fenetre" => "Capture de fenêtre · " + SourceDisplay.NomDiffusion(Source.Diffusion), "image" => "Image · " + Path.GetFileName(Source.Chemin), "video" => "Vidéo · " + Path.GetFileName(Source.Chemin), _ => Texte };
 }
 
 /// <summary>Un agenda (comme dans VideoPsalm) : la liste préparée d'un culte.</summary>

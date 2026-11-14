@@ -951,6 +951,70 @@ if (Actif())
     Ok(MiseAJour.PlusRecente("6.0.0", "6.0.0-beta") && !MiseAJour.PlusRecente("6.0.0-beta", "6.0.0"), "passage bêta vers version finale");
 }
 
+Groupe("Fenêtre : église, streaming ou les deux (1.3.1)");
+if (Actif())
+{
+    var don = Donnees.Charger(Temp(), res);
+    var rg = new Regie(don, new Bibles(don));
+    var zoom = rg.NouveauDisplay("Zoom Meeting", new SourceDisplay
+    {
+        Type = "fenetre", Fenetre = 77, Processus = 7, Exe = "Zoom.exe", Classe = "ConfMultiTabContentWndClass", Titre = "Zoom Meeting",
+        ZoneClient = true, Diffusion = SourceDisplay.Eglise,
+    });
+    var diapos = rg.NouveauDisplay("Diapos", new SourceDisplay { Type = "fenetre", Fenetre = 78, Processus = 8, Exe = "POWERPNT.EXE", Titre = "Annonces", Diffusion = SourceDisplay.Streaming });
+    var partout = rg.NouveauDisplay("Navigateur", new SourceDisplay { Type = "fenetre", Fenetre = 79, Processus = 9, Exe = "msedge.exe", Titre = "Accueil" });
+    var relu = Donnees.Charger(don.Dossier, res);
+    Ok(relu.Annonces.First(a => a.Id == zoom.Id).Source == zoom.Source, "fenêtre : programme, classe, titre, zone client et diffusion conservés");
+    Ok(relu.Annonces.First(a => a.Id == partout.Id).Source is { Diffusion: null, ZoneClient: false }, "les deux : réglage d'avant la 1.3.1");
+    Egal(zoom.Description, "Capture de fenêtre · Dans l'église seulement", "description d'une fenêtre dans l'église");
+    Egal(SourceDisplay.NomDiffusion(null), "Église et streaming", "les deux, en mots");
+    var ancienne = System.Text.Json.JsonSerializer.Deserialize<SourceDisplay>("{\"type\":\"fenetre\",\"fenetre\":5,\"processus\":6}")!;
+    Ok(ancienne is { Diffusion: null, ZoneClient: false, Exe: null } && !ancienne.EgliseSeulement && !ancienne.StreamingSeulement,
+        "source d'avant la 1.3.1 : les deux, fenêtre entière");
+
+    rg.AfficherAnnonce(zoom);
+    Ok(rg.Etat.Mode == "media" && rg.EtatSalle(rg.Etat) == rg.Etat, "Dans l'église : l'écran de projection montre la fenêtre");
+    Ok(rg.EtatDiffusion(rg.Etat).Vide, "Dans l'église : ni MyVirtualCam, ni OBS, ni la page publique (pas d'effet miroir dans Zoom)");
+    rg.AfficherAnnonce(partout);
+    Ok(rg.EtatSalle(rg.Etat).Media == partout.Source && rg.EtatDiffusion(rg.Etat).Media == partout.Source, "les deux : partout, comme avant");
+
+    rg.AfficherAnnonce(diapos);
+    Ok(rg.EtatDiffusion(rg.Etat) is { Mode: "media" } ds && ds.Media == diapos.Source, "En streaming : MyVirtualCam et OBS la reçoivent");
+    Ok(rg.EtatSalle(rg.Etat).Vide, "En streaming, écran par défaut noir : la salle reste vide");
+    rg.ChoisirEcranDefaut("fond");
+    Ok(rg.Etat.Media == diapos.Source && rg.EtatSalle(rg.Etat).Mode == "fond", "En streaming, écran par défaut « fond seul » : la salle garde l'habillage");
+    var logo = rg.NouveauDisplay("Logo", new SourceDisplay { Type = "image", Chemin = "logo.png" });
+    var eLogo = rg.AjouterPrincipalAgenda(logo.Id)!;
+    rg.ChoisirEcranDefaut(eLogo.Id);
+    Ok(rg.Etat.Media == diapos.Source && rg.EtatSalle(rg.Etat) is { Mode: "media" } sl && sl.Media?.Chemin == "logo.png",
+        "En streaming : la salle garde l'écran principal choisi (le logo)");
+    Ok(rg.EtatDiffusion(rg.Etat).Media == diapos.Source, "… pendant que MyVirtualCam reçoit les diapos");
+
+    // le Duo : un contenu épinglé « Dans l'église » ne part pas en streaming, un contenu « En streaming » n'est pas dans la salle
+    rg.AfficherAnnonce(zoom);
+    rg.Epingler("Zoom");
+    rg.AfficherVerset(42, 3, 16, 16);
+    Ok(rg.EtatSalle(rg.Etat) is { Mode: "verset" } s1 && s1.Duo?.Etat.Media == zoom.Source, "Duo : la salle voit le verset et Zoom épinglé");
+    Ok(rg.EtatDiffusion(rg.Etat) is { Mode: "verset" } d1 && d1.Duo == null, "Duo : MyVirtualCam reçoit le verset, sans Zoom");
+    rg.Desepingler();
+    rg.AfficherAnnonce(diapos);
+    rg.Epingler("Diapos");
+    rg.AfficherVerset(42, 3, 17, 17);
+    Ok(rg.EtatSalle(rg.Etat).Duo == null && rg.EtatDiffusion(rg.Etat).Duo?.Etat.Media == diapos.Source, "Duo : des diapos épinglées « En streaming » restent hors de la salle");
+    rg.Desepingler();
+
+    rg.AfficherAnnonce(zoom);
+    Ok(rg.ModifierSource(zoom.Id, "Zoom (culte)", zoom.Source! with { Diffusion = null }), "modifier une fenêtre : accepté");
+    Ok(rg.Etat.Media is { Diffusion: null } && rg.Etat.Ref == "Zoom (culte)" && rg.EtatDiffusion(rg.Etat).Mode == "media",
+        "à l'écran : le nouveau réglage s'applique tout de suite");
+    Ok(Donnees.Charger(don.Dossier, res).Annonces.First(a => a.Id == zoom.Id) is { Titre: "Zoom (culte)", Source.Diffusion: null }, "réglage enregistré");
+    rg.Epingler("Zoom");
+    Ok(rg.ModifierSource(zoom.Id, "", zoom.Source! with { Diffusion = SourceDisplay.Eglise }) && rg.Etat.Duo?.Etat.Media?.EgliseSeulement == true && rg.EtatDiffusion(rg.Etat).Duo == null,
+        "épinglée : le nouveau réglage suit aussi");
+    Ok(!rg.ModifierSource(zoom.Id, "", new SourceDisplay { Type = "image", Chemin = "x.png" }) && !rg.ModifierSource("absent", "", zoom.Source!),
+        "changer de type, ou une source absente : refusé");
+}
+
 Groupe("Dossiers Duo");
 if (Actif())
 {

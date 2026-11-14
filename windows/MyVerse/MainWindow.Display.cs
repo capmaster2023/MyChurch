@@ -29,11 +29,24 @@ public partial class MainWindow
         App.Sources.Change += () =>
         {
             var b = App.Sources.Image;
-            ApercuRendu.ImageDisplay(b); CulteRendu.ImageDisplay(b); ecran?.Rendu.ImageDisplay(b); App.CameraVirtuelle?.Media(b);
+            ApercuRendu.ImageDisplay(b); CulteRendu.ImageDisplay(b);
+            // 1.3.1 : la salle montre peut-être un autre média (l'écran par défaut pendant une source « En streaming ») ;
+            // une source « Dans l'église » ne part pas vers MyVirtualCam
+            if (mediaSalle == null) ecran?.Rendu.ImageDisplay(b);
+            App.CameraVirtuelle?.Media(diffusionMedia ? b : null);
             if (duoMemeSource) ImagesDuo();
             DisplaySourceInfo.Text = App.Sources.Statut;
         };
+        App.SourcesSalle.Change += () => { if (mediaSalle != null) ecran?.Rendu.ImageDisplay(App.SourcesSalle.Image); };
     }
+
+    /// <summary>
+    /// 1.3.1 : le média que l'écran de projection montre à la place du direct (l'écran par défaut pendant une source « En streaming »),
+    /// avec sa propre capture (<see cref="App.SourcesSalle"/>) ; null quand la salle montre le direct.
+    /// </summary>
+    SourceDisplay? mediaSalle;
+    /// <summary>1.3.1 : MyVirtualCam reçoit le média en direct et le contenu épinglé (faux pour une source « Dans l'église »).</summary>
+    bool diffusionMedia = true, diffusionDuo = true;
 
     ContextMenu MenuAjouterSource()
     {
@@ -208,12 +221,45 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>1.3.1 : la fenêtre de capture comme celle d'OBS (image en direct, « [Zoom.exe] : titre », zone client) et où va la fenêtre.</summary>
     void AjouterFenetre()
     {
-        var windows = SourcesDisplay.Fenetres();
-        if (windows.Count == 0) { Toast("Ouvrez la fenêtre à capturer, puis réessayez."); return; }
-        if (ChoisirSource("Capture de fenêtre", "Gardez la fenêtre ouverte et non réduite. Certaines fenêtres protégées ou accélérées par le GPU ne permettent pas la capture.", windows, w => w.Titre) is { } w)
-            ChoisirDisplay(R.NouveauDisplay(w.Titre, new SourceDisplay { Type = "fenetre", Fenetre = w.Handle, Processus = w.Processus }));
+        var d = new CaptureFenetreWindow(null, "") { Owner = this };
+        if (d.ShowDialog() != true || d.Source is not { } s) return;
+        var a = R.NouveauDisplay(d.Nom, s);
+        R.GrilleAnnonce(a.Id, true);
+        ChoisirDisplay(a);
+        Toast($"« {a.Titre} » ajoutée ({SourceDisplay.NomDiffusion(s.Diffusion).ToLowerInvariant()}) : un clic sur sa tuile l'envoie en direct.");
+    }
+
+    /// <summary>1.3.1 : clic droit › Modifier sur une fenêtre : la même fenêtre qu'à l'ajout, avec les réglages de la source.</summary>
+    void ModifierFenetre(Annonce a)
+    {
+        if (a.Source is not { Type: "fenetre" } s) return;
+        var d = new CaptureFenetreWindow(s, a.Titre) { Owner = this };
+        if (d.ShowDialog() != true || d.Source is not { } nouvelle) return;
+        if (!R.ModifierSource(a.Id, d.Nom, nouvelle)) return;
+        if (annonceChoisie?.Id == a.Id) ChoisirDisplay(a);
+        Toast($"« {a.Titre} » : {SourceDisplay.NomDiffusion(nouvelle.Diffusion).ToLowerInvariant()}.");
+    }
+
+    /// <summary>1.3.1 : clic droit › Où va cette fenêtre : dans l'église, en streaming ou les deux, sans rouvrir les propriétés.</summary>
+    MenuItem MenuDiffusion(Annonce a, SourceDisplay s)
+    {
+        var m = new MenuItem { Header = "Où va cette fenêtre" };
+        foreach (var (valeur, texte) in new (string?, string)[] { (SourceDisplay.Eglise, "Dans l'église seulement"), (SourceDisplay.Streaming, "En streaming seulement"), (null, "Les deux") })
+        {
+            var v = valeur;
+            var choix = Article(texte, () =>
+            {
+                if (!R.ModifierSource(a.Id, "", s with { Diffusion = v })) return;
+                if (annonceChoisie?.Id == a.Id) ChoisirDisplay(a);
+                Toast($"« {a.Titre} » : {SourceDisplay.NomDiffusion(v).ToLowerInvariant()}.");
+            });
+            choix.IsChecked = s.Diffusion == v;
+            m.Items.Add(choix);
+        }
+        return m;
     }
     T? ChoisirSource<T>(string titre, string aide, List<T> items, Func<T, string> nom) where T : class
     {

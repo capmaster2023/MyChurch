@@ -923,6 +923,30 @@ public static class AutoTest
                 var pixel = 64 + (360 * 1280 + 640) * 3;
                 Ok(view.ReadByte(pixel) == 40 && view.ReadByte(pixel + 1) == 30 && view.ReadByte(pixel + 2) == 200, "MyVirtualCam reçoit les pixels réels de la projection");
             }
+            // 1.3.1 : où va une source. « Dans l'église » : l'écran de projection seulement, MyVirtualCam reste noire (Zoom projeté
+            // ne revient pas dans Zoom) ; « En streaming » : MyVirtualCam seulement ; « Les deux » : partout, comme avant
+            if (App.CameraVirtuelle != null && img.Source is { } sourceImage)
+            {
+                using var mmDif = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(@"Local\MyChurch.MyVirtualCam.frames.v1");
+                using var vueDif = mmDif.CreateViewAccessor();
+                int milieu = 64 + (360 * 1280 + 640) * 3;
+                bool Rouge() => vueDif.ReadByte(milieu) == 40 && vueDif.ReadByte(milieu + 1) == 30 && vueDif.ReadByte(milieu + 2) == 200;
+                R.ModifierSource(img.Id, "", sourceImage with { Diffusion = SourceDisplay.Eglise });
+                await Attendre(1300);
+                Ok(R.Etat.Mode == "media" && R.EtatSalle(R.Etat).Media?.EgliseSeulement == true && App.Sources.Image != null && !Rouge(),
+                    "1.3.1 : source « Dans l'église » : à l'écran de projection, MyVirtualCam ne la reçoit pas");
+                Ok(w.TestStatutProjection is "Église seulement" or "Aperçu seulement", "1.3.1 : pastille d'une source « Dans l'église » : " + w.TestStatutProjection);
+                R.ModifierSource(img.Id, "", sourceImage with { Diffusion = SourceDisplay.Streaming });
+                await Attendre(1300);
+                Ok(Rouge() && R.EtatSalle(R.Etat).Media?.Chemin != imagePath, "1.3.1 : source « En streaming » : MyVirtualCam la reçoit, pas l'écran de projection");
+                Ok(w.TestStatutProjection == "Streaming seulement", "1.3.1 : pastille « Streaming seulement » : " + w.TestStatutProjection);
+                if (w.Ecran != null) Capture(w.Ecran, "26b-ecran-streaming-seulement.png");
+                R.ModifierSource(img.Id, "", sourceImage with { Diffusion = null });
+                await Attendre(1300);
+                Ok(Rouge() && R.EtatSalle(R.Etat).Media?.Chemin == imagePath, "1.3.1 : les deux : MyVirtualCam et l'écran de projection la reçoivent de nouveau");
+            }
+            // 1.3.1 : la fenêtre « Capture de fenêtre » comme celle d'OBS (image en direct, liste « [programme] : titre », où elle va)
+            await Fenetre(w, () => new CaptureFenetreWindow(null, ""), "25c-capture-fenetre.png");
             // Closed/unavailable windows report a failure and clear the picture rather than retaining a stale image.
             var absent = R.NouveauDisplay("Fenêtre fermée", new SourceDisplay { Type = "fenetre", Fenetre = 1, Processus = -1 });
             R.AfficherAnnonce(absent); await Attendre(500);

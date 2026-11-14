@@ -60,6 +60,7 @@ public partial class MainWindow
         {
             if (Dialogue.DemanderTexte(this, "Modifier", a.Titre, a.Texte) is { } t) R.ModifierAnnonce(a.Id, t.Titre, t.Texte);
         }
+        else if (a.Source.Type == "fenetre") ModifierFenetre(a);
         else if (Dialogue.Demander(this, "Titre de la source :", a.Titre, "Modifier") is { } titre && titre.Trim().Length > 0)
             R.ModifierAnnonce(a.Id, titre, "");
     }
@@ -89,6 +90,7 @@ public partial class MainWindow
                 if (R.AjouterPrincipalAgenda(a.Id) is { } el)
                     Toast($"« {el.Titre} » ajouté au déroulé comme écran principal : il reste à l'écran quand il passe. Choisissez-le aussi dans « Écran par défaut ».");
             }));
+        if (a.Source is { Type: "fenetre" } sf) m.Items.Add(MenuDiffusion(a, sf));
         if (a.Source?.Type is "camera" or "fenetre") m.Items.Add(Article("Reconnecter la source", ReconnecterSources));
         if (a.Source?.Type == "mycam") m.Items.Add(MenuMessageCam(a));
         m.Items.Add(new Separator());
@@ -176,7 +178,9 @@ public partial class MainWindow
         });
         tete.Children.Add(new TextBlock
         {
-            Text = (type switch { "texte" => "Texte", "camera" => "Caméra", "mycam" => "MyCam", "fenetre" => "Fenêtre", "video" => "Vidéo", "duo" => "Duo", _ => "Image" }).ToUpperInvariant(),
+            // 1.3.1 : « FENÊTRE · ÉGLISE » ou « FENÊTRE · STREAMING » pour une source qui ne va qu'à un endroit
+            Text = ((type switch { "texte" => "Texte", "camera" => "Caméra", "mycam" => "MyCam", "fenetre" => "Fenêtre", "video" => "Vidéo", "duo" => "Duo", _ => "Image" })
+                + (a.Source?.Diffusion switch { SourceDisplay.Eglise => " · Église", SourceDisplay.Streaming => " · Streaming", _ => "" })).ToUpperInvariant(),
             FontSize = 10.5, FontWeight = FontWeights.ExtraBold, Foreground = Pinceau("Brume"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0),
         });
         DockPanel.SetDock(tete, Dock.Top);

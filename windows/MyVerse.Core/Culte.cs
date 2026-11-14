@@ -179,6 +179,28 @@ public sealed partial class Regie
         AnnoncesModifiees();
     }
 
+    /// <summary>
+    /// Nouveaux réglages d'une source de la bibliothèque (1.3.1 : la fenêtre capturée, sa zone, où elle va), du même type.
+    /// À l'écran ou épinglée, elle change tout de suite. Faux si la source n'existe pas ou change de type.
+    /// </summary>
+    public bool ModifierSource(string id, string titre, SourceDisplay source)
+    {
+        var a = donnees.Annonces.FirstOrDefault(x => x.Id == id);
+        if (a?.Source is not { } ancienne || ancienne.Type == "duo" || source.Type != ancienne.Type) return false;
+        if (!string.IsNullOrWhiteSpace(titre)) a.Titre = titre.Trim();
+        a.Source = source;
+        AnnoncesModifiees();
+        var e = Etat;
+        if (Cible is CibleDisplay cd && cd.Id == id && e is { Mode: "media" } && e.Media == ancienne) e = e with { Media = source, Ref = a.Titre };
+        if (e.Duo is { Etat: { Mode: "media" } de } d && de.Media == ancienne) e = e with { Duo = d with { Etat = de with { Media = source } } };
+        if (!ReferenceEquals(e, Etat))
+        {
+            Etat = e;
+            Signaler();
+        }
+        return true;
+    }
+
     public void SupprimerAnnonce(string id)
     {
         if (donnees.Annonces.RemoveAll(x => x.Id == id) > 0) AnnoncesModifiees();

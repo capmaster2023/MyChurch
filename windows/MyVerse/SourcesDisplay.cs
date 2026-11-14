@@ -19,7 +19,12 @@ public sealed class SourcesDisplay : IDisposable
     public SourcesDisplay(string export = "display.jpg") { this.export = export; }
 
     public sealed record Peripherique(int Index, string Nom, string Id);
-    public sealed record Fenetre(long Handle, int Processus, string Titre);
+    /// <summary>Une fenêtre ouverte : son programme (« Zoom.exe ») et sa classe servent à la retrouver quand elle est rouverte (1.3.1).</summary>
+    public sealed record Fenetre(long Handle, int Processus, string Titre, string Exe = "", string Classe = "")
+    {
+        /// <summary>« [Zoom.exe] : Zoom Meeting », comme dans OBS.</summary>
+        public string Libelle => Exe.Length > 0 ? $"[{Exe}] : {Titre}" : Titre;
+    }
     public BitmapSource? Image { get; private set; }
     /// <summary>La source capturée (null : aucune) : l'enregistrement lit MyCam et les caméras directement, sans passer par l'interface.</summary>
     public SourceDisplay? Source => source;
@@ -149,13 +154,40 @@ public sealed class SourcesDisplay : IDisposable
                 }
                 else if (nouvelle.Type == "fenetre")
                 {
+                    // 1.3.1 : une fenêtre fermée puis rouverte (Zoom qui change de réunion, un programme relancé) est reprise toute seule,
+                    // une fenêtre réduite revient dès qu'elle est restaurée : la source attend au lieu de s'arrêter
+                    var h = new IntPtr(nouvelle.Fenetre);
+                    int pid = nouvelle.Processus;
+                    string attente = "";
                     while (!token.IsCancellationRequested)
                     {
-                        var h = new IntPtr(nouvelle.Fenetre);
-                        GetWindowThreadProcessId(h, out uint pid);
-                        if (!IsWindow(h) || pid != nouvelle.Processus) throw new IOException("La fenêtre a été fermée. Choisissez à nouveau la fenêtre à capturer.");
-                        if (IsIconic(h)) throw new IOException("Restaurez la fenêtre à capturer, puis réaffichez cette source.");
-                        await Publier(Capturer(h), g, token.Token);
+                        if (!Ouverte(h, pid))
+                        {
+                            if (Retrouver(nouvelle) is { } f) { h = new IntPtr(f.Handle); pid = f.Processus; }
+                            else
+                            {
+                                attente = await Attendre(g, attente, "La fenêtre a été fermée. MyChurch la reprendra dès qu'elle sera rouverte ; sinon, choisissez-la de nouveau (clic droit › Modifier).", true);
+                                await Task.Delay(1000, token.Token);
+                                continue;
+                            }
+                        }
+                        if (IsIconic(h))
+                        {
+                            attente = await Attendre(g, attente, "La fenêtre est réduite : restaurez-la pour la voir à l'écran.", false);
+                            await Task.Delay(500, token.Token);
+                            continue;
+                        }
+                        BitmapSource image;
+                        // une fenêtre qui se ferme ou change de taille pendant la capture : on réessaie un peu plus tard
+                        try { image = Capturer(h, nouvelle.ZoneClient); }
+                        catch (IOException ex)
+                        {
+                            attente = await Attendre(g, attente, ex.Message, false);
+                            await Task.Delay(1000, token.Token);
+                            continue;
+                        }
+                        attente = "";
+                        await Publier(image, g, token.Token);
                         await Task.Delay(66, token.Token);
                     }
                 }
@@ -221,7 +253,8 @@ public sealed class SourcesDisplay : IDisposable
             if (g != generation) return;
             Image = b; Statut = "En direct"; Change?.Invoke();
         });
-        if (export.Length == 0 || g != generation || !App.SortieObs.Prete || Environment.TickCount64 - dernierExport < 100) return;
+        // 1.3.1 : une source « Dans l'église » ne part pas vers la page OBS
+        if (export.Length == 0 || g != generation || source?.EgliseSeulement == true || !App.SortieObs.Prete || Environment.TickCount64 - dernierExport < 100) return;
         // 4.1 : l'image de la page OBS s'écrit à côté, sans retenir l'image suivante de la caméra ; si la précédente s'écrit encore, celle-ci est sautée
         if (Interlocked.CompareExchange(ref exportEnCours, 1, 0) != 0) return;
         dernierExport = Environment.TickCount64;
@@ -230,6 +263,22 @@ public sealed class SourcesDisplay : IDisposable
             try { await Exporter(b, g); }
             finally { Volatile.Write(ref exportEnCours, 0); }
         });
+    }
+
+    /// <summary>
+    /// La source attend (fenêtre fermée ou réduite) : plus d'image, un message utile, et une bulle la première fois pour la fenêtre fermée
+    /// (seulement pour l'écran principal et le Duo, pas pour les lecteurs des enregistrements). Renvoie le message affiché.
+    /// </summary>
+    async Task<string> Attendre(int g, string actuel, string message, bool bulle)
+    {
+        if (message == actuel) return actuel;
+        await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            if (g != generation) return;
+            Image = null; ViderExport(); Statut = message; Change?.Invoke();
+            if (bulle && export.Length > 0 && Application.Current.MainWindow is MainWindow w) w.Toast(message);
+        });
+        return message;
     }
 
     /// <summary>
@@ -305,22 +354,83 @@ public sealed class SourcesDisplay : IDisposable
         return liste;
     }
 
-    public static List<Fenetre> Fenetres()
+    /// <summary>
+    /// Les fenêtres qu'on peut capturer, comme la liste d'OBS (1.3.1) : visibles, avec un titre, ni fenêtre enfant, ni petite fenêtre
+    /// d'outils, ni fenêtre cachée par Windows (autre bureau virtuel, application en veille), ni le bureau ou la barre des tâches,
+    /// ni MyChurch lui-même. Rangées par programme puis par titre. <paramref name="reduites"/> : aussi les fenêtres réduites.
+    /// </summary>
+    public static List<Fenetre> Fenetres(bool reduites = false)
     {
         var list = new List<Fenetre>();
+        var exes = new Dictionary<int, string>();
         EnumWindows((h, _) =>
         {
-            if (!IsWindowVisible(h) || IsIconic(h)) return true;
+            if (!IsWindowVisible(h)) return true;
+            bool reduite = IsIconic(h);
+            if (reduite && !reduites) return true;
             GetWindowThreadProcessId(h, out uint pid);
             if (pid == Environment.ProcessId) return true;
+            long style = Style(h, -16 /* GWL_STYLE */), etendu = Style(h, -20 /* GWL_EXSTYLE */);
+            if ((style & 0x40000000L /* WS_CHILD */) != 0 || (etendu & 0x80L /* WS_EX_TOOLWINDOW */) != 0) return true;
+            if (DwmGetWindowAttribute(h, 14 /* DWMWA_CLOAKED */, out int cachee, sizeof(int)) == 0 && cachee != 0) return true;
+            if (!reduite && (!GetClientRect(h, out var c) || c.Right <= 0 || c.Bottom <= 0)) return true;
             var titre = new StringBuilder(512); GetWindowText(h, titre, titre.Capacity);
-            if (titre.Length > 0) list.Add(new Fenetre(h.ToInt64(), (int)pid, titre.ToString()));
+            if (titre.Length == 0) return true;
+            var nomClasse = new StringBuilder(256); GetClassName(h, nomClasse, nomClasse.Capacity);
+            string classe = nomClasse.ToString();
+            if (classe is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return true;
+            if (!exes.TryGetValue((int)pid, out var exe)) exes[(int)pid] = exe = NomExe((int)pid);
+            list.Add(new Fenetre(h.ToInt64(), (int)pid, titre.ToString(), exe, classe));
             return true;
         }, IntPtr.Zero);
-        return list.OrderBy(f => f.Titre).ToList();
+        return list.OrderBy(f => f.Exe, StringComparer.OrdinalIgnoreCase).ThenBy(f => f.Titre, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
-    static BitmapSource Capturer(IntPtr h)
+    /// <summary>
+    /// La fenêtre d'une source qui a été fermée puis rouverte : même programme et même titre, sinon même programme et même type
+    /// de fenêtre (« Faire correspondre le titre, sinon trouver une fenêtre du même type » d'OBS). Null si rien ne correspond,
+    /// ou pour une source d'avant la 1.3.1 (sans programme connu).
+    /// </summary>
+    public static Fenetre? Retrouver(SourceDisplay s)
+    {
+        if (string.IsNullOrEmpty(s.Exe)) return null;
+        var memes = Fenetres(true).Where(f => string.Equals(f.Exe, s.Exe, StringComparison.OrdinalIgnoreCase)).ToList();
+        return memes.FirstOrDefault(f => f.Titre == s.Titre)
+            ?? (string.IsNullOrEmpty(s.Classe) ? null : memes.FirstOrDefault(f => f.Classe == s.Classe));
+    }
+
+    /// <summary>La fenêtre existe toujours et appartient au même programme (un numéro de fenêtre peut être réutilisé par Windows).</summary>
+    public static bool Ouverte(IntPtr h, int processus)
+    {
+        if (!IsWindow(h)) return false;
+        GetWindowThreadProcessId(h, out uint pid);
+        return processus > 0 && pid == (uint)processus;
+    }
+
+    public static bool Reduite(IntPtr h) => IsIconic(h);
+
+    /// <summary>Le nom du programme d'un processus (« Zoom.exe »), vide s'il ne se lit pas (programme protégé).</summary>
+    static string NomExe(int pid)
+    {
+        var p = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, false, pid);
+        if (p == IntPtr.Zero) return "";
+        try
+        {
+            var chemin = new StringBuilder(1024);
+            int n = chemin.Capacity;
+            return QueryFullProcessImageName(p, 0, chemin, ref n) && n > 0 ? Path.GetFileName(chemin.ToString(0, n)) : "";
+        }
+        catch (Exception) { return ""; }
+        finally { CloseHandle(p); }
+    }
+
+    static long Style(IntPtr h, int index) => IntPtr.Size == 8 ? GetWindowLongPtr(h, index).ToInt64() : GetWindowLong(h, index);
+
+    /// <summary>
+    /// Une image de la fenêtre (PrintWindow, rendu complet : marche aussi pour les fenêtres dessinées par la carte graphique).
+    /// <paramref name="zoneClient"/> (1.3.1) : seulement l'intérieur, sans la barre de titre ni les bords, comme « Zone client » d'OBS.
+    /// </summary>
+    public static BitmapSource Capturer(IntPtr h, bool zoneClient = false)
     {
         if (!GetWindowRect(h, out var r)) throw new IOException("Fenêtre inaccessible.");
         int w = r.Right - r.Left, height = r.Bottom - r.Top;
@@ -334,9 +444,25 @@ public sealed class SourcesDisplay : IDisposable
             old = SelectObject(mem, bmp);
             if (!PrintWindow(h, mem, 2)) throw new IOException("Cette fenêtre refuse la capture. Essayez une fenêtre classique, non protégée.");
             var b = BitmapSource.Create(w, height, 96, 96, PixelFormats.Bgr32, null, bits, w * height * 4, w * 4);
-            b.Freeze(); return b;
+            b.Freeze();
+            return zoneClient ? ZoneClient(h, r, b) : b;
         }
         finally { if (old != IntPtr.Zero) SelectObject(mem, old); if (bmp != IntPtr.Zero) DeleteObject(bmp); DeleteDC(mem); ReleaseDC(IntPtr.Zero, dc); }
+    }
+
+    /// <summary>L'intérieur de la fenêtre, découpé dans son image entière (l'image entière si la zone ne se lit pas).</summary>
+    static BitmapSource ZoneClient(IntPtr h, Rectangle fenetre, BitmapSource entiere)
+    {
+        if (!GetClientRect(h, out var c) || c.Right <= 0 || c.Bottom <= 0) return entiere;
+        var coin = new Point32();
+        if (!ClientToScreen(h, ref coin)) return entiere;
+        int x = coin.X - fenetre.Left, y = coin.Y - fenetre.Top;
+        if (x < 0 || y < 0) return entiere;
+        int l = Math.Min(c.Right, entiere.PixelWidth - x), ht = Math.Min(c.Bottom, entiere.PixelHeight - y);
+        if (l <= 0 || ht <= 0 || (l == entiere.PixelWidth && ht == entiere.PixelHeight)) return entiere;
+        var zone = new CroppedBitmap(entiere, new Int32Rect(x, y, l, ht));
+        zone.Freeze();
+        return zone;
     }
 
     [ComImport, Guid("29840822-5B84-11D0-BD3B-00A0C911CE86"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -365,4 +491,16 @@ public sealed class SourcesDisplay : IDisposable
     [DllImport("gdi32.dll")] static extern IntPtr CreateDIBSection(IntPtr dc, ref BitmapInfo info, uint usage, out IntPtr bits, IntPtr section, uint offset);
     [DllImport("gdi32.dll")] static extern IntPtr SelectObject(IntPtr dc, IntPtr obj);
     [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr obj);
+    // 1.3.1 : la liste des fenêtres comme OBS, la zone client, le programme d'une fenêtre
+    [StructLayout(LayoutKind.Sequential)] struct Point32 { public int X, Y; }
+    [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr h, out Rectangle r);
+    [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr h, ref Point32 p);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder name, int max);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr h, int index);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")] static extern int GetWindowLong(IntPtr h, int index);
+    [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int attribut, out int valeur, int taille);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint acces, bool heriter, int pid);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "QueryFullProcessImageNameW")]
+    static extern bool QueryFullProcessImageName(IntPtr processus, int options, StringBuilder chemin, ref int taille);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
 }

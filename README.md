@@ -38,6 +38,16 @@ Textes, versets, chants, images, caméras et fenêtres peuvent être épinglés.
 - Un clic sur une vignette l'envoie immédiatement sur l'écran choisi.
 - Clic droit : Afficher puis épingler, Modifier, Retirer de la grille, Ajouter au déroulé du culte ou Supprimer.
 
+### Capture de fenêtre (1.3.1)
+
+La fenêtre **Capture de fenêtre** ressemble à celle d'OBS : l'image de la fenêtre choisie **en direct** en haut, la liste **« [Zoom.exe] : Zoom Meeting »** (seulement les vraies fenêtres, rangées par programme), **Actualiser**, **Zone client seulement** (sans la barre de titre ni les bords, coché d'office) et le nom dans Display. Elle demande aussi **où va la fenêtre** :
+
+- **Dans l'église** : seulement sur l'écran de projection. MyVirtualCam et OBS ne la reçoivent pas (image noire). C'est le choix pour **montrer Zoom dans l'église** : Zoom ne reçoit plus sa propre fenêtre, plus d'effet miroir à l'infini. MyChurch le propose d'office pour Zoom, Teams, Webex…
+- **En streaming** : seulement vers MyVirtualCam et OBS. L'écran de projection garde l'écran par défaut (noir, fond seul ou écran principal).
+- **Les deux** : partout, comme les autres sources.
+
+La tuile de la grille l'indique (**FENÊTRE · ÉGLISE**, **FENÊTRE · STREAMING**), l'écran en direct aussi (**Église seulement**, **Streaming seulement**). Clic droit › **Où va cette fenêtre** change le choix en un clic, **Modifier…** rouvre la fenêtre de capture. Une fenêtre fermée puis rouverte (Zoom qui change de réunion) est reprise toute seule : même programme et même titre, sinon même type de fenêtre ; une fenêtre réduite revient dès qu'elle est restaurée. Les enregistrements gardent ce qui est en direct.
+
 ## Son (MyChurch 1.3 : simple pour tous)
 
 Tout le son est dans la page **Son** (barre de gauche). On n'y voit jamais de piste, de monitoring ni de filtre : MyChurch les règle. Le moteur est **libobs**, la bibliothèque d'OBS Studio 33.0.1, livrée dans le dossier `obs` à côté de `MyChurch.exe` (48 kHz, stéréo).
@@ -71,7 +81,7 @@ Le bouton **Projection** (en bas à droite) propose les moniteurs détectés, le
 
 **MyVirtualCam** reçoit automatiquement la sortie en 720p30, Duo compris. Elle s'enregistre une fois avec l'autorisation Windows et reste disponible, avec une image noire, quand MyChurch est fermé. Elle vise les applications compatibles DirectShow et ne transporte pas d'audio.
 
-La capture de fenêtre nécessite une fenêtre ouverte et non réduite. Certains contenus protégés ou accélérés par le GPU ne permettent pas la capture. Les périphériques vidéo physiques nécessitent les pilotes et permissions Windows appropriés.
+La capture de fenêtre nécessite une fenêtre ouverte et non réduite (elle attend qu'on la rouvre ou la restaure). Certains contenus protégés ne permettent pas la capture. Les périphériques vidéo physiques nécessitent les pilotes et permissions Windows appropriés.
 
 ## Installation et mises à jour
 

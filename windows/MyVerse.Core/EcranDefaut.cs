@@ -107,12 +107,40 @@ public sealed partial class Regie
     /// <summary>Le fond seul : l'habillage choisi, sans texte.</summary>
     static EtatEcran EtatFond(EtatEcran b) => b with { Mode = "fond", Media = null, Lignes = Array.Empty<string>(), Ref = "", Second = null };
 
+    /// <summary>L'écran sans son contenu principal (ni texte ni média) : le contenu épinglé du Duo reste.</summary>
+    static EtatEcran SansContenu(EtatEcran b) => b with { Mode = "vide", Media = null, Lignes = Array.Empty<string>(), Ref = "", Second = null };
+
     /// <summary>
     /// Ce qui part vers OBS, la caméra virtuelle et la page publique : l'écran par défaut est pour la salle, eux restent vides
     /// (le contenu épinglé du Duo reste), comme quand on retirait les paroles avant la 3.3.
+    /// Une source « Dans l'église » (1.3.1) ne part pas non plus, ni en grand ni épinglée : une fenêtre Zoom projetée dans l'église
+    /// ne revient pas dans Zoom par MyVirtualCam (l'effet miroir à l'infini).
     /// </summary>
-    public EtatEcran EtatDiffusion(EtatEcran e) =>
-        Cible is CibleDefaut ? e with { Mode = "vide", Media = null, Lignes = Array.Empty<string>(), Ref = "", Second = null } : e;
+    public EtatEcran EtatDiffusion(EtatEcran e)
+    {
+        var r = e.Duo?.Etat.Media is { EgliseSeulement: true } ? e with { Duo = null } : e;
+        return Cible is CibleDefaut || r is { Mode: "media", Media.EgliseSeulement: true } ? SansContenu(r) : r;
+    }
+
+    /// <summary>
+    /// Ce qui part sur l'écran de projection, dans l'église (1.3.1) : tout, sauf une source « En streaming ». À sa place, la salle garde
+    /// l'écran par défaut (noir, le fond seul ou un écran principal du déroulé), comme après « Retirer de l'écran ».
+    /// Un contenu épinglé « En streaming » n'y est pas non plus.
+    /// </summary>
+    public EtatEcran EtatSalle(EtatEcran e)
+    {
+        var r = e.Duo?.Etat.Media is { StreamingSeulement: true } ? e with { Duo = null } : e;
+        if (r is not { Mode: "media", Media.StreamingSeulement: true }) return r;
+        var vide = SansContenu(r);
+        // l'écran par défaut lui-même est « En streaming » : la salle reste vide
+        if (Cible is CibleDefaut) return vide;
+        return EcranDefaut switch
+        {
+            "noir" => vide,
+            "fond" => EtatFond(vide),
+            var id => ElementDuDeroule(id) is { } el && el.Source is not { StreamingSeulement: true } ? EtatPrincipal(el, vide) : vide,
+        };
+    }
 
     /// <summary>Un écran principal affiché depuis le déroulé (clic, Suivant) : il reste à l'écran et devient l'écran par défaut.</summary>
     void AfficherPrincipal(ElementAgenda e)

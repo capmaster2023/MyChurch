@@ -946,15 +946,23 @@ public partial class MainWindow : Window
         // écran noir : le texte est caché sans être perdu ; une nouvelle diapositive le rallume
         if (noir && !ReferenceEquals(R.Etat, etatNoir)) noir = false;
         var e = EtatProjete();
-        // l'écran par défaut (3.3) est pour la salle : OBS et la caméra virtuelle restent vides, comme avant
+        // l'écran par défaut (3.3) est pour la salle : OBS et la caméra virtuelle restent vides, comme avant ;
+        // 1.3.1 : une source « Dans l'église » ne part pas vers MyVirtualCam ni OBS (Zoom projeté ne revient pas dans Zoom),
+        // une source « En streaming » ne va pas sur l'écran de projection (la salle garde l'écran par défaut)
         var diffusion = R.EtatDiffusion(e);
+        var salle = R.EtatSalle(e);
+        mediaSalle = salle is { Mode: "media", Media: { } ms } && ms != e.Media ? ms : null;
+        diffusionMedia = diffusion.Mode == "media";
+        diffusionDuo = diffusion.Duo != null;
         App.Sources.Choisir(e);
+        App.SourcesSalle.ChoisirSource(mediaSalle);
         ChoisirSourceDuo(e);
         ApercuRendu.Afficher(e);
         App.CameraVirtuelle?.Afficher(diffusion);
-        ecran?.Rendu.Afficher(e);
+        App.CameraVirtuelle?.Media(diffusionMedia ? App.Sources.Image : null);
+        ecran?.Rendu.Afficher(salle);
         ApercuRendu.ImageDisplay(App.Sources.Image);
-        ecran?.Rendu.ImageDisplay(App.Sources.Image);
+        ecran?.Rendu.ImageDisplay(mediaSalle != null ? App.SourcesSalle.Image : App.Sources.Image);
         CulteRendu.ImageDisplay(App.Sources.Image);
         ImagesDuo();
         App.SortieObs.Ecrire(diffusion);
@@ -989,13 +997,18 @@ public partial class MainWindow : Window
         var e = R.Etat;
         bool ouvert = R.EcranOuvert();
         bool attente = !ouvert && AttenteProjecteur;
-        PastilleTexte.Text = noir ? "Écran noir" : ouvert ? (R.Cible is CibleDefaut ? "Écran par défaut" : e.Vide && e.Duo == null ? "Écran ouvert · vide" : "À l'écran")
+        // 1.3.1 : une source qui ne va qu'à un endroit le dit (« Streaming seulement », « Église seulement »)
+        var dif = !noir && e.Mode == "media" ? e.Media?.Diffusion : null;
+        PastilleTexte.Text = noir ? "Écran noir" : dif == SourceDisplay.Streaming ? "Streaming seulement"
+            : ouvert ? (R.Cible is CibleDefaut ? "Écran par défaut" : e.Vide && e.Duo == null ? "Écran ouvert · vide" : dif == SourceDisplay.Eglise ? "Église seulement" : "À l'écran")
             : attente ? "Projecteur débranché" : "Aperçu seulement";
         // l'état s'affiche à droite d'« EN DIRECT » (« Aperçu seulement » tant qu'aucun écran n'est ouvert)
         var m = App.Donnees.Reglages.Ecran;
         EcranInfo.Text = PastilleTexte.Text;
-        EcranInfo.Foreground = Pinceau(ouvert && !noir ? "Vert" : attente ? "OrVif" : "Brume");
-        EcranInfo.ToolTip = ecran != null && m != null ? $"{m.Nom} · {m.W} × {m.H}"
+        EcranInfo.Foreground = Pinceau(dif == SourceDisplay.Streaming ? "OrVif" : ouvert && !noir ? "Vert" : attente ? "OrVif" : "Brume");
+        EcranInfo.ToolTip = dif == SourceDisplay.Streaming ? "En streaming seulement : MyVirtualCam et OBS reçoivent cette source, l'écran de projection garde l'écran par défaut"
+            : dif == SourceDisplay.Eglise ? "Dans l'église seulement : MyVirtualCam et OBS ne reçoivent pas cette source (pas d'effet miroir dans Zoom)"
+            : ecran != null && m != null ? $"{m.Nom} · {m.W} × {m.H}"
             : attente ? $"Projecteur débranché ({m?.Nom}) : la projection se rouvrira toute seule dès qu'il sera branché"
             : "Aucun écran de projection : Projection, en bas à droite";
         MajProjection();
@@ -1041,7 +1054,7 @@ public partial class MainWindow : Window
         App.Donnees.Reglages.Ecran = Projecteur.Choix(m, plein, App.Donnees.Reglages.Ecran);
         App.Donnees.SauverReglages();
         w.Show();
-        w.Rendu.Afficher(EtatProjete());
+        w.Rendu.Afficher(R.EtatSalle(EtatProjete()));
         Toast(message ?? (plein ? $"Projection plein écran sur {m.Nom}." : "Projection en fenêtre."));
         MajEcran();
         MajVeille();
