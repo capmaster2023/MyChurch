@@ -295,12 +295,12 @@ public static class AutoTest
                     for (int i = 0; i < 25 && !(p1 > -12); i++) { await Attendre(200); p1 = A.TrackLevel(A.PisteDe(zoom.Id) - 1); }
                     Ok(p1 > -12, $"la piste de Zoom (tout le son) reçoit la musique ({p1:0.0} dBFS)");
 
-                    // deux enregistrements en même temps : ils passent en premier pour leurs pistes
+                    // deux enregistrements en même temps, chacun sur sa piste (elles ne bougent pas au démarrage)
                     await A.Recorder.ToggleAsync(culte);
                     Ok(A.Recorder.Active(culte.Id), "enregistrement vidéo « Culte » démarré : " + A.Recorder.Message(culte.Id));
                     await A.Recorder.ToggleAsync(predication);
                     Ok(A.Recorder.Active(predication.Id), "2e enregistrement en même temps (« Prédication », MP3) : " + A.Recorder.Message(predication.Id));
-                    Ok(A.PisteDe(culte.Id) == 1 && A.PisteDe(predication.Id) == 2, $"les enregistrements en cours passent en premier : Culte {A.PisteDe(culte.Id)}, Prédication {A.PisteDe(predication.Id)}");
+                    Ok(A.PisteDe(culte.Id) == pCulte && A.PisteDe(predication.Id) == pPred, $"les pistes ne bougent pas quand un enregistrement démarre : Culte {A.PisteDe(culte.Id)}, Prédication {A.PisteDe(predication.Id)}");
                     float pc = float.NegativeInfinity;
                     for (int i = 0; i < 25 && !(pc > -12); i++) { await Attendre(200); pc = A.TrackLevel(A.PisteDe(culte.Id) - 1); }
                     float pp = A.TrackLevel(A.PisteDe(predication.Id) - 1);

@@ -1125,7 +1125,7 @@ if (Actif())
     var plan = cfg.Planifier();
     Ok(culte.Track == 1 && zoom.Track == 1 && plan.PisteDe(MyVerse.Audio.AudioConfiguration.IdCasque) == 1, "tout le son : la piste 1 (Culte, Zoom, casque)", $"{culte.Track} {zoom.Track}");
     Ok(flux.Track == louange.Track && louange.Track > 1 && predication.Track > 1 && predication.Track != louange.Track, "les mêmes sons choisis : la même piste ; d'autres sons : une autre piste", $"louange {louange.Track}, YouTube {flux.Track}, prédication {predication.Track}");
-    Ok(flux.Track == 2, "les destinations actives passent en premier (YouTube, actif, reçoit la piste 2)", flux.Track.ToString());
+    Ok(flux.Track == 2 && predication.Track == 3, "les pistes suivent l'ordre des destinations (les envois, puis les enregistrements)", $"YouTube {flux.Track}, prédication {predication.Track}");
     string Pistes(string id) => string.Concat(Enumerable.Range(1, 6).Select(t => plan.Moteur.First(x => x.Id == id).DansPiste(t) ? t.ToString() : "·"));
     Egal(Pistes("pasteur"), "1·3···", "Pasteur : tout le son et Prédication");
     Egal(Pistes("piano"), "12····", "Piano : tout le son et Louange (avec YouTube)");
@@ -1135,7 +1135,7 @@ if (Actif())
     Egal(cfg.Recoit(zoom), "Tout le son", "tout le son, en mots");
     flux.Enabled = false;
     cfg.Planifier(actives: new HashSet<string> { predication.Id });
-    Ok(predication.Track == 2, "un enregistrement qui tourne passe en priorité pour sa piste", predication.Track.ToString());
+    Ok(predication.Track == 3 && flux.Track == 2, "un enregistrement qui démarre garde sa piste : rien ne bouge (pas d'ancien mélange au début du fichier)", $"prédication {predication.Track}, YouTube {flux.Track}");
     // retirer un son : il disparaît des choix ; le son des vidéos ne se retire pas
     Ok(cfg.Retirer(cfg.Sons.First(x => x.Id == "pasteur")) && predication.ChoixSons!.Count == 0 && !cfg.Retirer(cfg.SonVideos), "retirer un son l'enlève des destinations ; le son des vidéos reste");
     Egal(cfg.Recoit(predication), "Aucun son", "plus aucun son choisi");
@@ -1148,6 +1148,12 @@ if (Actif())
     var pb = beaucoup.Planifier();
     Ok(pb.Alertes.Count == 2 && beaucoup.Destinations().Count(d => d.Track == 1) == 2 && beaucoup.Destinations().Select(d => d.Track).Where(t => t > 1).Distinct().Count() == 5,
         "6 pistes : 5 mélanges choisis au plus, les autres reçoivent tout le son (avec une alerte)", string.Join(" | ", pb.Alertes));
+    // plus de mélanges que de pistes : un enregistrement qui tourne passe en premier
+    var dernier = beaucoup.Profiles[^1];
+    beaucoup.Planifier();
+    Ok(dernier.Track == 1, "sans priorité, le dernier mélange reçoit tout le son", dernier.Track.ToString());
+    beaucoup.Planifier(actives: new HashSet<string> { dernier.Id });
+    Ok(dernier.Track > 1, "plus de mélanges que de pistes : l'enregistrement qui tourne passe en premier", dernier.Track.ToString());
     // plus de 5 enregistrements ou 4 envois
     var trop = new MyVerse.Audio.AudioConfiguration();
     for (int i = 0; i < 7; i++) trop.Profiles.Add(new MyVerse.Audio.RecordingProfile());

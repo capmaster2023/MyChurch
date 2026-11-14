@@ -430,12 +430,14 @@ public sealed class AudioConfiguration
 
     /// <summary>
     /// Ce que MyChurch demande à OBS. Personne ne choisit de piste : la piste 1 reçoit tout le son, et chaque destination
-    /// qui veut d'autres sons reçoit sa piste (2 à 6), partagée avec celles qui veulent les mêmes. Les destinations actives
-    /// passent en premier. Un envoi vers une sortie de l'ordinateur ne reçoit jamais le « son de l'ordinateur » de cette même
-    /// sortie (sinon le son tournerait en rond et sifflerait). Le casque entend tout le son.
+    /// qui veut d'autres sons reçoit sa piste (2 à 6), partagée avec celles qui veulent les mêmes. Les pistes ne bougent pas
+    /// quand un enregistrement démarre ou s'arrête (OBS garde jusqu'à une seconde de son en réserve : une piste réattribuée
+    /// ferait entendre l'ancien mélange au début du fichier) ; seulement s'il y a plus de mélanges que de pistes, les
+    /// destinations actives passent en premier. Un envoi vers une sortie de l'ordinateur ne reçoit jamais le « son de
+    /// l'ordinateur » de cette même sortie (sinon le son tournerait en rond et sifflerait). Le casque entend tout le son.
     /// </summary>
     /// <param name="videoProjetee">La vidéo à l'écran (Display) : le son des vidéos la joue.</param>
-    /// <param name="actives">Les destinations qui tournent (enregistrements en cours) : elles gardent leur piste en priorité.</param>
+    /// <param name="actives">Les destinations qui tournent (enregistrements en cours) : prioritaires s'il manque des pistes.</param>
     public PlanAudio Planifier(string videoProjetee = "", ISet<string>? actives = null)
     {
         var plan = new PlanAudio();
@@ -446,18 +448,23 @@ public sealed class AudioConfiguration
         };
         foreach (var v in VirtualSounds) destinations.Add((v.Id, v.Name, v.ChoixSons, v.ParCable ? null : v.DeviceId, v.Enabled));
         foreach (var p in Profiles) destinations.Add((p.Id, p.Name, p.ChoixSons, null, actives?.Contains(p.Id) == true));
-        var cles = new Dictionary<string, int>();
-        int suivante = 2;
-        foreach (var d in destinations.OrderBy(d => d.Actif ? 0 : 1))
+        // les sons de chaque destination, et son mélange (null = tout le son)
+        var voulus = destinations.Select(d =>
         {
             var sons = (d.Choix ?? tous).Where(tous.Contains).ToHashSet();
             // jamais le son de l'ordinateur d'une sortie renvoyé vers cette même sortie (larsen)
             if (d.Appareil != null)
                 sons.RemoveWhere(id => Sons.First(s => s.Id == id) is { Genre: GenreSon.Ordinateur } o && MemeAppareil(o.Appareil, d.Appareil));
+            return (D: d, Sons: sons, Cle: sons.SetEquals(tous) ? null : string.Join("|", sons.OrderBy(x => x, StringComparer.Ordinal)));
+        }).ToList();
+        bool manque = voulus.Where(v => v.Cle != null).Select(v => v.Cle).Distinct().Count() > Pistes - 1;
+        var cles = new Dictionary<string, int>();
+        int suivante = 2;
+        foreach (var (d, sons, cle) in manque ? voulus.OrderBy(v => v.D.Actif ? 0 : 1).ToList() : voulus)
+        {
             int piste = 1;
-            if (!sons.SetEquals(tous))
+            if (cle != null)
             {
-                string cle = string.Join("|", sons.OrderBy(x => x, StringComparer.Ordinal));
                 if (cles.TryGetValue(cle, out int p)) piste = p;
                 else if (suivante <= Pistes) { piste = suivante++; cles[cle] = piste; plan.SonsDesPistes[piste] = sons.ToList(); }
                 else plan.Alertes.Add($"Trop de mélanges différents : « {d.Nom} » reçoit tout le son.");
