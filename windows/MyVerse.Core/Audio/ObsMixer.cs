@@ -77,6 +77,11 @@ public sealed class ObsMixer : IDisposable
         /// <summary>Un fichier de musique : il ne part pas tout seul (création, changement de fichier) tant que « Lire » n'est pas demandé.</summary>
         public bool Arrete;
         public bool JoueVoulu;
+        /// <summary>Le fichier est ouvert par OBS. Une musique qui attend « Lire » n'est pas ouverte du tout (rien ne peut partir),
+        /// plutôt qu'ouverte puis arrêtée : OBS lit et arrête sur son propre fil, et un arrêt suivi aussitôt de « Lire » se perdait.</summary>
+        public bool Charge;
+        /// <summary>Les derniers réglages voulus (pour ouvrir le fichier au premier « Lire »).</summary>
+        public AudioSource? Derniere;
     }
 
     static ObsMixer? courant;
@@ -408,12 +413,13 @@ public sealed class ObsMixer : IDisposable
         AudioInputKind.Sortie => chemins.OutputId,
         _ => "ffmpeg_source",
     };
-    static IntPtr ReglagesSource(AudioSource s) => Reglages(d =>
+    /// <param name="charger">Un fichier de musique qui attend « Lire » n'est pas ouvert (fichier vide pour OBS).</param>
+    static IntPtr ReglagesSource(AudioSource s, bool charger = true) => Reglages(d =>
     {
         if (s.Kind == AudioInputKind.Media)
         {
             LibObs.obs_data_set_bool(d, "is_local_file", true);
-            LibObs.obs_data_set_string(d, "local_file", s.MediaPath);
+            LibObs.obs_data_set_string(d, "local_file", charger ? s.MediaPath : "");
             LibObs.obs_data_set_bool(d, "looping", s.Loop);
             LibObs.obs_data_set_bool(d, "restart_on_activate", false);
             LibObs.obs_data_set_bool(d, "close_when_inactive", false);
@@ -503,29 +509,32 @@ public sealed class ObsMixer : IDisposable
                 uint canal = 1;
                 while (canal < 64 && parCanal.ContainsKey(canal)) canal++;
                 if (canal >= 64) continue;
-                IntPtr reglages = ReglagesSource(s);
+                bool charger = !(s.Kind == AudioInputKind.Media && s.DemarrerArrete);
+                IntPtr reglages = ReglagesSource(s, charger);
                 IntPtr source = LibObs.obs_source_create(type, "MyChurch " + s.Id, reglages, IntPtr.Zero);
                 LibObs.obs_data_release(reglages);
                 if (source == IntPtr.Zero) { Log?.Invoke(100, "MyChurch : source OBS refusée (" + type + ")"); continue; }
-                b = new Bande { Id = s.Id, Canal = canal, Source = source, Kind = s.Kind, Type = type, Signature = signature, Arrete = s.DemarrerArrete };
+                b = new Bande { Id = s.Id, Canal = canal, Source = source, Kind = s.Kind, Type = type, Signature = signature, Arrete = s.DemarrerArrete, Charge = charger };
                 parCanal[canal] = b; bandes[s.Id] = b;
                 if (type == TypeEntree) lock (verrouEntrees) entrees[s.Id] = (source, IntPtr.Zero, 0);
                 b.Volmeter = LibObs.obs_volmeter_create(LibObs.FaderLog);
                 LibObs.obs_volmeter_add_callback(b.Volmeter, vumetre, (IntPtr)canal);
                 LibObs.obs_volmeter_attach_source(b.Volmeter, source);
                 LibObs.obs_set_output_source(canal, source);
-                ArreterSiVoulu(b);
             }
             else if (b.Signature != signature)
             {
-                IntPtr reglages = ReglagesSource(s);
+                // une musique qui joue continue ; arrêtée ou en pause, elle n'est plus ouverte et attend « Lire »
+                bool charger = !(s.Kind == AudioInputKind.Media && s.DemarrerArrete) || b.JoueVoulu;
+                IntPtr reglages = ReglagesSource(s, charger);
                 LibObs.obs_source_update(b.Source, reglages);
                 LibObs.obs_data_release(reglages);
                 b.Signature = signature;
                 b.Arrete = s.DemarrerArrete;
-                ArreterSiVoulu(b);
+                b.Charge = charger;
             }
             else b.Arrete = s.DemarrerArrete;
+            b.Derniere = s;
             LibObs.obs_source_set_volume(b.Source, (float)AudioMath.Linear(s.VolumeDb));
             LibObs.obs_source_set_muted(b.Source, s.Muted);
             if (b.Balance != s.Balance && LibObs.Has("obs_source_set_balance_value")) { LibObs.obs_source_set_balance_value(b.Source, (float)s.Balance); b.Balance = s.Balance; }
@@ -647,20 +656,21 @@ public sealed class ObsMixer : IDisposable
     }
 
     // ------------------------------------------------------------ lecture d'un fichier de musique
-    /// <summary>Un fichier de musique créé ou changé reste arrêté tant que « Lire » n'a pas été demandé.</summary>
-    void ArreterSiVoulu(Bande b)
-    {
-        if (b.Kind != AudioInputKind.Media || !b.Arrete || b.JoueVoulu) return;
-        try { if (LibObs.Has("obs_source_media_stop")) LibObs.obs_source_media_stop(b.Source); } catch (Exception e) { Log?.Invoke(200, "MyChurch : arrêt d'un média : " + e.Message); }
-    }
-
     Bande? Media(string id) => Running && bandes.TryGetValue(id, out var b) && b.Kind == AudioInputKind.Media ? b : null;
 
-    /// <summary>Lit le fichier : reprend après une pause, sinon repart du début.</summary>
+    /// <summary>Lit le fichier : la première fois, OBS l'ouvre et le lit du début ; puis reprend après une pause, sinon repart du début.</summary>
     public void Jouer(string id)
     {
         if (Media(id) is not { } b) return;
         b.JoueVoulu = true;
+        if (!b.Charge && b.Derniere != null)
+        {
+            IntPtr reglages = ReglagesSource(b.Derniere, true);
+            LibObs.obs_source_update(b.Source, reglages);
+            LibObs.obs_data_release(reglages);
+            b.Charge = true;
+            return;
+        }
         var (etat, _, _) = Lecture(id);
         if (etat == EtatLecture.Pause) LibObs.obs_source_media_play_pause(b.Source, false);
         else if (etat != EtatLecture.Lecture) LibObs.obs_source_media_restart(b.Source);
