@@ -102,7 +102,11 @@ public sealed class ObsMixer : IDisposable
     readonly Dictionary<string, Bande> bandes = new();
     readonly ConcurrentDictionary<long, Bande> parCanal = new();
     readonly float[] cretePiste = new float[LibObs.Mixes];
-    readonly Action<float[]>?[] consommateurs = new Action<float[]>?[LibObs.Mixes];
+    readonly Action<float[], long>?[] consommateurs = new Action<float[], long>?[LibObs.Mixes];
+    /// <summary>Instant (horloge <see cref="Horloge"/>) de la première trame du bloc en cours de remplissage, par piste.</summary>
+    readonly long[] debutBloc = new long[LibObs.Mixes];
+    /// <summary>Horloge d'OBS (os_gettime_ns) − horloge de MyChurch : mesuré au démarrage (le même compteur, deux origines possibles).</summary>
+    long ecartHorloges;
     /// <summary>Un bloc de 10 ms en cours de remplissage par piste (taille selon la fréquence du moteur, fixée au démarrage).</summary>
     float[][] blocs = Array.Empty<float[]>();
     readonly int[] rempli = new int[LibObs.Mixes];
@@ -155,7 +159,11 @@ public sealed class ObsMixer : IDisposable
         try { enumeration?.Add(new(LibObs.Str(id) ?? "", LibObs.Str(name) ?? "")); } catch (Exception) { }
         return true;
     }
-    /// <summary>Un bloc d'une piste, flottant planaire stéréo (ou mono), à la fréquence du moteur, sur le fil audio d'OBS.</summary>
+    /// <summary>
+    /// Un paquet d'une piste, flottant planaire stéréo (ou mono), à la fréquence du moteur, sur le fil audio d'OBS : struct audio_data
+    /// (data[8], frames, timestamp). L'horodatage d'OBS est l'instant où ce son a été capté (le mélange d'OBS a du retard sur
+    /// le temps réel : sa mise en mémoire tampon) ; chaque bloc de 10 ms remis aux abonnés porte l'instant de sa première trame.
+    /// </summary>
     static void Sortie(IntPtr param, UIntPtr mix, IntPtr data)
     {
         try
@@ -164,6 +172,7 @@ public sealed class ObsMixer : IDisposable
             int i = (int)param.ToInt64();
             if (m == null || i < 0 || i >= LibObs.Mixes || data == IntPtr.Zero) return;
             int frames = Marshal.ReadInt32(data, LibObs.MaxAvPlanes * IntPtr.Size);
+            long horodatage = Marshal.ReadInt64(data, LibObs.MaxAvPlanes * IntPtr.Size + 8) - Volatile.Read(ref m.ecartHorloges);
             // moteur mono : libobs ne remplit que le premier plan (les suivants ne sont pas initialisés)
             IntPtr pl = Marshal.ReadIntPtr(data, 0), pr = m.Speakers >= LibObs.SpeakersStereo ? Marshal.ReadIntPtr(data, IntPtr.Size) : IntPtr.Zero;
             if (frames <= 0 || frames > m.gauche.Length || pl == IntPtr.Zero) return;
@@ -177,8 +186,9 @@ public sealed class ObsMixer : IDisposable
             var bloc = m.blocs[i]; int n = m.rempli[i];
             for (int f = 0; f < frames; f++)
             {
+                if (n == 0) m.debutBloc[i] = horodatage + (long)f * Horloge.Seconde / m.SampleRate;
                 bloc[n++] = m.gauche[f]; bloc[n++] = m.droite[f];
-                if (n == bloc.Length) { consommateur(bloc); n = 0; }
+                if (n == bloc.Length) { consommateur(bloc, m.debutBloc[i]); n = 0; }
             }
             m.rempli[i] = n;
         }
@@ -244,6 +254,15 @@ public sealed class ObsMixer : IDisposable
         }
         Modules = charges;
         try { LibObs.obs_post_load_modules(); } catch (Exception) { }
+        // les deux horloges lues ensemble (au plus près) : les horodatages d'OBS passent sur l'horloge de MyChurch
+        long ecart = long.MaxValue, avant, obs, apres;
+        for (int k = 0; k < 5; k++)
+        {
+            avant = Horloge.Ns(); obs = (long)LibObs.os_gettime_ns(); apres = Horloge.Ns();
+            long e = obs - (avant + apres) / 2;
+            if (k == 0 || apres - avant < 20_000) { ecart = e; if (apres - avant < 20_000) break; }
+        }
+        Volatile.Write(ref ecartHorloges, ecart);
         entreesPossibles = EnregistrerEntree();
         ancienMonitoring = !LibObs.Has("obs_source_set_monitoring_enabled");
         audio = LibObs.obs_get_audio();
@@ -585,16 +604,19 @@ public sealed class ObsMixer : IDisposable
         return v <= 1e-6f ? float.NegativeInfinity : (float)AudioMath.Db(v);
     }
     readonly object verrouConsommateurs = new();
-    /// <summary>Reçoit le son d'une piste par blocs de 10 ms (stéréo entrelacée), sur le fil audio d'OBS. Plusieurs abonnés possibles (enregistrement, MyVirtualSound).</summary>
-    public void AddTrackConsumer(int piste, Action<float[]> consommateur)
+    /// <summary>
+    /// Reçoit le son d'une piste par blocs de 10 ms (stéréo entrelacée), sur le fil audio d'OBS, avec l'instant où sa première trame a été captée
+    /// (horloge <see cref="Horloge"/>, ns). Plusieurs abonnés possibles (enregistrement, MyVirtualSound).
+    /// </summary>
+    public void AddTrackConsumer(int piste, Action<float[], long> consommateur)
     {
         if (piste < 0 || piste >= LibObs.Mixes) return;
-        lock (verrouConsommateurs) Volatile.Write(ref consommateurs[piste], (Action<float[]>?)Delegate.Combine(consommateurs[piste], consommateur));
+        lock (verrouConsommateurs) Volatile.Write(ref consommateurs[piste], (Action<float[], long>?)Delegate.Combine(consommateurs[piste], consommateur));
     }
-    public void RemoveTrackConsumer(int piste, Action<float[]> consommateur)
+    public void RemoveTrackConsumer(int piste, Action<float[], long> consommateur)
     {
         if (piste < 0 || piste >= LibObs.Mixes) return;
-        lock (verrouConsommateurs) Volatile.Write(ref consommateurs[piste], (Action<float[]>?)Delegate.Remove(consommateurs[piste], consommateur));
+        lock (verrouConsommateurs) Volatile.Write(ref consommateurs[piste], (Action<float[], long>?)Delegate.Remove(consommateurs[piste], consommateur));
     }
     public void RestartMedia(string id)
     {

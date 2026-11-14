@@ -259,7 +259,7 @@ public sealed class AudioSettingsPanel : StackPanel
             Text = present ? "FFmpeg 8.0.1 est inclus avec MyChurch : FLAC et vidéo MKV marchent sans rien installer." : "FFmpeg est absent du dossier de MyChurch : réinstallez MyChurch pour enregistrer en FLAC ou en vidéo.",
             FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 14, 0, 0), Foreground = present ? P("Blanc") : P("Danger"),
         });
-        corps.Children.Add(Note("La vidéo utilise l'encodeur H.264 de la carte graphique (NVIDIA, Intel ou AMD) s'il marche, sinon x264. Le son et l'image suivent la même horloge ; un décalage de caméra se corrige dans chaque enregistrement (« Synchro du son »)."));
+        corps.Children.Add(Note("La vidéo utilise l'encodeur H.264 de la carte graphique (NVIDIA, Intel ou AMD) s'il marche, sinon x264. Le son et l'image se synchronisent tout seuls, comme dans OBS (retard de MyCam compris)."));
         return cadre;
     }
 

@@ -220,8 +220,9 @@ public sealed class ChurchAudioService : IDisposable
     /// <summary>Problème du pilote ASIO d'une source (vide si tout va bien).</summary>
     public string StatutAsio(string pilote) => asio.Statut(pilote);
     public void RestartMedia(AudioSource s) => mixer.RestartMedia(s.Id);
-    internal void AddTrackConsumer(int piste, Action<float[]> c) => mixer.AddTrackConsumer(piste, c);
-    internal void RemoveTrackConsumer(int piste, Action<float[]> c) => mixer.RemoveTrackConsumer(piste, c);
+    /// <summary>Le son d'une piste par blocs de 10 ms, avec l'instant où chaque bloc a été capté (<see cref="Horloge"/>).</summary>
+    internal void AddTrackConsumer(int piste, Action<float[], long> c) => mixer.AddTrackConsumer(piste, c);
+    internal void RemoveTrackConsumer(int piste, Action<float[], long> c) => mixer.RemoveTrackConsumer(piste, c);
 
     public void Dispose()
     {

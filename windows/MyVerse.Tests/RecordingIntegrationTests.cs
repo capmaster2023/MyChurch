@@ -9,17 +9,45 @@ namespace MyVerse.Tests;
 /// <summary>Real native WAV and FFmpeg queue/transport tests; no simulated encoder.</summary>
 public static class RecordingIntegrationTests
 {
+    /// <summary>
+    /// Une composition d'essai : une couleur fixe, ou une couleur selon l'instant du monde visible à l'écran. Avec un retard
+    /// (une caméra MyCam), l'écran montre à l'instant t le monde de t − Retard, comme une vraie caméra.
+    /// </summary>
     sealed class Frames : IRecordingFrameProvider
     {
         readonly object gate = new();
         byte color = 25;
-        public void Set(byte value) { lock (gate) color = value; }
-        public void CopyFrame(byte[] destination)
+        Func<long, byte>? selon;
+        public long Retard { get; set; }
+        public void Set(byte value) { lock (gate) { color = value; selon = null; } }
+        public void Selon(Func<long, byte> f) { lock (gate) selon = f; }
+        public void CopyFrame(byte[] destination, long monde)
         {
             lock (gate)
-                for (int i = 0; i < destination.Length; i += 4) { destination[i] = color; destination[i + 1] = color; destination[i + 2] = color; destination[i + 3] = 255; }
+            {
+                byte c = selon != null ? selon(Horloge.Ns() - Retard) : color;
+                for (int i = 0; i < destination.Length; i += 4) { destination[i] = c; destination[i + 1] = c; destination[i + 2] = c; destination[i + 3] = 255; }
+            }
         }
     }
+
+    /// <summary>
+    /// Le son comme OBS le donne : des blocs de 10 ms horodatés à l'instant de leur capture (t0 + n × 10 ms), livrés en temps réel
+    /// avec le retard du mélange d'OBS (<paramref name="retardSonMs"/>). Clap : son fort des blocs 50 à 59 (0,5 à 0,6 s du monde).
+    /// </summary>
+    static async Task AlimenterAsync(RecordingSession session, long t0, int retardSonMs, int blocs = 150)
+    {
+        var block = new float[AudioBlock.Samples];
+        for (int n = 0; n < blocs; n++)
+        {
+            long quand = t0 + n * 10 * Horloge.Milliseconde + retardSonMs * Horloge.Milliseconde;
+            while (Horloge.Ns() < quand) await Task.Delay(1);
+            FillAudio(block, n);
+            if (!session.Accept(block, t0 + n * 10 * Horloge.Milliseconde)) throw new IOException(session.Error ?? "bloc refusé");
+        }
+    }
+    /// <summary>L'image du monde : claire de 0,5 à 0,6 s après t0 (le clap), sombre sinon.</summary>
+    static Func<long, byte> Clap(long t0) => monde => monde - t0 >= 500 * Horloge.Milliseconde && monde - t0 < 600 * Horloge.Milliseconde ? (byte)240 : (byte)25;
     static async Task<string> ProcessAsync(string exe, IEnumerable<string> args)
     {
         var info = new ProcessStartInfo(exe) { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
@@ -53,22 +81,21 @@ public static class RecordingIntegrationTests
         }
         return (fin.Success ? double.Parse(fin.Groups[1].Value, CultureInfo.InvariantCulture) : null, image);
     }
-    /// <summary>Une vraie session vidéo (tubes nommés, prises Unix sous Linux) avec un décalage de synchro, puis la mesure du clap.</summary>
-    static async Task<(double? Son, double? Image)> SessionClapAsync(string ffmpeg, string directory, Frames frame, int delayMs)
+    /// <summary>
+    /// MyChurch 1.2 : une vraie session vidéo où le son arrive en retard (mélange d'OBS) et la caméra aussi (MyCam), puis la mesure du clap :
+    /// la synchro est automatique, sans réglage.
+    /// </summary>
+    static async Task<(double? Son, double? Image)> SessionClapAsync(string ffmpeg, string directory, int retardSonMs, int retardCameraMs)
     {
-        var profile = new RecordingProfile { Name = "synchro" + delayMs, Format = "mkv", AudioOnly = false, Directory = directory, Width = 320, Height = 180, Fps = 30, Encoder = "mjpeg", AudioDelayMs = delayMs };
+        var frame = new Frames { Retard = retardCameraMs * Horloge.Milliseconde };
+        var profile = new RecordingProfile { Name = $"synchro-son{retardSonMs}-cam{retardCameraMs}", Format = "mkv", AudioOnly = false, Directory = directory, Width = 320, Height = 180, Fps = 30, Encoder = "mjpeg" };
         string path = RecordingFiles.ReservePath(directory, profile.Name, "mkv");
-        var block = new float[AudioBlock.Samples];
         using (var session = new RecordingSession(profile, path, ffmpeg, "mjpeg", frame))
         {
+            long t0 = Horloge.Ns();
+            frame.Selon(Clap(t0));
             await session.PrepareAsync();
-            for (int n = 0; n < 150; n++)
-            {
-                frame.Set(n >= 50 && n < 60 ? (byte)240 : (byte)25);
-                FillAudio(block, n);
-                if (!session.Accept(block)) throw new IOException(session.Error);
-                await Task.Delay(10);
-            }
+            await AlimenterAsync(session, t0, retardSonMs);
             await session.StopAsync();
         }
         return await ClapAsync(ffmpeg, path);
@@ -116,14 +143,17 @@ public static class RecordingIntegrationTests
             // vraie session : tubes nommés sous Windows, prises Unix ailleurs ; ffmpeg lit en direct, comme dans MyChurch
             using (var session = new RecordingSession(profile, path, executable ?? "", "mjpeg", format == "mkv" ? frame : null))
             {
+                long t0 = Horloge.Ns();
+                frame.Selon(Clap(t0));
                 await session.PrepareAsync();
-                for (int n = 0; n < 150; n++)
-                {
-                    frame.Set(n >= 50 && n < 60 ? (byte)240 : (byte)25);
-                    FillAudio(block, n);
-                    if (!session.Accept(block)) throw new IOException(session.Error);
-                    if (format != "wav") await Task.Delay(10);
-                }
+                if (format == "mkv") await AlimenterAsync(session, t0, 0);
+                else
+                    for (int n = 0; n < 150; n++)
+                    {
+                        FillAudio(block, n);
+                        if (!session.Accept(block)) throw new IOException(session.Error);
+                        if (format != "wav") await Task.Delay(10);
+                    }
                 await session.StopAsync();
                 ok(session.Error == null && new FileInfo(path).Length > 1000, "Session réelle : " + format.ToUpperInvariant() + " finalisé après 150 blocs", null);
                 ok(session.AcceptedFrames == 72000, "Session : 72 000 trames acceptées (" + format + ")", null);
@@ -145,11 +175,12 @@ public static class RecordingIntegrationTests
                     // synchro : le son fort et l'image claire arrivent ensemble (blocs 50 à 59)
                     var (son, image) = await ClapAsync(executable, path);
                     ok(son != null && image != null && Math.Abs(son.Value - image.Value) < 0.05, "Synchro image/son mesurée dans le MKV", $"son {son:0.000} s · image {image:0.000} s");
-                    foreach (int delai in new[] { 200, -200 })
+                    // MyChurch 1.2 : synchro automatique, le son en retard (mélange d'OBS) et la caméra en retard (MyCam)
+                    foreach (var (retardSon, retardCamera) in new[] { (150, 0), (150, 100), (0, 250), (300, 120) })
                     {
-                        var (s2, i2) = await SessionClapAsync(executable, directory, frame, delai);
-                        ok(s2 != null && i2 != null && Math.Abs(s2.Value - i2.Value - delai / 1000.0) < 0.05,
-                            delai > 0 ? "Décalage de synchro : son retardé de 200 ms" : "Décalage de synchro : image retardée de 200 ms", $"son {s2:0.000} s · image {i2:0.000} s");
+                        var (s2, i2) = await SessionClapAsync(executable, directory, retardSon, retardCamera);
+                        ok(s2 != null && i2 != null && Math.Abs(s2.Value - i2.Value) < 0.05,
+                            $"Synchro automatique : son en retard de {retardSon} ms, caméra de {retardCamera} ms, la voix tombe sur l'image", $"son {s2:0.000} s · image {i2:0.000} s");
                     }
                 }
                 await ProcessAsync(executable, new[] { "-v", "error", "-i", path, "-f", "null", "-" });

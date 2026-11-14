@@ -19,7 +19,7 @@ android {
         // MyChurch 1.0 (dépôt capmaster2023/MyChurch) : au-dessus des APK 6xxxxx de l'ancien dépôt Verselight,
         // pour s'installer par-dessus l'application existante (même package, même signature)
         versionCode = 700000 + (System.getenv("VERSION_CODE") ?: "0").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: "1.1.0"
+        versionName = System.getenv("VERSION_NAME") ?: "1.2.0"
     }
 
     signingConfigs {

@@ -24,8 +24,10 @@ public sealed class Rendu : Grid
         // débordée de 90 px de chaque côté et centrée : le bord estompé par le flou tombe hors de l'écran (le dessin est rogné à ses bords)
         Stretch = Stretch.UniformToFill, Visibility = Visibility.Collapsed, Opacity = 0.5, IsHitTestVisible = false,
         Margin = new Thickness(-90), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-        Effect = new BlurEffect { Radius = 56, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance },
     };
+    /// <summary>Rayon du flou derrière une caméra en hauteur (repris par l'enregistrement, qui floute lui-même).</summary>
+    internal const double RayonFlou = 56;
+    readonly BlurEffect flou = new() { Radius = RayonFlou, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance };
     readonly Border scene = new();
     readonly StackPanel pile = new();
     readonly TextBlock texte = new(), texte2 = new(), refT = new();
@@ -64,6 +66,7 @@ public sealed class Rendu : Grid
     {
         ClipToBounds = true;
         SnapsToDevicePixels = true;
+        mediaFlou.Effect = flou;
         Children.Add(fond);
         Children.Add(scene);
         Children.Add(mediaFlou);
@@ -93,13 +96,53 @@ public sealed class Rendu : Grid
         SizeChanged += (_, _) => { Placer(); Ajuster(); PlacerDuo(); };
     }
 
-    public void ImageDisplay(ImageSource? image) { media.Source = image; if (gauche != null) gauche.media.Source = image; MajFlou(); }
+    public void ImageDisplay(ImageSource? image)
+    {
+        media.Source = image;
+        if (gauche != null) { gauche.media.Source = image; gauche.MajFlou(); }
+        MajFlou();
+    }
+
+    // ------------------------------------------------------------ MyChurch 1.2 : les images vivantes, pour l'enregistrement
+    /// <summary>Une image vivante du dessin : l'élément, son contenu (celui du Duo ou le principal), net ou fond flou ; et le dessin qui la rogne.</summary>
+    internal readonly record struct ImageVivante(Image Element, bool Duo, bool Flou, FrameworkElement Cadre);
+
+    /// <summary>
+    /// Les images vivantes visibles (caméra, MyCam, vidéo…), dans l'ordre du dessin (dessous d'abord) : l'enregistrement les dessine lui-même
+    /// à chaque image, le reste (fond, texte, Duo) est rendu par WPF quelques fois par seconde.
+    /// </summary>
+    internal void ImagesVivantes(List<ImageVivante> liste, bool duo = false)
+    {
+        if (Visibility != Visibility.Visible) return;
+        if (mediaFlou.Visibility == Visibility.Visible && mediaFlou.Source != null) liste.Add(new(mediaFlou, duo, true, this));
+        if (media.Visibility == Visibility.Visible && media.Source != null) liste.Add(new(media, duo, false, this));
+        // Duo : la moitié gauche (dessous) montre le contenu principal, le contenu épinglé (dessus) celui du Duo
+        if (gauche != null && (epingle == null || GetZIndex(gauche) <= GetZIndex(epingle))) { gauche.ImagesVivantes(liste, duo); epingle?.ImagesVivantes(liste, true); }
+        else { epingle?.ImagesVivantes(liste, true); gauche?.ImagesVivantes(liste, duo); }
+    }
+
+    bool sansEffets;
+    /// <summary>
+    /// Dessin pour l'enregistrement (MyChurch 1.2) : le fond flou est rendu sans son effet (l'enregistrement le floute lui-même à chaque image),
+    /// et les dessins du Duo aussi.
+    /// </summary>
+    internal bool SansEffets
+    {
+        get => sansEffets;
+        set
+        {
+            sansEffets = value;
+            mediaFlou.Effect = value ? null : flou;
+            if (gauche != null) gauche.SansEffets = value;
+            if (epingle != null) epingle.SansEffets = value;
+        }
+    }
 
     /// <summary>Le fond flou ne sert qu'aux caméras (MyCam, caméra USB) plus étroites que l'écran : une image ou une vidéo garde ses bandes.</summary>
     void MajFlou()
     {
         bool flou = FondFlou && etat.Mode == "media" && (etat.Media?.Type is "mycam" or "camera")
-            && media.Source is System.Windows.Media.Imaging.BitmapSource b && b.PixelHeight > 0 && b.PixelWidth / (double)b.PixelHeight < 1.6;
+            && media.Source is { Width: > 0, Height: > 0 } b && b.Width / b.Height < 1.6;
         var source = flou ? media.Source : null;
         if (!ReferenceEquals(mediaFlou.Source, source)) mediaFlou.Source = source;
         var v = flou ? Visibility.Visible : Visibility.Collapsed;
@@ -112,13 +155,17 @@ public sealed class Rendu : Grid
     ImageSource? imageDuo;
 
     /// <summary>Image vivante (caméra, fenêtre, image) du contenu épinglé.</summary>
-    public void ImageDuo(ImageSource? image) { imageDuo = image; if (epingle != null) epingle.media.Source = image; }
+    public void ImageDuo(ImageSource? image)
+    {
+        imageDuo = image;
+        if (epingle != null) { epingle.media.Source = image; epingle.MajFlou(); }
+    }
 
     Rendu Enfant(ref Rendu? r)
     {
         if (r == null)
         {
-            r = new Rendu { Transitions = Transitions, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
+            r = new Rendu { Transitions = Transitions, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, SansEffets = sansEffets };
             Children.Add(r);
         }
         r.Transitions = Transitions;
@@ -140,6 +187,7 @@ public sealed class Rendu : Grid
         var ep = Enfant(ref epingle);
         ep.Visibility = Visibility.Visible;
         ep.media.Source = imageDuo;
+        ep.MajFlou();
         Rendu? g = null;
         if (duo.Place is "cote" or "libre")
         {
@@ -147,6 +195,7 @@ public sealed class Rendu : Grid
             SetZIndex(g, 1); SetZIndex(ep, 2);
             g.Visibility = Visibility.Visible;
             g.media.Source = media.Source;
+            g.MajFlou();
         }
         else if (gauche != null) gauche.Visibility = Visibility.Collapsed;
         double W = Cote(ActualWidth, Width), H = Cote(ActualHeight, Height);

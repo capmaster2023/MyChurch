@@ -21,6 +21,8 @@ public sealed class SourcesDisplay : IDisposable
     public sealed record Peripherique(int Index, string Nom, string Id);
     public sealed record Fenetre(long Handle, int Processus, string Titre);
     public BitmapSource? Image { get; private set; }
+    /// <summary>La source capturée (null : aucune) : l'enregistrement lit MyCam et les caméras directement, sans passer par l'interface.</summary>
+    public SourceDisplay? Source => source;
     public string Statut { get; private set; } = "";
     public event Action? Change;
     CancellationTokenSource? fin;

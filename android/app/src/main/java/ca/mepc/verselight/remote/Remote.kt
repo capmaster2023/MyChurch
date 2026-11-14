@@ -51,6 +51,9 @@ class Remote(private val context: Context, val store: Store) {
     val proto = MutableStateFlow(1)
     /** Formats d'image MyCam que le PC sait afficher (« h264 » depuis MyChurch 4.1, toujours « jpeg »). */
     val codecsPc = MutableStateFlow(setOf("jpeg"))
+    /** Le PC (MyChurch 1.2) lit l'âge de chaque image MyCam : il cale l'image sur le son des enregistrements. */
+    @Volatile var horlogePc = false
+        private set
     /** Le déroulé du culte (réponse « agenda » du PC). */
     val agenda = MutableStateFlow<JSONObject?>(null)
     /** Les sources Display du PC (réponse « displays »). */
@@ -180,10 +183,13 @@ class Remote(private val context: Context, val store: Store) {
     }
 
     /** MyCam : une image (en-tête MC + JPEG ou H.264) vers le PC. Faux si le PC n'est pas joignable ou si la file d'envoi est pleine. */
-    fun sendBinary(data: ByteArray, len: Int): Boolean {
+    fun sendBinary(data: ByteArray, len: Int): Boolean = sendBinary(data, 0, len)
+
+    /** MyCam : [len] octets de [data] à partir de [debut]. */
+    fun sendBinary(data: ByteArray, debut: Int, len: Int): Boolean {
         val s = socket ?: return false
         if (s.queueSize() > 1_200_000L) return false
-        return s.send(data.toByteString(0, len))
+        return s.send(data.toByteString(debut, len))
     }
 
     /** Octets en attente d'envoi (MyCam s'en sert pour ne pas prendre de retard). */
@@ -268,7 +274,17 @@ class Remote(private val context: Context, val store: Store) {
         val inbox = Channel<String>(Channel.UNLIMITED)
         val ws = client.newWebSocket(Request.Builder().url("ws://$host:$port/").build(), object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) { inbox.trySend("{\"t\":\"_open\"}") }
-            override fun onMessage(webSocket: WebSocket, text: String) { inbox.trySend(text) }
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                // MyCam (MyChurch 1.2) : le PC mesure l'aller-retour pour dater les images ; réponse immédiate, hors de la file des messages
+                if (text.startsWith("{\"t\":\"cam.ping\"")) {
+                    try {
+                        webSocket.send(JSONObject().put("t", "cam.pong").put("n", JSONObject(text).optLong("n")).toString())
+                    } catch (_: Exception) {
+                    }
+                    return
+                }
+                inbox.trySend(text)
+            }
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 inbox.trySend(JSONObject().put("t", "_closed").put("err", "fermée par le PC ($code)").toString())
             }
@@ -318,6 +334,7 @@ class Remote(private val context: Context, val store: Store) {
             info.value = ""
             proto.value = w.optInt("proto", 1)
             codecsPc.value = w.optJSONArray("codecs")?.let { a -> (0 until a.length()).map { a.optString(it) }.toSet() } ?: setOf("jpeg")
+            horlogePc = w.optBoolean("camHorloge", false)
             agendaVu = -1
             socket = ws
             link.value = Link.CONNECTED

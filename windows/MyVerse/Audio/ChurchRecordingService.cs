@@ -18,7 +18,7 @@ public sealed class ChurchRecordingService : IDisposable
         public RecordingSession? Session;
         public RecordingCompositor? Compositor;
         public RecordingProfile? Profile;
-        public Action<float[]>? Consumer;
+        public Action<float[], long>? Consumer;
         public int Piste;
         /// <summary>L'enregistrement démarre ou tourne (jusqu'à l'arrêt).</summary>
         public bool Reserve;
@@ -99,7 +99,8 @@ public sealed class ChurchRecordingService : IDisposable
                     run.Compositor = compositor; compositor = null;
                     run.Profile = selected; run.Encoder = encoder;
                     Volatile.Write(ref run.Session, session);
-                    run.Consumer = block => Volatile.Read(ref run.Session)?.Accept(block);
+                    // chaque bloc arrive avec l'instant où OBS l'a capté : la vidéo se cale dessus (synchro automatique, comme OBS)
+                    run.Consumer = (block, instant) => Volatile.Read(ref run.Session)?.Accept(block, instant);
                     run.Piste = selected.Track;
                     // la piste d'OBS de cet enregistrement alimente le fichier, bloc par bloc, depuis le fil audio d'OBS
                     audio.AddTrackConsumer(run.Piste - 1, run.Consumer);

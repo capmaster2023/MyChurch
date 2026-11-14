@@ -14,7 +14,7 @@ void Ok(bool cond, string quoi, string? detail = null)
     total++;
     if (!cond) echecs++;
     if (!cond || Environment.GetEnvironmentVariable("TOUT") == "1")
-        Console.WriteLine($"  {(cond ? "✓" : "✗")} {quoi}{(cond || detail == null ? "" : "  → " + detail)}");
+        Console.WriteLine($"  {(cond ? "✓" : "✗")} {quoi}{(detail == null || (cond && Environment.GetEnvironmentVariable("TOUT") != "1") ? "" : "  → " + detail)}");
 }
 void Egal<T>(T obtenu, T attendu, string quoi) => Ok(EqualityComparer<T>.Default.Equals(obtenu, attendu), quoi, $"obtenu « {obtenu} », attendu « {attendu} »");
 
@@ -1254,6 +1254,30 @@ if (Actif())
     cams.Deconnecte("tel-cam");
     Ok(cams.Liste().Count == 1 && !cams.Liste()[0].EnDirect, "déconnecté : le téléphone reste connu");
     Egal(MyCams.Duree(0), "", "durée vide");
+
+    // MyChurch 1.2 : l'âge de chaque image (bit 4 + 4 octets, µs) et l'aller-retour « cam.ping » datent l'image sur l'horloge du PC
+    Ok(MyCams.LireEntete(new byte[] { (byte)'M', (byte)'C', 2, 8 | 0x10, 0x40, 0x0D, 0x03, 0, 0, 0, 0, 1, 0x65 }) is { H264: true, Cle: true, Debut: 8, AgeUs: 200_000 }, "en-tête MC 2 avec âge : 200 ms, données après 8 octets");
+    Ok(MyCams.LireEntete(new byte[] { (byte)'M', (byte)'C', 1, 0x10, 0xA0, 0x86, 0x01, 0, 0xFF, 0xD8, 0xFF, 0xE0 }) is { H264: false, Debut: 8, AgeUs: 100_000 }, "en-tête MC 1 (JPEG) avec âge : 100 ms");
+    Ok(MyCams.LireEntete(img) is { AgeUs: -1 }, "en-tête sans âge (téléphone 1.1) : âge inconnu");
+    Ok(MyCams.LireEntete(new byte[] { (byte)'M', (byte)'C', 2, 0x10, 0, 0, 0, 0, 0xFF, 0xD8, 0, 0 }) == null, "en-tête avec âge : toujours vérifié après l'âge");
+    var camsT = new MyCams();
+    camsT.AllerRetour("tel-t", 10 * Horloge.Milliseconde);
+    long tCam = Horloge.Ns() - 300 * Horloge.Milliseconde;
+    for (int k = 0; k < 6; k++)
+    {
+        // une image toutes les 33 ms, prise 120 ms avant d'être envoyée
+        long age = 120_000;
+        var m = new byte[] { (byte)'M', (byte)'C', 1, 0x10, (byte)(age & 0xFF), (byte)(age >> 8 & 0xFF), (byte)(age >> 16 & 0xFF), 0, 0xFF, 0xD8, 0xFF, 0xE0, (byte)k };
+        camsT.Recevoir("tel-t", "Pixel", m, m.Length, tCam + k * 33 * Horloge.Milliseconde);
+    }
+    var der = camsT.Dernier("tel-t")!;
+    long attendu = tCam + 5 * 33 * Horloge.Milliseconde - 5 * Horloge.Milliseconde - 120 * Horloge.Milliseconde;
+    Ok(Math.Abs(der.Capture - attendu) < Horloge.Milliseconde, "image datée : réception − trajet (aller-retour / 2) − âge", $"{(der.Capture - attendu) / 1e6:0.###} ms");
+    var proche = camsT.Proche("tel-t", tCam + 2 * 33 * Horloge.Milliseconde - 125 * Horloge.Milliseconde + 3 * Horloge.Milliseconde);
+    Ok(proche != null && proche.Jpeg[^1] == 2, "l'image prise au plus près d'un instant est retrouvée", proche?.Jpeg[^1].ToString());
+    long retard = camsT.Retard("tel-t");
+    Ok(retard > 100 * Horloge.Milliseconde && retard < 1500 * Horloge.Milliseconde, "retard mesuré des images (prise de vue → PC)", $"{retard / 1e6:0} ms");
+    Ok(new MyCams().Retard("inconnu") >= MyCams.AgeParDefaut, "téléphone sans mesure : retard par défaut", $"{new MyCams().Retard("inconnu") / 1e6:0} ms");
 
     // source Display MyCam et témoin rouge / orange
     var don = Donnees.Charger(Temp(), res);

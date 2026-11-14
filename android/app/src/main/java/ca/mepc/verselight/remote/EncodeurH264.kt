@@ -50,14 +50,18 @@ internal class EncodeurH264 private constructor(
     private var melange = ByteArray(0)
 
     companion object {
-        /** Octets laissés libres devant chaque unité d'accès pour l'en-tête MyCam (« M », « C », version, drapeaux). */
-        const val ENTETE = 4
+        /**
+         * Octets laissés libres devant chaque unité d'accès pour l'en-tête MyCam : « M », « C », version, drapeaux,
+         * puis (MyChurch 1.2) l'âge de l'image sur 4 octets.
+         */
+        const val ENTETE = 8
 
         /**
          * Un encodeur pour une zone de la caméra. [sortie] reçoit chaque unité d'accès (fil de l'encodeur) : le tableau commence par
-         * [ENTETE] octets libres, puis les données ; la longueur totale ; image clé ou non. Lance une exception si le téléphone refuse.
+         * [ENTETE] octets libres, puis les données ; la longueur totale ; image clé ou non ; l'horodatage de la caméra (µs).
+         * Lance une exception si le téléphone refuse.
          */
-        fun creer(voulueL: Int, voulueH: Int, fps: Int, sortie: (ByteArray, Int, Boolean) -> Unit): EncodeurH264 {
+        fun creer(voulueL: Int, voulueH: Int, fps: Int, sortie: (ByteArray, Int, Boolean, Long) -> Unit): EncodeurH264 {
             val type = MediaFormat.MIMETYPE_VIDEO_AVC
             val codec = MediaCodec.createEncoderByType(type)
             val fil = HandlerThread("MyCam-H264").also { it.start() }
@@ -139,7 +143,7 @@ internal class EncodeurH264 private constructor(
         }
     }
 
-    private fun demarrer(caps: MediaCodecInfo.CodecCapabilities, sortie: (ByteArray, Int, Boolean) -> Unit) {
+    private fun demarrer(caps: MediaCodecInfo.CodecCapabilities, sortie: (ByteArray, Int, Boolean, Long) -> Unit) {
         val rappel = object : MediaCodec.Callback() {
             override fun onInputBufferAvailable(c: MediaCodec, index: Int) {
                 if (!ferme) libres.add(index)
@@ -165,10 +169,10 @@ internal class EncodeurH264 private constructor(
                                 val avec = ByteArray(ENTETE + p.size + info.size)
                                 System.arraycopy(p, 0, avec, ENTETE, p.size)
                                 System.arraycopy(out, ENTETE, avec, ENTETE + p.size, info.size)
-                                sortie(avec, avec.size, true)
+                                sortie(avec, avec.size, true, info.presentationTimeUs)
                             } else {
                                 if (cle && p == null) parametres = parametresDe(out)
-                                sortie(out, out.size, cle)
+                                sortie(out, out.size, cle, info.presentationTimeUs)
                             }
                         }
                     }

@@ -137,8 +137,7 @@ public sealed class RecordingProfile : IDestinationAudio
     public const string Projection = "projection";
     /// <summary>Plusieurs sources Display : « incrustation » (la 1re en grand, les autres en petit) ou « cote » (côte à côte).</summary>
     public string Layout { get; set; } = "incrustation";
-    /// <summary>Synchro de la vidéo : positif = le son est retardé (caméra en retard sur le son), négatif = l'image est retardée. De −500 à +1000 ms.</summary>
-    public int AudioDelayMs { get; set; }
+    // MyChurch 1.2 : plus de « Synchro du son » (AudioDelayMs) : le son et l'image se calent tout seuls sur l'instant de leur capture.
     public int Width { get; set; } = 1280;
     public int Height { get; set; } = 720;
     public int Fps { get; set; } = 30;
@@ -419,7 +418,6 @@ public sealed class AudioConfiguration
             p.DisplayIds = (p.DisplayIds ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Take(6).ToList();
             if (p.DisplayIds.Count > 0) { p.AudioOnly = false; p.Format = "mkv"; }
             else { p.AudioOnly = true; if (p.Format is not ("wav" or "flac")) p.Format = "wav"; }
-            p.AudioDelayMs = Math.Clamp(p.AudioDelayMs, -500, 1000);
             if (string.IsNullOrWhiteSpace(p.Directory)) p.Directory = Path.Combine(DossierEnregistrements, RecordingFiles.SafeName(p.Name));
         }
     }

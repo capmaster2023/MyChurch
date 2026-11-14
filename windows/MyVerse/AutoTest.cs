@@ -334,6 +334,32 @@ public static class AutoTest
     }
 
     /// <summary>ffmpeg relit tout le fichier (sans rien écrire) : code de sortie et journal (flux, durée).</summary>
+    /// <summary>Images différentes de la précédente, par seconde, au milieu d'une vidéo (le début et la fin écartés) ; et le nombre d'images.</summary>
+    static async Task<(double Ips, int Images)> ImagesDifferentes(string ffmpeg, string fichier)
+    {
+        var info = new System.Diagnostics.ProcessStartInfo(ffmpeg) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true };
+        foreach (var a in new[] { "-hide_banner", "-nostats", "-i", fichier, "-map", "0:v:0", "-vf", "signalstats,metadata=mode=print:key=lavfi.signalstats.YAVG", "-f", "null", "-" }) info.ArgumentList.Add(a);
+        using var p = System.Diagnostics.Process.Start(info)!;
+        var sortie = p.StandardOutput.ReadToEndAsync();
+        string journal = await p.StandardError.ReadToEndAsync();
+        await p.WaitForExitAsync();
+        await sortie;
+        var valeurs = new List<(double T, double Y)>();
+        double t = 0;
+        foreach (var ligne in journal.Split('\n'))
+        {
+            var mt = System.Text.RegularExpressions.Regex.Match(ligne, @"pts_time:([0-9.]+)");
+            if (mt.Success) t = double.Parse(mt.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            var my = System.Text.RegularExpressions.Regex.Match(ligne, @"YAVG=([0-9.]+)");
+            if (my.Success) valeurs.Add((t, double.Parse(my.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)));
+        }
+        if (valeurs.Count < 10) return (0, valeurs.Count);
+        double debut = valeurs[0].T + 0.7, fin = valeurs[^1].T - 0.7;
+        var milieu = valeurs.Where(v => v.T >= debut && v.T <= fin).ToList();
+        int changements = milieu.Zip(milieu.Skip(1)).Count(x => Math.Abs(x.Second.Y - x.First.Y) > 2);
+        return (fin > debut ? changements / (fin - debut) : 0, valeurs.Count);
+    }
+
     static async Task<(int Code, string Journal)> Decrire(string ffmpeg, string fichier)
     {
         var info = new System.Diagnostics.ProcessStartInfo(ffmpeg) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true };
@@ -666,6 +692,67 @@ public static class AutoTest
                     Ok(cams.InfoDe("autotest-cam") is { Codec: "H.264" }, "MyCam H.264 : format affiché (" + cams.InfoDe("autotest-cam")?.Resume + ")");
                     if (w.Ecran != null) Capture(w.Ecran, "21g-mycam-h264.png");
                 }
+                // 1.2 : un enregistrement vidéo de MyCam garde ses 30 images par seconde (la composition ne passe plus par l'interface)
+                if (App.Audio.Running && App.Audio.TracksActive)
+                {
+                    // 12 gris en JPEG, envoyés à 30 i/s avec leur âge (100 ms), comme un téléphone en MyChurch 1.2
+                    var gris = new List<byte[]>();
+                    for (int k = 0; k < 12; k++)
+                    {
+                        var vg = new DrawingVisual();
+                        byte niveau = (byte)(20 + k * 19);
+                        using (var dc = vg.RenderOpen()) dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(niveau, niveau, niveau)), null, new Rect(0, 0, 640, 360));
+                        var bg = new RenderTargetBitmap(640, 360, 96, 96, PixelFormats.Pbgra32);
+                        bg.Render(vg);
+                        var eg = new JpegBitmapEncoder { QualityLevel = 85 };
+                        eg.Frames.Add(BitmapFrame.Create(bg));
+                        using var mg = new MemoryStream();
+                        eg.Save(mg);
+                        var jg = mg.ToArray();
+                        var image = new byte[jg.Length + 8];
+                        const int age = 100_000;
+                        image[0] = (byte)'M'; image[1] = (byte)'C'; image[2] = 1; image[3] = MyCams.DrapeauAge;
+                        image[4] = age & 0xFF; image[5] = (age >> 8) & 0xFF; image[6] = (age >> 16) & 0xFF; image[7] = 0;
+                        jg.CopyTo(image, 8);
+                        gris.Add(image);
+                    }
+                    var cfgCam = App.Audio.Config;
+                    var profilCam = new MyVerse.Audio.RecordingProfile { Name = "MyCam (test)", Track = 1, DisplayIds = { cam.Id }, Directory = Path.Combine(Path.GetTempPath(), "mychurch-autotest-mycam") };
+                    cfgCam.Profiles.Add(profilCam);
+                    App.Audio.Apply();
+                    using var envoi = new CancellationTokenSource();
+                    var telephone = Task.Run(() =>
+                    {
+                        long debut = Horloge.Ns();
+                        int n = 0;
+                        while (!envoi.IsCancellationRequested)
+                        {
+                            long quand = debut + n * Horloge.Seconde / 30;
+                            while (Horloge.Ns() < quand) Thread.Sleep(1);
+                            var g = gris[n % gris.Count];
+                            cams.Recevoir("autotest-cam", "Téléphone test", g, g.Length);
+                            n++;
+                        }
+                        return n;
+                    });
+                    await Attendre(800);
+                    await App.Audio.Recorder.ToggleAsync(profilCam);
+                    bool demarre = App.Audio.Recorder.Active(profilCam.Id);
+                    Ok(demarre, "1.2 : enregistrement vidéo de MyCam démarré : " + App.Audio.Recorder.Message(profilCam.Id));
+                    await Attendre(4500);
+                    if (demarre) await App.Audio.Recorder.ToggleAsync(profilCam);
+                    envoi.Cancel();
+                    int envoyees = await telephone;
+                    string? fichierCam = App.Audio.Recorder.LastFile(profilCam.Id);
+                    if (demarre && fichierCam != null && File.Exists(fichierCam))
+                    {
+                        var (ips, total) = await ImagesDifferentes(App.Audio.Ffmpeg, fichierCam);
+                        Ok(ips >= 26, $"1.2 : MyCam enregistrée à {ips:0.0} images différentes par seconde (téléphone : 30 i/s, {envoyees} images envoyées, {total} dans le fichier)");
+                    }
+                    cfgCam.Profiles.Remove(profilCam);
+                    App.Audio.Apply();
+                }
+                else Note("pistes d'OBS inactives : essai de l'enregistrement de MyCam non fait");
                 R.Effacer();
                 await Attendre(500);
                 Ok(R.TemoinMyCam("autotest-cam") == "off", "MyCam retirée : témoin éteint");

@@ -115,7 +115,7 @@ public abstract class FenetreDestination : FenetreDialogue
 
 /// <summary>
 /// Créer ou modifier un enregistrement : son nom, sa piste audio (comme dans OBS), ses sources Display
-/// (la vidéo, dans l'ordre : la 1re en grand), la disposition, la synchro du son et le dossier.
+/// (la vidéo, dans l'ordre : la 1re en grand), la disposition et le dossier. La synchro du son est automatique (MyChurch 1.2).
 /// </summary>
 public sealed class EnregistrementWindow : FenetreDestination
 {
@@ -126,8 +126,6 @@ public sealed class EnregistrementWindow : FenetreDestination
     readonly List<string> ordre = new();
     readonly StackPanel optionsVideo = new(), optionsSon = new(), disposition = new();
     readonly RadioButton incrustation, cote, wav, flac;
-    readonly Slider synchro;
-    readonly TextBlock synchroTexte = new() { FontSize = 13.5, FontWeight = FontWeights.SemiBold, MinWidth = 170, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
     readonly TextBox dossier;
     bool dossierChoisi;
 
@@ -162,23 +160,14 @@ public sealed class EnregistrementWindow : FenetreDestination
         Corps.Children.Add(liste);
         if (p != null) ordre.AddRange(p.DisplayIds.Where(id => display.Any(d => d.Id == id)));
 
-        // vidéo : disposition et synchro du son
+        // vidéo : la disposition (la synchro du son est automatique, comme dans OBS)
         disposition.Children.Add(Libelle("DISPOSITION", 10));
         incrustation = new RadioButton { Content = "Incrustation : la 1re en grand, les autres en petit en bas à droite", GroupName = "disposition", IsChecked = p?.Layout != "cote", Margin = new Thickness(0, 0, 0, 8) };
         cote = new RadioButton { Content = "Côte à côte : toutes de la même taille", GroupName = "disposition", IsChecked = p?.Layout == "cote" };
         disposition.Children.Add(incrustation);
         disposition.Children.Add(cote);
         optionsVideo.Children.Add(disposition);
-        optionsVideo.Children.Add(Libelle("SYNCHRO DU SON"));
-        var ligne = new DockPanel();
-        DockPanel.SetDock(synchroTexte, Dock.Right);
-        ligne.Children.Add(synchroTexte);
-        synchro = new Slider { Minimum = -500, Maximum = 1000, SmallChange = 10, LargeChange = 50, TickFrequency = 10, IsSnapToTickEnabled = true, IsMoveToPointEnabled = true, Value = p?.AudioDelayMs ?? 0, VerticalAlignment = VerticalAlignment.Center, ToolTip = "Double-clic : 0 ms" };
-        synchro.ValueChanged += (_, _) => MajSynchro();
-        synchro.MouseDoubleClick += (_, _) => synchro.Value = 0;
-        ligne.Children.Add(synchro);
-        optionsVideo.Children.Add(ligne);
-        optionsVideo.Children.Add(Note("Le son et l'image suivent la même horloge, sans dérive. Si la caméra a un peu de retard sur le son (souvent 50 à 200 ms), retardez le son (+) jusqu'à ce que la voix et les lèvres coïncident ; si c'est l'inverse, retardez l'image (−)."));
+        optionsVideo.Children.Add(Note("Le son et l'image se synchronisent tout seuls, comme dans OBS : chaque image et chaque son sont placés selon l'instant où ils ont été captés (retard de MyCam compris)."));
         optionsVideo.Children.Add(Note("Vidéo 1280 × 720, 30 images par seconde, H.264 (carte graphique si possible), fichier MKV lisible même après une coupure de courant."));
         Corps.Children.Add(optionsVideo);
 
@@ -224,7 +213,6 @@ public sealed class EnregistrementWindow : FenetreDestination
         };
         Loaded += (_, _) => { nom.Focus(); nom.SelectAll(); };
         MajOptions();
-        MajSynchro();
     }
 
     static string DossierParDefaut(string nom) =>
@@ -264,12 +252,6 @@ public sealed class EnregistrementWindow : FenetreDestination
         EffacerErreur();
     }
 
-    void MajSynchro()
-    {
-        int ms = (int)Math.Round(synchro.Value);
-        synchroTexte.Text = ms == 0 ? "0 ms" : ms > 0 ? $"+{ms} ms (son retardé)" : $"−{-ms} ms (image retardée)";
-    }
-
     void Enregistrer()
     {
         string n = nom.Text.Trim();
@@ -281,7 +263,6 @@ public sealed class EnregistrementWindow : FenetreDestination
         p.Track = piste.SelectedIndex + 1;
         p.DisplayIds = ordre.ToList();
         p.Layout = cote.IsChecked == true ? "cote" : "incrustation";
-        p.AudioDelayMs = (int)Math.Round(synchro.Value);
         p.AudioOnly = ordre.Count == 0;
         p.Format = ordre.Count > 0 ? "mkv" : flac.IsChecked == true ? "flac" : "wav";
         p.Directory = dossier.Text;

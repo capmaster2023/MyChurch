@@ -55,7 +55,7 @@ public static class ObsTests
     static (int Blocs, float G, float D) Mesurer(ObsMixer m, int piste, int ms)
     {
         int blocs = 0; float g = 0, d = 0;
-        Action<float[]> abonne = b =>
+        Action<float[], long> abonne = (b, _) =>
         {
             if (b.Length != AudioBlock.Samples) return;
             Interlocked.Increment(ref blocs);
@@ -184,11 +184,24 @@ public static class ObsTests
                 ok(float.IsNegativeInfinity(m.TrackLevel(1)) || m.TrackLevel(1) < -80, "piste 2 : silencieuse (source non envoyée)", m.TrackLevel(1).ToString("0.0"));
                 int blocs = 0; double crete = 0;
                 int blocs2 = 0;
-                Action<float[]> abonne = b => { if (b.Length == AudioBlock.Samples) Interlocked.Increment(ref blocs); crete = Math.Max(crete, b.Max(Math.Abs)); };
-                Action<float[]> abonne2 = b => Interlocked.Increment(ref blocs2);
+                var instants = new List<(long Bloc, long Recu)>();
+                Action<float[], long> abonne = (b, instant) =>
+                {
+                    if (b.Length == AudioBlock.Samples) Interlocked.Increment(ref blocs);
+                    crete = Math.Max(crete, b.Max(Math.Abs));
+                    lock (instants) instants.Add((instant, Horloge.Ns()));
+                };
+                Action<float[], long> abonne2 = (b, _) => Interlocked.Increment(ref blocs2);
                 m.AddTrackConsumer(0, abonne); m.AddTrackConsumer(0, abonne2);
                 Thread.Sleep(700);
                 m.RemoveTrackConsumer(0, abonne); m.RemoveTrackConsumer(0, abonne2);
+                // MyChurch 1.2 : chaque bloc porte l'instant de sa capture (horloge d'OBS ramenée à celle de MyChurch), de 10 ms en 10 ms
+                List<(long Bloc, long Recu)> vus;
+                lock (instants) vus = instants.ToList();
+                bool suite = vus.Count > 10 && vus.Zip(vus.Skip(1)).All(x => Math.Abs(x.Second.Bloc - x.First.Bloc - 10 * Horloge.Milliseconde) < Horloge.Milliseconde / 2);
+                double retard = vus.Count > 0 ? vus.Average(x => (x.Recu - x.Bloc) / 1e6) : -1;
+                ok(suite, "blocs horodatés de 10 ms en 10 ms (horloge d'OBS)", vus.Count > 1 ? $"{vus.Count} blocs, écart {(vus[1].Bloc - vus[0].Bloc) / 1e6:0.###} ms" : "aucun");
+                ok(retard > 0 && retard < 1000, "horodatage du son : capté avant d'être reçu, moins d'une seconde avant (mise en mémoire d'OBS)", $"{retard:0.0} ms en moyenne");
                 ok(blocs2 > 40, "deux abonnés sur la même piste (enregistrement + MyVirtualSound)", blocs2.ToString());
                 ok(blocs > 40 && crete > .4 && crete < .6, "piste 1 livrée par blocs de 10 ms pour l'enregistrement", $"{blocs} blocs, crête {crete:0.00}");
                 s.Tracks = 2; m.Apply(c);

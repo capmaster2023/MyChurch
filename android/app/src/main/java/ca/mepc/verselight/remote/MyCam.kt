@@ -127,6 +127,11 @@ object MyCam {
     /** Le PC attend une image clé (début, reprise, image perdue). */
     @Volatile private var cleDemandee = false
     @Volatile private var rotationEnvoi = 0
+    /**
+     * Horloge des horodatages de la caméra (MyChurch 1.2) : 0 = SystemClock.elapsedRealtimeNanos, 1 = System.nanoTime,
+     * -1 = pas encore reconnue, -2 = inconnue (l'âge des images n'est alors pas envoyé).
+     */
+    @Volatile private var horlogeCamera = -1
     private var derniereCle = 0L
     private var debitCible = 0
     private var dernierReglage = 0L
@@ -359,6 +364,7 @@ object MyCam {
             val cam = p.bindToLifecycle(a, selecteur, prev, an)
             camera = cam
             ouverteDepuis = SystemClock.elapsedRealtime()
+            horlogeCamera = -1
             dernierCadre = ouverteDepuis
             apercu = prev
             analyse = an
@@ -427,8 +433,41 @@ object MyCam {
 
     // ------------------------------------------------------------ images (fil de la caméra)
 
+    /** Reconnaît (une fois par ouverture) l'horloge des horodatages de la caméra : celle qui leur donne un âge plausible. */
+    private fun reconnaitreHorloge(ts: Long) {
+        if (horlogeCamera != -1 || ts <= 0) return
+        val a = SystemClock.elapsedRealtimeNanos() - ts
+        val b = System.nanoTime() - ts
+        horlogeCamera = when {
+            a in 0..2_000_000_000L -> 0
+            b in 0..2_000_000_000L -> 1
+            else -> -2
+        }
+    }
+
+    /** Âge (µs) maintenant d'une image horodatée [tsNs] par la caméra ; -1 si on ne sait pas. */
+    private fun ageUs(tsNs: Long): Long {
+        val maintenant = when (horlogeCamera) {
+            0 -> SystemClock.elapsedRealtimeNanos()
+            1 -> System.nanoTime()
+            else -> return -1L
+        }
+        if (tsNs <= 0) return -1L
+        val age = (maintenant - tsNs) / 1000
+        return if (age in 0..2_000_000L) age else -1L
+    }
+
+    /** L'âge sur 4 octets (petit-boutiste) à la place [i]. */
+    private fun ecrireAge(b: ByteArray, i: Int, age: Long) {
+        b[i] = (age and 0xFF).toByte()
+        b[i + 1] = ((age shr 8) and 0xFF).toByte()
+        b[i + 2] = ((age shr 16) and 0xFF).toByte()
+        b[i + 3] = ((age shr 24) and 0xFF).toByte()
+    }
+
     private fun traiter(img: ImageProxy) {
         try {
+            reconnaitreHorloge(img.imageInfo.timestamp)
             val maintenant = SystemClock.elapsedRealtime()
             dernierCadre = maintenant
             val r = remote ?: return
@@ -481,8 +520,12 @@ object MyCam {
         }
         val yuv = versNv21(img)
         tampon.reset()
-        tampon.write(byteArrayOf('M'.code.toByte(), 'C'.code.toByte(), 1, rotation.toByte()))
+        // MyChurch 1.2 : avec un PC qui le lit, l'âge de l'image (prise de vue → envoi) suit l'en-tête
+        val avecAge = r.horlogePc && horlogeCamera >= 0
+        tampon.write(byteArrayOf('M'.code.toByte(), 'C'.code.toByte(), 1, (rotation or (if (avecAge) 0x10 else 0)).toByte()))
+        if (avecAge) tampon.write(byteArrayOf(0, 0, 0, 0))
         YuvImage(yuv, ImageFormat.NV21, w, h, null).compressToJpeg(zone, qualite, tampon)
+        if (avecAge) ecrireAge(tampon.octets, 4, ageUs(img.imageInfo.timestamp).coerceAtLeast(0L))
         if (r.sendBinary(tampon.octets, tampon.longueur)) {
             dernierEnvoi = maintenant
             envoyees.incrementAndGet()
@@ -523,7 +566,7 @@ object MyCam {
                 val cle = "${voulue.width()}×${voulue.height()}@$cadence"
                 if (cle == tailleRefusee) return H264_IMPOSSIBLE
                 e = try {
-                    EncodeurH264.creer(voulue.width(), voulue.height(), cadence) { donnees, n, cleImage -> sortieH264(donnees, n, cleImage) }
+                    EncodeurH264.creer(voulue.width(), voulue.height(), cadence) { donnees, n, cleImage, pts -> sortieH264(donnees, n, cleImage, pts) }
                 } catch (ex: Exception) {
                     tailleRefusee = cle
                     Bulles.dire("Ce téléphone refuse le H.264 en ${voulue.width()} × ${voulue.height()} : MyCam envoie des images JPEG.")
@@ -562,15 +605,32 @@ object MyCam {
         }
     }
 
-    /** Une unité d'accès H.264 sortie de l'encodeur (son fil) : en-tête MyCam version 2, puis vers le PC. */
-    private fun sortieH264(donnees: ByteArray, n: Int, cle: Boolean) {
+    /**
+     * Une unité d'accès H.264 sortie de l'encodeur (son fil) : en-tête MyCam version 2, puis vers le PC.
+     * MyChurch 1.2 : avec un PC qui le lit, l'âge de l'image (prise de vue → sortie de l'encodeur) suit l'en-tête,
+     * pour que le PC cale l'image sur le son des enregistrements.
+     */
+    private fun sortieH264(donnees: ByteArray, n: Int, cle: Boolean, ptsUs: Long) {
         val r = remote ?: return
         if (!diffuse.value) return
-        donnees[0] = 'M'.code.toByte()
-        donnees[1] = 'C'.code.toByte()
-        donnees[2] = 2
-        donnees[3] = (rotationEnvoi or (if (cle) 8 else 0)).toByte()
-        if (r.sendBinary(donnees, n)) envoyees.incrementAndGet()
+        val drapeaux = rotationEnvoi or (if (cle) 8 else 0)
+        val age = if (r.horlogePc) ageUs(ptsUs * 1000) else -1L
+        val debut: Int
+        if (age >= 0) {
+            donnees[0] = 'M'.code.toByte()
+            donnees[1] = 'C'.code.toByte()
+            donnees[2] = 2
+            donnees[3] = (drapeaux or 0x10).toByte()
+            ecrireAge(donnees, 4, age)
+            debut = 0
+        } else {
+            donnees[4] = 'M'.code.toByte()
+            donnees[5] = 'C'.code.toByte()
+            donnees[6] = 2
+            donnees[7] = drapeaux.toByte()
+            debut = 4
+        }
+        if (r.sendBinary(donnees, debut, n - debut)) envoyees.incrementAndGet()
         // une image perdue casse la suite des images P sur le PC : on repart d'une image clé
         else cleDemandee = true
     }

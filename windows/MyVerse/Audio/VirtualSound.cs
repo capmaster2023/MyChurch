@@ -54,7 +54,7 @@ public sealed class VirtualSound : IDisposable
 
     readonly ChurchAudioService audio;
     readonly Lecteur lecteur = new();
-    readonly Action<float[]> consommateur;
+    readonly Action<float[], long> consommateur;
     WasapiOut? sortie;
     MMDevice? peripherique;
     // null : rien d'ouvert (après Reset, on recherche de nouveau le câble) ; "" : sortie automatique (le câble installé)
@@ -66,7 +66,7 @@ public sealed class VirtualSound : IDisposable
     public VirtualSound(ChurchAudioService audio)
     {
         this.audio = audio;
-        consommateur = lecteur.Ecrire;
+        consommateur = (bloc, _) => lecteur.Ecrire(bloc);
     }
 
     /// <summary>Niveau de sortie en dBFS (−∞ = silence).</summary>

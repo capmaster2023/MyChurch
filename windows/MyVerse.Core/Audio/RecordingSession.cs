@@ -4,10 +4,26 @@ using System.Text;
 
 namespace MyVerse.Audio;
 
-public interface IRecordingFrameProvider { void CopyFrame(byte[] destination); }
+/// <summary>Ce qui fournit les images d'un enregistrement vidéo (la composition des sources Display).</summary>
+public interface IRecordingFrameProvider
+{
+    /// <summary>L'image (BGRA) qui montre le monde à l'instant <paramref name="monde"/> (horloge <see cref="Horloge"/>, ns).</summary>
+    void CopyFrame(byte[] destination, long monde);
+    /// <summary>
+    /// Retard des images vivantes sur le monde (ns) : l'image de l'instant T n'est complète qu'à T + Retard
+    /// (MyCam : de la prise de vue sur le téléphone à l'image décodée sur le PC). 0 pour du texte ou une image fixe.
+    /// </summary>
+    long Retard { get; }
+}
 
-/// <summary>Bounded producer queue. The audio renderer only copies to a preallocated slot.
-/// Encoding, pipes, disk and finalization are handled by dedicated workers.</summary>
+/// <summary>
+/// Un enregistrement : le son d'une piste d'OBS (file bornée : le fil audio d'OBS ne fait que copier un bloc) et, en vidéo,
+/// les images de la composition, écrits pour ffmpeg par des fils à eux.
+/// MyChurch 1.2 : synchro automatique, comme OBS. Chaque bloc de son porte l'instant où OBS l'a capté ; la n-ième image
+/// du fichier est celle du monde à l'instant du son à la même place (origine du son + n / ips), prise quand elle est prête
+/// (après le retard de MyCam). Plus de réglage « Synchro du son » : ni le retard du mélange d'OBS ni celui de la caméra
+/// ne décalent la voix et l'image.
+/// </summary>
 public sealed class RecordingSession : IDisposable
 {
     // 5 s de son en attente : le temps qu'un encodeur avec retard (x264, carte graphique) sorte ses premières images
@@ -24,7 +40,15 @@ public sealed class RecordingSession : IDisposable
     readonly IRecordingFrameProvider? compositor;
     readonly NamedPipeServerStream? audioPipe, videoPipe;
     Process? ffmpeg;
-    Task? worker, videoWorker, stderrWorker;
+    Task? worker, stderrWorker;
+    Thread? videoWorker;
+    readonly TaskCompletionSource videoFin = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    /// <summary>Instant du monde (horloge <see cref="Horloge"/>) à la place 0 du fichier : celui du premier bloc de son, moins l'amorce. Inconnu avant le premier bloc.</summary>
+    long origine = long.MinValue;
+    /// <summary>Instant du premier bloc reçu, et décalages constatés depuis (un saut de l'horloge d'OBS recale la vidéo).</summary>
+    long premierBloc, sauts;
+    /// <summary>Images écrites pour ffmpeg.</summary>
+    long imagesEcrites;
     readonly StringBuilder stderr = new();
     readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     /// <summary>Trames de son reçues (pas forcément encore écrites pour ffmpeg) : c'est l'horloge de la vidéo.</summary>
@@ -34,6 +58,10 @@ public sealed class RecordingSession : IDisposable
     volatile string? error;
     public string? Error => error;
     public long AcceptedFrames => Interlocked.Read(ref accepted);
+    /// <summary>Images vidéo écrites.</summary>
+    public long VideoFrames => Interlocked.Read(ref imagesEcrites);
+    /// <summary>Recalages de la vidéo sur le son (saut de l'horloge du son) : 0 normalement.</summary>
+    public long Sauts => Interlocked.Read(ref sauts);
     public long Bytes => File.Exists(Path) ? new FileInfo(Path).Length : 0;
     public string Path { get; }
     public string Encoder { get; }
@@ -79,13 +107,34 @@ public sealed class RecordingSession : IDisposable
         worker = Task.Run(WriteAsync);
         await ready.Task.WaitAsync(TimeSpan.FromSeconds(15));
     }
-    public bool Accept(ReadOnlySpan<float> audio)
+    /// <summary>
+    /// Un bloc de 10 ms (stéréo entrelacée) et l'instant où sa première trame a été captée (horloge <see cref="Horloge"/>, ns) ;
+    /// 0 : le bloc suit le précédent sans interruption (le premier est daté de son arrivée).
+    /// </summary>
+    public bool Accept(ReadOnlySpan<float> audio, long instant = 0)
     {
         if (audio.Length != AudioBlock.Samples) throw new ArgumentException($"Un bloc stéréo de {AudioBlock.Frames} trames est requis.");
         lock (gate)
         {
             if (finished || error != null) return false;
             if (count == Slots) { error = "L’encodeur ne suit plus : tampon d’enregistrement plein. Le fichier est en cours de finalisation."; finished = true; available.Release(); return false; }
+            long avant = Interlocked.Read(ref accepted);
+            if (Volatile.Read(ref origine) == long.MinValue)
+            {
+                premierBloc = instant != 0 ? instant : Horloge.Ns();
+                Volatile.Write(ref origine, premierBloc - (long)primeFrames * Horloge.Seconde / AudioBlock.Rate);
+            }
+            else if (instant != 0)
+            {
+                // le son d'OBS est continu ; un saut de son horloge (plus de 30 ms) recale la vidéo sur le son
+                long attendu = premierBloc + avant * Horloge.Seconde / AudioBlock.Rate, saut = instant - attendu;
+                if (Math.Abs(saut) > 30 * Horloge.Milliseconde)
+                {
+                    premierBloc += saut;
+                    Volatile.Write(ref origine, origine + saut);
+                    Interlocked.Increment(ref sauts);
+                }
+            }
             audio.CopyTo(blocks[(read + count) % Slots]); count++; Interlocked.Add(ref accepted, audio.Length / 2); available.Release(); return true;
         }
     }
@@ -114,14 +163,14 @@ public sealed class RecordingSession : IDisposable
                 foreach (var a in args) info.ArgumentList.Add(a);
                 ffmpeg = Process.Start(info) ?? throw new IOException("FFmpeg n’a pas démarré.");
                 stderrWorker = Task.Run(async () => { string? line; while ((line = await ffmpeg.StandardError.ReadLineAsync()) != null) lock (stderr) { if (stderr.Length > 12000) stderr.Remove(0, 6000); stderr.AppendLine(line); } });
-                if (videoPipe != null) videoWorker = Task.Run(WriteVideoAsync);
+                if (videoPipe != null)
+                {
+                    videoWorker = new Thread(EcrireVideo) { IsBackground = true, Name = "MyChurch vidéo", Priority = ThreadPriority.AboveNormal };
+                    videoWorker.Start();
+                }
                 await audioPipe.WaitForConnectionAsync(cancel.Token);
                 // A silent priming interval lets FFmpeg open both pipes before the allow-list is activated.
                 if (primeFrames > 0) await audioPipe.WriteAsync(new byte[primeFrames * 8], cancel.Token);
-                // Synchro : le son est retardé de AudioDelayMs (caméra en retard). Ce silence n'avance pas la vidéo,
-                // qui reste cadencée par le son réellement reçu : tout le son glisse d'autant par rapport à l'image.
-                int delayFrames = videoPipe == null ? 0 : Math.Clamp(profile.AudioDelayMs, 0, 1000) * 48;
-                if (delayFrames > 0) await audioPipe.WriteAsync(new byte[delayFrames * 8], cancel.Token);
                 ready.TrySetResult();
             }
             long lastDiskCheck = 0;
@@ -148,7 +197,7 @@ public sealed class RecordingSession : IDisposable
             audioDone = true;
             wav?.Dispose(); wav = null;
             audioPipe?.Dispose();
-            if (videoWorker != null) await videoWorker.WaitAsync(TimeSpan.FromSeconds(10));
+            if (videoWorker != null) await videoFin.Task.WaitAsync(TimeSpan.FromSeconds(10));
             if (ffmpeg != null)
             {
                 await ffmpeg.WaitForExitAsync(cancel.Token).WaitAsync(TimeSpan.FromSeconds(15));
@@ -159,44 +208,79 @@ public sealed class RecordingSession : IDisposable
         catch (Exception e) { error ??= e.Message; ready.TrySetException(e); Kill(); }
         finally { audioDone = true; wav?.Dispose(); audioPipe?.Dispose(); videoPipe?.Dispose(); lock (gate) finished = true; }
     }
-    async Task WriteVideoAsync()
+    /// <summary>
+    /// Le fil vidéo : la n-ième image est celle du monde à l'instant « origine + n / ips » (l'instant du son à la même place),
+    /// demandée à la composition dès qu'elle est prête (cet instant + le retard des caméras), à cadence exacte.
+    /// Rien n'attend ffmpeg ni le son écrit : pas de blocage avec un encodeur qui retient des images (x264, carte graphique).
+    /// </summary>
+    void EcrireVideo()
     {
-        await videoPipe!.WaitForConnectionAsync(cancel.Token);
-        int size = profile.Width * profile.Height * 4;
-        // Synchro négative : l'image est retardée de −AudioDelayMs (son en retard sur l'image) grâce à une file d'images.
-        int delay = Math.Clamp(-profile.AudioDelayMs, 0, 500) * profile.Fps / 1000;
-        var queue = new Queue<byte[]>();
-        var spare = new Stack<byte[]>();
-        long sent = 0;
-        async Task SendAsync()
+        bool precision = false;
+        try
         {
-            var image = spare.Count > 0 ? spare.Pop() : new byte[size];
-            compositor!.CopyFrame(image);
-            queue.Enqueue(image);
-            // tant que la file n'est pas pleine, la plus ancienne image est répétée
-            var output = queue.Count > delay ? queue.Dequeue() : queue.Peek();
-            await videoPipe.WriteAsync(output, cancel.Token);
-            if (!queue.Contains(output)) spare.Push(output);
-            sent++;
+            videoPipe!.WaitForConnection();
+            int size = profile.Width * profile.Height * 4;
+            var image = new byte[size];
+            // une première image tout de suite : ffmpeg ouvre alors le tube du son
+            compositor!.CopyFrame(image, Horloge.Ns() - compositor.Retard);
+            videoPipe.Write(image, 0, size);
+            Interlocked.Increment(ref imagesEcrites);
+            while (Volatile.Read(ref origine) == long.MinValue)
+            {
+                if (cancel.IsCancellationRequested || Volatile.Read(ref finished) || audioDone) return;
+                Thread.Sleep(2);
+            }
+            precision = Minuterie(true);
+            long n = 1;
+            while (!cancel.IsCancellationRequested)
+            {
+                // lu avant le compte : une fois l'arrêt vu, plus aucun bloc ne s'ajoute, la fin du son est définitive
+                bool fini = Volatile.Read(ref finished) || audioDone;
+                long depart = Volatile.Read(ref origine);
+                long monde = depart + n * Horloge.Seconde / profile.Fps;
+                if (fini && monde >= depart + (primeFrames + Interlocked.Read(ref accepted)) * Horloge.Seconde / AudioBlock.Rate) break;
+                long quand = monde + Math.Clamp(compositor.Retard, 0, 2 * Horloge.Seconde);
+                if (!fini && Horloge.Ns() < quand) { Attendre(quand); continue; }
+                if (!fini && Horloge.Ns() - quand > 2 * Horloge.Seconde) { Fail("L’encodeur vidéo ne suit plus le son. Arrêt pour préserver la synchronisation."); break; }
+                compositor.CopyFrame(image, monde);
+                videoPipe.Write(image, 0, size);
+                Interlocked.Increment(ref imagesEcrites);
+                n++;
+            }
         }
-        // Prime the video input immediately so FFmpeg proceeds to open the audio pipe.
-        await SendAsync();
-        // L'image suit le son REÇU, pas le son déjà lu par ffmpeg : ffmpeg peut retenir le son tant qu'un encodeur
-        // avec retard (x264, carte graphique) n'a pas sorti ses premières images ; si la vidéo attendait le son écrit,
-        // les deux s'attendraient l'un l'autre (fichier vide). Pas de dérive : une image tous les « fréquence / ips » trames reçues.
-        while (!cancel.IsCancellationRequested)
+        catch (Exception e) when (e is IOException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)
         {
-            // lu avant le compte : une fois l'arrêt vu, plus aucun bloc ne s'ajoute, le compte est définitif
-            bool fini = Volatile.Read(ref finished) || audioDone;
-            long wanted = ((primeFrames + Interlocked.Read(ref accepted)) * profile.Fps + AudioBlock.Rate - 1) / AudioBlock.Rate;
-            if (wanted - sent > profile.Fps * 2) { Fail("L’encodeur vidéo ne suit plus le son. Arrêt pour préserver la synchronisation."); break; }
-            if (sent < wanted) await SendAsync();
-            // plus aucun son ne sera reçu : la vidéo se termine tout de suite (l'encodeur vide ses images en attente),
-            // sans attendre que ffmpeg ait lu tout le son, qu'il retient tant que la vidéo n'a pas fini
-            else if (fini) break;
-            else await Task.Delay(2, cancel.Token);
+            if (!cancel.IsCancellationRequested && !Volatile.Read(ref finished)) error ??= "Vidéo : " + e.Message;
         }
-        videoPipe.Dispose();
+        catch (Exception e) { error ??= "Vidéo : " + e.Message; }
+        finally
+        {
+            if (precision) Minuterie(false);
+            try { videoPipe?.Dispose(); } catch (Exception) { }
+            videoFin.TrySetResult();
+        }
+    }
+
+    /// <summary>Attend l'instant voulu (à la milliseconde près), ou l'arrêt de l'enregistrement.</summary>
+    void Attendre(long quand)
+    {
+        while (!cancel.IsCancellationRequested && !Volatile.Read(ref finished) && !audioDone)
+        {
+            long reste = quand - Horloge.Ns();
+            if (reste <= 0) return;
+            if (reste > 2 * Horloge.Milliseconde) Thread.Sleep((int)Math.Min(20, (reste - Horloge.Milliseconde) / Horloge.Milliseconde));
+            else Thread.Yield();
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint ms);
+    [System.Runtime.InteropServices.DllImport("winmm.dll")] static extern uint timeEndPeriod(uint ms);
+    /// <summary>Sous Windows, une minuterie à la milliseconde pendant l'enregistrement (sinon Thread.Sleep dure 15 ms et les images sautent).</summary>
+    static bool Minuterie(bool active)
+    {
+        if (!OperatingSystem.IsWindows()) return active;
+        try { if (active) timeBeginPeriod(1); else timeEndPeriod(1); return true; }
+        catch (Exception) { return false; }
     }
     void Kill() { try { if (ffmpeg is { HasExited: false }) ffmpeg.Kill(true); } catch (Exception) { } }
     public void Dispose() { Finish(); cancel.Cancel(); Kill(); audioPipe?.Dispose(); videoPipe?.Dispose(); ffmpeg?.Dispose(); /* Workers own queue wait lifetime. */ }

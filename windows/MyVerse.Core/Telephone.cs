@@ -169,6 +169,8 @@ public sealed class Telephone : IDisposable
         public readonly SemaphoreSlim Envoi = new(1, 1);
         /// <summary>Ce téléphone sert de caméra (MyCam) : il reçoit son témoin.</summary>
         public bool Camera;
+        /// <summary>Les « cam.ping » (mesure du trajet sur le Wi-Fi) sont lancés pour ce téléphone.</summary>
+        public bool Pings;
         public string Temoin = "";
     }
 
@@ -652,6 +654,24 @@ boucle();
     {
         p.Camera = true;
         _ = surUi(() => { Temoins(); return Task.CompletedTask; });
+        if (!p.Pings) { p.Pings = true; _ = Pings(p); }
+    }
+
+    /// <summary>
+    /// MyChurch 1.2 : toutes les 2 s, « cam.ping » avec l'heure du PC ; le téléphone le renvoie aussitôt (« cam.pong »).
+    /// L'aller-retour donne le trajet des images sur le Wi-Fi, pour dater chaque image MyCam sur l'horloge du PC.
+    /// </summary>
+    async Task Pings(Connexion p)
+    {
+        try
+        {
+            while (p.Ws.State == WebSocketState.Open && !fin.IsCancellationRequested)
+            {
+                await Envoyer(p, new JsonObject { ["t"] = "cam.ping", ["n"] = Horloge.Ns() });
+                await Task.Delay(2000, fin.Token);
+            }
+        }
+        catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException) { }
     }
 
     static async Task EnvoyerBrut(WebSocket ws, string texte, CancellationToken t) =>
@@ -762,7 +782,7 @@ boucle();
         lock (phones) phones.Add(p);
         try
         {
-            await Envoyer(p, new JsonObject { ["t"] = "welcome", ["v"] = Protocole, ["pcName"] = NomPc, ["paired"] = jumelage, ["proto"] = Fonctions, ["codecs"] = Codecs() });
+            await Envoyer(p, new JsonObject { ["t"] = "welcome", ["v"] = Protocole, ["pcName"] = NomPc, ["paired"] = jumelage, ["proto"] = Fonctions, ["codecs"] = Codecs(), ["camHorloge"] = true });
             if (dernierEtat.Length > 0) await Envoyer(p, dernierEtat);
             Prevenir();
 
@@ -773,15 +793,22 @@ boucle();
             {
                 var recu = await RecevoirTout(ws, flux, tampon, fin.Token);
                 if (recu == null) break;
+                // l'instant de la réception : MyCam en déduit quand l'image a été prise (synchro du son des enregistrements)
+                long arrivee = Horloge.Ns();
                 if (recu.Value.Binaire)
                 {
-                    if (Cameras.Recevoir(deviceId, nom, flux.GetBuffer(), (int)flux.Length) && !p.Camera) DevientCamera(p);
+                    if (Cameras.Recevoir(deviceId, nom, flux.GetBuffer(), (int)flux.Length, arrivee) && !p.Camera) DevientCamera(p);
                     continue;
                 }
                 var m = recu.Value.Json!;
                 var t = Champ(m, "t");
                 if (t.Length == 0) continue;
                 if (t == "ping") { await Envoyer(p, new JsonObject { ["t"] = "pong" }); continue; }
+                if (t == "cam.pong")
+                {
+                    if (m["n"] is JsonValue vn && vn.TryGetValue<long>(out var envoi)) Cameras.AllerRetour(deviceId, arrivee - envoi);
+                    continue;
+                }
                 _ = Traiter(p, t, m);
             }
         }
