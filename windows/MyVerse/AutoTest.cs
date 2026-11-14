@@ -218,7 +218,11 @@ public static class AutoTest
             var piano = Son.Nouveau(GenreSon.Instrument, "Piano");
             piano.Entree = 3;
             piano.VolumeDb = -6;
+            // le son d'une autre sortie que celle de l'église : si c'était la même, OBS 33 ferait taire dans les pistes les sons
+            // « dans l'église » (il les entend déjà par cette capture), et la machine du CI n'a pas de sortie à capturer
             var ordi = Son.Nouveau(GenreSon.Ordinateur, "Son de l'ordinateur");
+            ordi.Appareil = "{autotest-hp}";
+            ordi.NomAppareil = "Haut-parleurs (Realtek)";
             ordi.Coupe = true;
             musique = Son.Nouveau(GenreSon.Fichier, "Musique d'attente");
             musique.Fichier = sinus;
@@ -229,9 +233,9 @@ public static class AutoTest
             Ok(musique.Eglise && musique.Capture == MyVerse.Audio.AudioInputKind.Media, "une musique : entendue dans l'église");
             Ok(cfg.Sons[^1] == videos && cfg.Sons.Count == 6, "les sons ajoutés passent avant le son des vidéos, qui reste le dernier");
 
-            // 3. où va le son : Zoom (par le câble, tout le son), une salle à côté (sortie de Windows), le culte en vidéo, la prédication en MP3 (le pasteur seul)
+            // 3. où va le son : Zoom (par le câble, tout le son), une salle à côté (la sortie du son de l'ordinateur), le culte en vidéo, la prédication en MP3 (le pasteur seul)
             var zoom = new MyVerse.Audio.VirtualSoundSettings { Name = "Zoom", Enabled = true };
-            var salle = new MyVerse.Audio.VirtualSoundSettings { Name = "Salle (test)", Enabled = false, DeviceId = "default" };
+            var salle = new MyVerse.Audio.VirtualSoundSettings { Name = "Salle (test)", Enabled = false, DeviceId = "{autotest-hp}", DeviceName = "Haut-parleurs (Realtek)" };
             var culte = new MyVerse.Audio.RecordingProfile { Name = "Culte (test)", DisplayIds = { MyVerse.Audio.RecordingProfile.Projection, texte.Id, image.Id }, Directory = Path.Combine(dossierTest, "culte") };
             var predication = new MyVerse.Audio.RecordingProfile { Name = "Prédication (test)", Format = "mp3", ChoixSons = new() { pasteur.Id }, Directory = Path.Combine(dossierTest, "predication") };
             cfg.VirtualSounds.Add(zoom);

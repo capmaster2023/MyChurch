@@ -178,10 +178,13 @@ internal static class SonUi
         catch (Exception e) { Journal.Erreur("ouverture de " + fichier, e); }
     }
 
-    /// <summary>« 54 Mo », « 1,2 Go ».</summary>
-    public static string Taille(long octets) => octets >= 1L << 30
-        ? (octets / (double)(1L << 30)).ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("fr-CA")) + " Go"
-        : Math.Max(0, octets / (double)(1 << 20)).ToString("0", System.Globalization.CultureInfo.GetCultureInfo("fr-CA")) + " Mo";
+    /// <summary>« 0,4 Mo », « 54 Mo », « 1,2 Go ».</summary>
+    public static string Taille(long octets)
+    {
+        var fr = System.Globalization.CultureInfo.GetCultureInfo("fr-CA");
+        double mo = Math.Max(0, octets / (double)(1 << 20));
+        return octets >= 1L << 30 ? (octets / (double)(1L << 30)).ToString("0.0", fr) + " Go" : mo.ToString(mo < 10 ? "0.0" : "0", fr) + " Mo";
+    }
 
     /// <summary>« 1:05 » ou « 1:02:03 ».</summary>
     public static string Duree(TimeSpan t) => t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");

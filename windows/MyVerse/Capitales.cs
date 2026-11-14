@@ -25,7 +25,7 @@ public sealed class Capitales : TextBlock
 
     public Capitales() => SetResourceReference(StyleProperty, "CarteTitre");
 
-    /// <summary>« Bibliothèque » → « B I B L I O T H È Q U E » avec des espaces très fines (les vraies espaces restent).</summary>
+    /// <summary>« Bibliothèque » → « B I B L I O T H È Q U E » avec des espaces très fines (les vraies espaces sont doublées).</summary>
     public static string Espacer(string texte)
     {
         var t = texte.ToUpper(Fr);
@@ -33,7 +33,9 @@ public sealed class Capitales : TextBlock
         for (int i = 0; i < t.Length; i++)
         {
             sb.Append(t[i]);
-            if (i < t.Length - 1 && !char.IsWhiteSpace(t[i]) && !char.IsWhiteSpace(t[i + 1])) sb.Append(' ');
+            // une vraie espace est doublée : avec les lettres espacées, une seule ne se voyait plus (« CEQU'ONENTEND »)
+            if (char.IsWhiteSpace(t[i])) sb.Append(' ');
+            else if (i < t.Length - 1 && !char.IsWhiteSpace(t[i + 1])) sb.Append(' ');
         }
         return sb.ToString();
     }
