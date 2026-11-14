@@ -101,7 +101,7 @@ public sealed class CaptureAsio : IDisposable
         var asios = sources.Where(s => s.Kind == AudioInputKind.Asio && !string.IsNullOrEmpty(s.DeviceId) && s.DeviceId != "default").ToList();
         // le pilote déjà ouvert reste s'il sert encore, sinon celui de la première source ASIO
         string voulu = asios.Any(s => s.DeviceId == PiloteOuvert) ? PiloteOuvert : asios.FirstOrDefault()?.DeviceId ?? "";
-        bandes = asios.Where(s => s.DeviceId == voulu).Select(s => (s.Id, s.AsioChannels.ToArray())).ToArray();
+        bandes = asios.Where(s => s.DeviceId == voulu).Select(s => (s.Id, s.AsioCanaux.ToArray())).ToArray();
         lock (verrou)
         {
             if (asio != null && pilote == voulu && !reinitialiser) return;

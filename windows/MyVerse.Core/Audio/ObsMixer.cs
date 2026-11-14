@@ -429,7 +429,7 @@ public sealed class ObsMixer : IDisposable
     static string Signature(AudioSource s) => s.Kind switch
     {
         AudioInputKind.Media => s.MediaPath + "|" + s.Loop,
-        AudioInputKind.Asio => s.DeviceId + "|" + string.Join(",", s.AsioChannels),
+        AudioInputKind.Asio => s.DeviceId + "|" + string.Join(",", s.AsioCanaux),
         _ => s.DeviceId + "|" + s.Horodatage,
     };
 

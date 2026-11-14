@@ -379,7 +379,7 @@ public sealed class AudioPanel : Border
         string type = AudioConfiguration.NomType(s);
         if (s.Kind == AudioInputKind.Asio)
             return type + " · " + (s.DeviceId is "" or "default" ? "aucun pilote" : s.DeviceId) + " · "
-                + (s.AsioChannels.Count > 1 ? "stéréo, " : "") + string.Join(" + ", s.AsioChannels.Select(k => k < 0 ? "muet" : $"entrée {k + 1}"));
+                + (s.AsioCanaux.Count > 1 ? "stéréo, " : "") + string.Join(" + ", s.AsioCanaux.Select(k => k < 0 ? "muet" : $"entrée {k + 1}"));
         if (s.Kind == AudioInputKind.Media)
             return s.FollowProjection ? type : type + " · " + (s.MediaPath.Length > 0 ? Path.GetFileName(s.MediaPath) : "aucun fichier") + (s.Loop ? " · en boucle" : "");
         string peripherique = s.DeviceId == "default" || s.DeviceName.Length == 0 ? "Par défaut" : s.DeviceName;

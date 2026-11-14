@@ -94,8 +94,8 @@ public sealed class ProprietesSourceWindow : FenetreDialogue
             };
             Ligne("", panneau);
             RemplirPilotes(s.DeviceId);
-            formatAsio.SelectedIndex = s.AsioChannels.Count > 1 ? 1 : 0;
-            RemplirCanaux(s.AsioChannels);
+            formatAsio.SelectedIndex = s.AsioCanaux.Count > 1 ? 1 : 0;
+            RemplirCanaux(s.AsioCanaux);
             piloteAsio.SelectionChanged += (_, _) => { if (!remplissage) RemplirCanaux(new List<int> { 0, 1 }.Take(FormatAsio).ToList()); };
             formatAsio.SelectionChanged += (_, _) => { if (!remplissage) MajFormat(); };
             MajFormat();
@@ -309,7 +309,7 @@ public sealed class ProprietesSourceWindow : FenetreDialogue
             if (PiloteAsioChoisi.Length == 0) { Erreur("Choisissez un pilote ASIO."); return; }
             source.DeviceId = PiloteAsioChoisi;
             source.DeviceName = PiloteAsioChoisi;
-            source.AsioChannels = CanauxAsio;
+            source.AsioCanaux = CanauxAsio;
             source.Channel = 0;
             source.UseDeviceTiming = null;
         }

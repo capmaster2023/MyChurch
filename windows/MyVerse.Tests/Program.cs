@@ -1457,6 +1457,16 @@ if (Actif())
     var r42b = Donnees.Charger(dir42, res).Reglages.Audio; r42b.Normalize();
     Ok(r42b.Sources[0].UseDeviceTiming == false && r42b.Sources[1].UseDeviceTiming == true && r42b.Sources[2].UseDeviceTiming == null, "horodatage du périphérique relu");
     Ok(!File.ReadAllText(Path.Combine(dir42, "reglages.json")).Contains("Horodatage"), "« Horodatage » (valeur calculée) n'est pas écrit");
+    // MyChurch 1.1 : capture ASIO (pilote, Mono / Stéréo, canaux OBS)
+    var asio = new MyVerse.Audio.AudioConfiguration();
+    asio.Sources.Add(new MyVerse.Audio.AudioSource { Id = "chanteur", Name = "CHANTEUR", Kind = MyVerse.Audio.AudioInputKind.Asio, DeviceId = "Focusrite USB ASIO", AsioCanaux = new() { 0 }, UseDeviceTiming = true });
+    asio.Sources.Add(new MyVerse.Audio.AudioSource { Id = "clavier", Name = "Clavier", Kind = MyVerse.Audio.AudioInputKind.Asio, DeviceId = "Focusrite USB ASIO", AsioCanaux = new() { 0, 1, 5 } });
+    asio.Sources.Add(new MyVerse.Audio.AudioSource { Id = "vide", Name = "Vide", Kind = MyVerse.Audio.AudioInputKind.Asio, DeviceId = "X", AsioCanaux = new() { -7 } });
+    asio.Normalize();
+    Ok(asio.Sources[0].AsioCanaux.SequenceEqual(new[] { 0 }) && asio.Sources[0].UseDeviceTiming == null, "ASIO mono : Input 1, pas d'horodatage");
+    Ok(asio.Sources[1].AsioCanaux.SequenceEqual(new[] { 0, 1 }), "ASIO stéréo : deux canaux OBS au plus");
+    Ok(asio.Sources[2].AsioCanaux.SequenceEqual(new[] { -1 }), "ASIO : canal hors limites ramené à Muet");
+    Ok(MyVerse.Audio.AudioConfiguration.NomType(asio.Sources[0]) == "Capture ASIO", "type « Capture ASIO »");
 }
 
 Groupe("Projecteur (1.0)");

@@ -86,7 +86,7 @@ public sealed class AudioSource
     /// Capture ASIO : un élément par canal OBS (1 = Mono, 2 = Stéréo), comme « OBS Channel 1 / 2 » du plugin ASIO d'OBS.
     /// Chaque valeur est l'entrée du pilote (0 = Input 1, 1 = Input 2…) ou −1 = Muet. Le pilote ASIO est dans DeviceId.
     /// </summary>
-    public List<int> AsioChannels { get; set; } = new() { 0 };
+    public List<int> AsioCanaux { get; set; } = new() { 0 };
 
     /// <summary>L'horodatage du périphérique est utilisé : choisi, sinon comme OBS par défaut (non pour une entrée, oui pour une sortie).</summary>
     [JsonIgnore]
@@ -376,12 +376,12 @@ public sealed class AudioConfiguration
             s.Channel = s.Kind == AudioInputKind.Microphone ? Math.Clamp(s.Channel, 0, MaxEntrees) : 0;
             if (s.Kind != AudioInputKind.Media) s.FollowProjection = false;
             if (s.Kind is AudioInputKind.Media or AudioInputKind.Asio) s.UseDeviceTiming = null;
-            s.AsioChannels ??= new();
+            s.AsioCanaux ??= new();
             if (s.Kind == AudioInputKind.Asio)
             {
-                if (s.AsioChannels.Count == 0) s.AsioChannels.Add(0);
-                if (s.AsioChannels.Count > 2) s.AsioChannels.RemoveRange(2, s.AsioChannels.Count - 2);
-                for (int k = 0; k < s.AsioChannels.Count; k++) s.AsioChannels[k] = Math.Clamp(s.AsioChannels[k], -1, MaxEntrees - 1);
+                if (s.AsioCanaux.Count == 0) s.AsioCanaux.Add(0);
+                if (s.AsioCanaux.Count > 2) s.AsioCanaux.RemoveRange(2, s.AsioCanaux.Count - 2);
+                for (int k = 0; k < s.AsioCanaux.Count; k++) s.AsioCanaux[k] = Math.Clamp(s.AsioCanaux[k], -1, MaxEntrees - 1);
             }
             s.VolumeDb = Bound(s.VolumeDb, -60, 6);
             s.Balance = Bound(s.Balance, 0, 1, 0.5);
