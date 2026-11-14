@@ -1,19 +1,19 @@
 # MyChurch 1.0.0
 
-Logiciel Windows autonome de projection pour l'église, avec télécommande Android. Bible, chants et sources Display partent directement sur l'écran choisi dans **Projection**. Le son passe par le moteur audio d'OBS Studio (libobs), avec un mélangeur simplifié comme celui d'OBS.
+Logiciel Windows autonome de projection pour l'église, avec télécommande Android. Bible, chants et sources Display partent directement sur l'écran choisi dans **Projection**. Le son passe par le moteur audio d'OBS Studio (libobs), dans une page **Son** faite pour être comprise par tout le monde.
 
 ## Premier lancement
 
-MyChurch démarre **vide** : aucun chant, aucune source audio, aucun enregistrement. Seules deux Bibles libres de droits sont livrées : **Louis Segond 1910** (français) et **King James** (anglais). Les chants s'ajoutent avec **+ Importer chants ou recueil** ou **+ Nouveau chant**, les autres Bibles avec **+ Importer une Bible**.
+MyChurch démarre **vide** : aucun chant, aucun micro (seulement le son des vidéos), aucun enregistrement. Seules deux Bibles libres de droits sont livrées : **Louis Segond 1910** (français) et **King James** (anglais). Les chants s'ajoutent avec **+ Importer chants ou recueil** ou **+ Nouveau chant**, les autres Bibles avec **+ Importer une Bible**.
 
 MyChurch est un logiciel libre sous licence **GNU GPL version 2 ou ultérieure** (voir [Licence et code source](#licence-et-code-source)).
 
 ## Interface (3.2, design « Pupitre »)
 
-- **Barre de gauche** : **Culte**, **Bible**, **Chants**, **Display**, **Duo**, puis en bas **Sombre / Clair** et **Réglages**.
+- **Barre de gauche** : **Culte**, **Bible**, **Chants**, **Display**, **Duo**, **Son**, puis en bas **Sombre / Clair** et **Réglages**.
 - **Page Culte** : le déroulé en cartes à gauche (un trait de couleur par type, « ● DIRECT » sur l'élément à l'écran) et, au centre, **toutes les diapositives du culte en vignettes**, dessinées comme à l'écran et groupées par élément. La vignette à l'écran est encadrée de rouge (« À L'ÉCRAN »), la suivante d'ambre (« SUIVANT »). Un clic affiche une vignette.
-- **Colonne de contrôle à droite, sur toutes les pages** : un petit écran **EN DIRECT**, la diapositive **SUIVANT** en plus petit, **◀ / Suivant ▶**, **Noir / Retirer de l'écran**, puis l'**audio en bref** (une ligne par source avec son vumètre et sa sourdine **M**, et **+ Source**). Duo et habillage sont dessous.
-- **Barre du bas** : les enregistrements (un clic : ● démarrer, ■ arrêter, avec le chrono), les sorties MyVirtualSound (« A · Zoom »), l'écran de projection, les téléphones, l'écran de scène et l'heure.
+- **Colonne de contrôle à droite, sur toutes les pages** : un petit écran **EN DIRECT**, la diapositive **SUIVANT** en plus petit, **◀ / Suivant ▶**, **Noir / Retirer de l'écran**. Duo et habillage sont dessous.
+- **Barre du bas** : l'écran de projection, les téléphones, l'écran de scène et l'heure.
 - Thème **clair** par défaut (crème), **sombre** au choix d'un clic. Police Manrope.
 
 ## Duo : deux contenus à l'écran
@@ -38,20 +38,27 @@ Textes, versets, chants, images, caméras et fenêtres peuvent être épinglés.
 - Un clic sur une vignette l'envoie immédiatement sur l'écran choisi.
 - Clic droit : Afficher puis épingler, Modifier, Retirer de la grille, Ajouter au déroulé du culte ou Supprimer.
 
-## Audio (moteur OBS, simplifié comme OBS)
+## Son (MyChurch 1.3 : simple pour tous)
 
-Le panneau **Audio** se trouve dans l'onglet **Display**, sous la grille. Tout le son est traité par **libobs**, la bibliothèque d'OBS Studio 33.0.1, livrée dans le dossier `obs` à côté de `MyChurch.exe`, avec les réglages par défaut d'OBS (48 kHz, stéréo).
+Tout le son est dans la page **Son** (barre de gauche). On n'y voit jamais de piste, de monitoring ni de filtre : MyChurch les règle. Le moteur est **libobs**, la bibliothèque d'OBS Studio 33.0.1, livrée dans le dossier `obs` à côté de `MyChurch.exe` (48 kHz, stéréo).
 
-- **+ Source audio**, comme le « + » des sources d'OBS : **Capture audio (entrée)**, **Capture audio (sortie)**, **Média**, ou le son de la vidéo projetée depuis Display.
-- **Propriétés** d'une capture audio, comme dans OBS : **Périphérique** (« Par défaut » ou un périphérique) et **Utiliser l'horodatage du périphérique**. Une carte son à plusieurs entrées (Behringer, Focusrite…) propose aussi **Entrée** : toutes, ou une seule (un micro par source).
-- **Mélangeur** : une bande par source avec son volume, deux vumètres, un fader de −60 à +6 dB, **M** (sourdine), le **casque** (monitoring) et **⋮** (Propriétés, Filtres, Renommer, Propriétés audio avancées, déplacer, Supprimer).
-- **⚙ Propriétés audio avancées**, comme dans OBS : état, volume (dB ou %), mono, balance, décalage de synchronisation, monitoring audio et **pistes 1 à 6**. Une nouvelle source va dans les 6 pistes.
-- **Filtres d'OBS** : réduction du bruit (RNNoise ou Speex), noise gate, compresseur, limiteur, en direct.
-- **Enregistrements** (5 au plus, qui peuvent tourner en même temps) : comme dans OBS, chacun garde **une piste** (1 à 6). Avec des sources **Display** (projection, caméras, fenêtres, images, textes, dossiers Duo), c'est une vidéo MKV (incrustation ou côte à côte, synchro du son) ; sinon WAV ou FLAC. FFmpeg 8.0.1 est inclus (dossier `ffmpeg`).
-- **MyVirtualSound** (4 sorties au plus, actives en même temps) : chacune envoie **une piste** vers un câble audio virtuel ; Zoom ou un navigateur la reçoivent comme un micro (« CABLE Output »). VB-CABLE (VB-Audio Software, www.vb-cable.com, donationware) n'est pas inclus : **Réglages › MyVirtualSound › Installer VB-CABLE** télécharge le paquet officiel, seulement sur clic.
-- **Réglages › Audio** : seulement le périphérique de monitoring audio (casque de la régie).
-- Une source dont le périphérique est débranché devient « Inactif » et revient quand il est rebranché ; rien n'est ajouté tout seul.
-- Si le dossier `obs` manque, le panneau propose **Réparer le moteur audio** (réinstallation, données gardées).
+**Ce qu'on entend** : une carte par son, avec sa barre qui bouge, un mot simple (**Bon niveau**, **Un peu faible**, **Trop fort !**, **Coupé**, **Débranché**), son **volume en %** (100 % = normal, double-clic pour y revenir), **Couper** (rouge : le son est coupé partout) et **Régler**.
+
+- **+ Ajouter un son**, en trois questions : *Qu'est-ce que c'est ?* (micro, instrument, table de mixage, son de l'ordinateur, musique) ; *Où est-il branché ?* (on parle dans le micro et on clique la barre qui bouge ; une carte son à plusieurs entrées montre une barre par entrée ; cartes ASIO comprises) ; *Comment l'appelle-t-on ?*
+- **Réglé tout seul** selon ce que c'est : une voix a le bruit enlevé et un volume régulier ; la musique reste telle quelle ; une musique s'entend dans l'église et attend **Lire** (Pause, Arrêter, en boucle au choix).
+- Le **son des vidéos de Display** est toujours là : il suit la vidéo à l'écran et s'entend dans l'église.
+- **Régler** : le nom, ce que c'est, où il est branché, et trois interrupteurs expliqués en une phrase : **Dans l'église**, **Enlever le bruit**, **Volume régulier**. **Retirer ce son** est là aussi.
+- Un appareil débranché fait dire **Débranché** à son son, qui revient tout seul quand on le rebranche ; rien n'est ajouté ni retiré tout seul.
+
+**Où va le son** :
+
+- **Dans l'église** : les haut-parleurs de l'ordinateur, et les sons qu'on y entend (les micros, qui passent par la table de mixage, demandent une confirmation : risque de larsen).
+- **Enregistrer** : **Enregistrer le culte** d'un clic (le son en MP3, prêt à partager, dans Vidéos › MyChurch). D'autres enregistrements au choix (5 au plus, en même temps) : le son seul (MP3, ou WAV qualité studio) ou **la vidéo et le son** (MKV : ce qui est à l'écran, des caméras, MyCam…, la synchro est automatique). FFmpeg 8.0.1 est inclus (dossier `ffmpeg`).
+- **Zoom et en ligne** : **Envoyer le son à Zoom** d'un clic ; dans Zoom, OBS ou Teams, choisir le micro « CABLE Output ». Le câble audio virtuel (VB-CABLE, VB-Audio Software, www.vb-cable.com, donationware) n'est pas inclus : **Installer le câble** le télécharge depuis le site officiel, seulement sur clic. 4 envois au plus.
+- **Casque** : écouter tout le son, comme il part à Zoom et dans l'enregistrement (sa sortie doit être différente de celle de l'église).
+- Chaque destination reçoit **tout le son**, ou seulement les sons choisis. MyChurch donne les pistes d'OBS tout seul et ne renvoie jamais le son de l'ordinateur vers la sortie d'où il vient. Une protection anti-saturation garde l'enregistrement, Zoom et le casque propres.
+- **Réglages › Son** : le moteur du son (**Réparer** s'il manque : réinstallation, données gardées), les haut-parleurs de l'église, le câble pour Zoom, le dossier des enregistrements.
+- Les réglages des versions précédentes sont repris : les sources deviennent des sons, les sorties MyVirtualSound des envois, le monitoring « Dans l'église ».
 
 ## Projection et caméra virtuelle
 

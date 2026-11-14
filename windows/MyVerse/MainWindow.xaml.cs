@@ -55,6 +55,7 @@ public partial class MainWindow : Window
         OngletChants.Checked += (_, _) => MontrerOnglet("chants");
         OngletAnnonces.Checked += (_, _) => MontrerOnglet("annonces");
         OngletDuo.Checked += (_, _) => MontrerOnglet("duo");
+        OngletSon.Checked += (_, _) => MontrerOnglet("son");
         OngletReglages.Checked += (_, _) => MontrerOnglet("reglages");
         Q.TextChanged += (_, _) =>
         {
@@ -116,11 +117,9 @@ public partial class MainWindow : Window
         minuterieNum.Tick += (_, _) => AllerAuNumero(false);
         TelBtn.Click += (_, _) => new TelephoneWindow { Owner = this }.ShowDialog();
         ProjectionBtn.Click += (_, _) => MenuProjection();
-        // le mélangeur audio (moteur OBS) : dans Display, sous la grille
-        PanneauAudio = new Audio.AudioPanel();
-        AudioHote.Child = PanneauAudio;
-        AudioBref.Content = new Audio.AudioBref();
-        AudioListeHote.Content = new Audio.AudioListe();
+        // la page Son (MyChurch 1.3) : ce qu'on entend, et où ça va
+        PageSon = new Audio.PageSon();
+        PanneauSon.Child = PageSon;
         Reglages = new ReglagesPage();
         PanneauReglages.Child = Reglages;
         VersionBtn.Click += (_, _) => { MontrerOnglet("reglages"); Reglages.Aller("maj", true); };
@@ -367,19 +366,20 @@ public partial class MainWindow : Window
         PanneauChants.Visibility = DefilSections.Visibility = TeteChants.Visibility = V(o == "chants");
         PanneauAnnonces.Visibility = DefilGrille.Visibility = TeteDisplay.Visibility = V(o == "annonces");
         PanneauDuo.Visibility = CentreDuo.Visibility = TeteDuo.Visibility = V(o == "duo");
-        // Réglages : toute la largeur, sans la colonne de contrôle
+        // Réglages : toute la largeur, sans la colonne de contrôle ; Son : à la place de la colonne de gauche et du centre
         PanneauReglages.Visibility = V(o == "reglages");
-        EnTete.Visibility = ColonneControle.Visibility = V(o != "reglages");
+        PanneauSon.Visibility = V(o == "son");
+        ColonneControle.Visibility = V(o != "reglages");
+        EnTete.Visibility = V(o is not ("reglages" or "son"));
         RechercheCulte.Visibility = V(o is "agenda" or "annonces" or "duo");
         RechercheBible.Visibility = V(o == "bible");
         RechercheChants.Visibility = V(o == "chants");
         if (o is not ("agenda" or "annonces" or "duo")) CmdPopup.IsOpen = false;
-        (o switch { "agenda" => OngletAgenda, "bible" => OngletBible, "annonces" => OngletAnnonces, "duo" => OngletDuo, "reglages" => OngletReglages, _ => OngletChants }).IsChecked = true;
+        (o switch { "agenda" => OngletAgenda, "bible" => OngletBible, "annonces" => OngletAnnonces, "duo" => OngletDuo, "son" => OngletSon, "reglages" => OngletReglages, _ => OngletChants }).IsChecked = true;
         // sur Culte, un clic sur une vignette affiche : pas de bouton « Afficher la sélection » ; sur Display, le mélangeur est complet
-        Afficher.Visibility = V(o is not ("agenda" or "reglages"));
-        // 3.3 : sur Culte, l'écran live est en grand au centre ; la colonne garde l'écran par défaut, l'audio, le Duo et l'habillage
+        Afficher.Visibility = V(o is not ("agenda" or "reglages" or "son"));
+        // 3.3 : sur Culte, l'écran live est en grand au centre ; la colonne garde l'écran par défaut, le Duo et l'habillage
         ControleHaut.Visibility = V(o != "agenda");
-        AudioListeHote.Visibility = V(o != "annonces");
         MajEntete();
         if (o == "agenda") Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => { LargeurVignettes(); DefilerVers(elementChoisi ?? R.ElementCourant); }));
     }
@@ -1079,20 +1079,14 @@ public partial class MainWindow : Window
         return r;
     }
 
-    /// <summary>La page Réglages (apparence, audio, MyVirtualSound, enregistrements, mise à jour, transfert, journal, licences).</summary>
+    /// <summary>La page Réglages (apparence, son, projection, téléphone, mise à jour, transfert, journal, licences).</summary>
     public ReglagesPage Reglages { get; }
-    /// <summary>Réglages › Audio (périphérique de monitoring audio).</summary>
-    public void OuvrirParametres() { MontrerOnglet("reglages"); Reglages.Aller("audio", false); }
-    /// <summary>Le mélangeur audio de Display.</summary>
-    public Audio.AudioPanel? PanneauAudio { get; private set; }
-    /// <summary>« + Source » de la colonne de contrôle : le même menu que « + Source audio » du mélangeur, comme le « + » d'OBS.</summary>
-    public void AjouterSource(UIElement cible) => PanneauAudio?.MenuAjouter(cible);
-    /// <summary>Montre le mélangeur : onglet Display, panneau Audio déplié.</summary>
-    public void MontrerAudio()
-    {
-        MontrerOnglet("annonces");
-        PanneauAudio?.Deplier();
-    }
+    /// <summary>Réglages › Son (moteur, haut-parleurs de l'église, câble pour Zoom, dossier des enregistrements).</summary>
+    public void OuvrirParametres() { MontrerOnglet("reglages"); Reglages.Aller("son", false); }
+    /// <summary>La page Son : ce qu'on entend, et où ça va.</summary>
+    public Audio.PageSon PageSon { get; }
+    /// <summary>Montre la page Son.</summary>
+    public void MontrerSon() => MontrerOnglet("son");
 
     // ------------------------------------------------------------ pour le test automatique
     public void TestRecherche(string q) { MontrerOnglet(true); Q.Text = q; minuterieQ.Stop(); Chercher(); }

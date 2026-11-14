@@ -2,29 +2,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using MyVerse.Audio;
-using NAudio.CoreAudioApi;
 
 namespace MyVerse.Ui.Audio;
 
-/// <summary>Les sorties Windows (identifiants NAudio, pas ceux d'OBS) : où une sortie MyVirtualSound peut jouer son mélange.</summary>
-internal static class SortiesWindows
-{
-    public static List<AudioDevice> Lister()
-    {
-        var liste = new List<AudioDevice>();
-        try
-        {
-            using var enumerateur = new MMDeviceEnumerator();
-            foreach (var d in enumerateur.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
-                using (d) liste.Add(new AudioDevice(d.ID, d.FriendlyName));
-        }
-        catch (Exception e) { Journal.Erreur("liste des sorties Windows", e); }
-        return liste;
-    }
-}
-
-/// <summary>Le cadre commun des fenêtres « enregistrement » et « sortie MyVirtualSound » : titre, aide, zone qui défile, boutons en bas.</summary>
-public abstract class FenetreDestination : FenetreDialogue
+/// <summary>Le cadre commun des fenêtres « Enregistrement » et « Envoi » : titre, phrase d'aide, zone qui défile, boutons en bas.</summary>
+public abstract class FenetreSon : FenetreDialogue
 {
     protected static ChurchAudioService A => App.Audio;
     protected static AudioConfiguration C => App.Audio.Config;
@@ -32,32 +14,31 @@ public abstract class FenetreDestination : FenetreDialogue
     protected readonly Button Valider, Supprimer;
     readonly TextBlock erreur;
 
-    protected FenetreDestination(string titre, string aide, bool existe, string ok)
+    protected FenetreSon(string titre, string aide, bool existe, string ok)
     {
         Title = titre;
-        Width = 680;
+        Width = 700;
         SizeToContent = SizeToContent.Height;
         MaxHeight = Math.Max(480, SystemParameters.WorkArea.Height - 40);
         ResizeMode = ResizeMode.NoResize;
         Background = Pinceau("Page");
-        var racine = new DockPanel { Margin = new Thickness(24, 20, 24, 20) };
+        var racine = new DockPanel { Margin = new Thickness(28, 22, 28, 22) };
         var tete = new StackPanel();
         tete.Children.Add(new TextBlock { Text = titre, Style = Style_("Titre2"), TextTrimming = TextTrimming.CharacterEllipsis });
-        tete.Children.Add(new TextBlock { Text = aide, Style = Style_("Muet"), FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 6), LineHeight = 21 });
+        tete.Children.Add(new TextBlock { Text = aide, Style = Style_("Muet"), FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 8), LineHeight = 21 });
         DockPanel.SetDock(tete, Dock.Top);
         racine.Children.Add(tete);
-
         var pied = new StackPanel();
         erreur = new TextBlock { Foreground = Pinceau("Danger"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0), Visibility = Visibility.Collapsed };
         pied.Children.Add(erreur);
         var bas = new DockPanel { Margin = new Thickness(0, 16, 0, 0), LastChildFill = false };
-        Supprimer = new Button { Style = Style_("BtnDanger"), Content = "Supprimer", Height = 40, Padding = new Thickness(16, 0, 16, 0), Visibility = existe ? Visibility.Visible : Visibility.Collapsed };
+        Supprimer = new Button { Style = Style_("BtnDanger"), Content = "Supprimer", Height = 42, Padding = new Thickness(16, 0, 16, 0), Visibility = existe ? Visibility.Visible : Visibility.Collapsed };
         DockPanel.SetDock(Supprimer, Dock.Left);
         bas.Children.Add(Supprimer);
-        Valider = new Button { Style = Style_("BtnOr"), Content = ok, IsDefault = true, MinWidth = 130, Height = 40, Margin = new Thickness(10, 0, 0, 0) };
+        Valider = new Button { Style = Style_("BtnOr"), Content = ok, IsDefault = true, MinWidth = 130, Height = 42, Margin = new Thickness(10, 0, 0, 0) };
         DockPanel.SetDock(Valider, Dock.Right);
         bas.Children.Add(Valider);
-        var annuler = new Button { Style = Style_("Btn"), Content = "Annuler", IsCancel = true, MinWidth = 110, Height = 40 };
+        var annuler = new Button { Style = Style_("Btn"), Content = "Annuler", IsCancel = true, MinWidth = 110, Height = 42 };
         annuler.Click += (_, _) => Close();
         DockPanel.SetDock(annuler, Dock.Right);
         bas.Children.Add(annuler);
@@ -68,40 +49,16 @@ public abstract class FenetreDestination : FenetreDialogue
         Content = racine;
     }
 
-    protected static TextBlock Libelle(string texte, double haut = 20) => new() { Text = texte, Style = Style_("CarteTitre"), Margin = new Thickness(0, haut, 0, 8) };
-
+    protected static TextBlock Libelle(string texte, double haut = 20) => new Capitales { Libelle = texte, Margin = new Thickness(0, haut, 0, 8) };
     protected static TextBlock Note(string texte, double haut = 6) => new() { Text = texte, FontSize = 12.5, Foreground = Pinceau("Brume"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, haut, 0, 0), LineHeight = 18 };
 
-    /// <summary>Une case à cocher sur deux lignes : le nom, puis une précision en gris.</summary>
-    protected static CheckBox Case(string titre, string detail, bool coche, UIElement? avant = null)
+    /// <summary>Un grand choix à cliquer (« Le son seulement », « La vidéo et le son ») : un titre et une phrase.</summary>
+    protected static RadioButton Option(string titre, string detail, bool coche, string groupe)
     {
-        var textes = new StackPanel { MaxWidth = 250 };
-        textes.Children.Add(new TextBlock { Text = titre, FontSize = 14.5, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = titre });
-        if (detail.Length > 0) textes.Children.Add(new TextBlock { Text = detail, FontSize = 12, Foreground = Pinceau("Brume"), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) });
-        object contenu = textes;
-        if (avant != null)
-        {
-            var d = new DockPanel();
-            d.Children.Add(avant);
-            d.Children.Add(textes);
-            contenu = d;
-        }
-        return new CheckBox { Content = contenu, IsChecked = coche, Margin = new Thickness(0, 0, 12, 10), HorizontalAlignment = HorizontalAlignment.Left };
-    }
-
-    /// <summary>« Piste audio », comme dans les paramètres de sortie d'OBS : piste 1 à 6, et les sources qui vont dans la piste choisie.</summary>
-    protected ComboBox ChoixPiste(int actuelle)
-    {
-        var cb = new ComboBox { MinHeight = 40 };
-        for (int t = 1; t <= AudioConfiguration.Pistes; t++) cb.Items.Add(new ComboBoxItem { Content = $"Piste {t}", Tag = t });
-        cb.SelectedIndex = Math.Clamp(actuelle, 1, AudioConfiguration.Pistes) - 1;
-        Corps.Children.Add(cb);
-        var note = Note("", 8);
-        void Maj() => note.Text = AudioPanel.SourcesPiste(cb.SelectedIndex + 1) + ". Les pistes de chaque source se cochent dans les propriétés audio avancées (⚙ du mélangeur), comme dans OBS.";
-        cb.SelectionChanged += (_, _) => Maj();
-        Maj();
-        Corps.Children.Add(note);
-        return cb;
+        var p = new StackPanel { Margin = new Thickness(4, 0, 0, 0) };
+        p.Children.Add(new TextBlock { Text = titre, FontSize = 15, FontWeight = FontWeights.SemiBold });
+        if (detail.Length > 0) p.Children.Add(new TextBlock { Text = detail, FontSize = 12.5, Foreground = Pinceau("Brume"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+        return new RadioButton { Content = p, IsChecked = coche, GroupName = groupe, Margin = new Thickness(0, 0, 0, 10), VerticalContentAlignment = VerticalAlignment.Top };
     }
 
     protected void Erreur(string message)
@@ -109,77 +66,81 @@ public abstract class FenetreDestination : FenetreDialogue
         erreur.Text = message;
         erreur.Visibility = Visibility.Visible;
     }
-
-    protected void EffacerErreur() => erreur.Visibility = Visibility.Collapsed;
 }
 
 /// <summary>
-/// Créer ou modifier un enregistrement : son nom, sa piste audio (comme dans OBS), ses sources Display
-/// (la vidéo, dans l'ordre : la 1re en grand), la disposition et le dossier. La synchro du son est automatique (MyChurch 1.2).
+/// Un enregistrement : son nom, le son seulement (MP3 léger ou WAV studio) ou la vidéo et le son (ce qui est à l'écran, des caméras),
+/// ce qu'il entend (tout le son ou les sons choisis) et son dossier. La synchro du son et de l'image est automatique.
 /// </summary>
-public sealed class EnregistrementWindow : FenetreDestination
+public sealed class EnregistrementWindow : FenetreSon
 {
     readonly RecordingProfile? existant;
     readonly TextBox nom;
-    readonly ComboBox piste;
+    readonly RadioButton sonSeul, video, leger, studio, incrustation, cote;
+    readonly StackPanel optionsSon = new(), optionsVideo = new(), disposition = new();
     readonly List<(CheckBox Case, string Id, Border Pastille, TextBlock Rang)> display = new();
     readonly List<string> ordre = new();
-    readonly StackPanel optionsVideo = new(), optionsSon = new(), disposition = new();
-    readonly RadioButton incrustation, cote, wav, flac;
+    readonly ChoixSons sons;
     readonly TextBox dossier;
     bool dossierChoisi;
 
     public EnregistrementWindow(RecordingProfile? p) : base(
-        p == null ? "Créer un enregistrement" : $"Modifier « {p.Name} »",
-        "Comme dans OBS, un enregistrement garde une piste audio (1 à 6) ; avec des sources Display, c'est une vidéo. Jusqu'à 5 enregistrements, qui peuvent tourner en même temps.",
-        p != null, p == null ? "Créer" : "Enregistrer")
+        p == null ? "Nouvel enregistrement" : $"Régler « {p.Name} »",
+        "Gardez le culte : le son (pour le partager sur WhatsApp ou le site) ou la vidéo avec le son. Plusieurs enregistrements peuvent tourner en même temps.",
+        p != null, p == null ? "Créer" : "Terminé")
     {
         existant = p;
         bool tourne = p != null && (A.Recorder.Active(p.Id) || A.Recorder.Busy(p.Id));
         if (tourne)
         {
-            var info = Note("Cet enregistrement tourne : la piste audio change tout de suite ; la vidéo, le format et le dossier au prochain démarrage.", 0);
+            var info = Note("Il enregistre en ce moment : les changements serviront au prochain départ (sauf les sons, tout de suite).", 0);
             info.Foreground = Pinceau("Or");
             info.FontWeight = FontWeights.SemiBold;
             Corps.Children.Add(info);
         }
-
-        Corps.Children.Add(Libelle("NOM", tourne ? 14 : 6));
-        nom = new TextBox { Style = Style_("Champ"), FontSize = 15, Text = p?.Name ?? $"Enregistrement {C.Profiles.Count + 1}" };
+        Corps.Children.Add(Libelle("Nom", tourne ? 14 : 6));
+        nom = new TextBox { Style = Style_("Champ"), FontSize = 15, Text = p?.Name ?? (C.Profiles.Count == 0 ? "Culte" : $"Enregistrement {C.Profiles.Count + 1}") };
         Corps.Children.Add(nom);
 
-        Corps.Children.Add(Libelle("PISTE AUDIO"));
-        piste = ChoixPiste(p?.Track ?? 1);
+        Corps.Children.Add(Libelle("Quoi"));
+        bool estVideo = p != null && !p.AudioOnly;
+        sonSeul = Option("Le son seulement", "Un fichier son : à écouter, partager, mettre sur le site.", !estVideo, "quoi");
+        video = Option("La vidéo et le son", "Ce qui est à l'écran (Bible, chants, Display) et des caméras, avec le son.", estVideo, "quoi");
+        Corps.Children.Add(sonSeul);
+        Corps.Children.Add(video);
 
-        Corps.Children.Add(Libelle("SOURCES DISPLAY FILMÉES (FACULTATIF)"));
-        Corps.Children.Add(Note("Sans source Display, le fichier garde le son seul. Avec, c'est une vidéo MKV : cochez dans l'ordre, la 1re est en grand.", 0));
+        // son seul : léger (MP3) ou studio (WAV)
+        optionsSon.Children.Add(Libelle("Qualité", 10));
+        leger = Option("Léger : MP3", "Petit fichier, lisible partout (téléphone, WhatsApp, site). Conseillé.", p?.Format is not ("wav" or "flac"), "qualite");
+        studio = Option("Studio : WAV", "Sans perte, pour retravailler le son. Fichier environ 10 fois plus gros.", p?.Format is "wav" or "flac", "qualite");
+        optionsSon.Children.Add(leger);
+        optionsSon.Children.Add(studio);
+        Corps.Children.Add(optionsSon);
+
+        // vidéo : ce qu'on voit, dans l'ordre (la 1re en grand)
+        optionsVideo.Children.Add(Libelle("Ce qu'on voit", 10));
+        optionsVideo.Children.Add(Note("Cochez dans l'ordre : la 1re est en grand.", 0));
         var liste = new UniformGrid { Columns = 2, Margin = new Thickness(0, 10, 0, 0) };
-        AjouterDisplay(liste, RecordingProfile.Projection, "La projection", "Ce qui est à l'écran : Bible, chants, Display, Duo");
+        AjouterDisplay(liste, RecordingProfile.Projection, "Ce qui est à l'écran", "Bible, chants, Display, Duo");
         foreach (var a in App.Donnees.Annonces)
             AjouterDisplay(liste, a.Id, a.Titre.Length > 0 ? a.Titre : "Sans titre", a.Description.Split('\n')[0].Trim());
-        Corps.Children.Add(liste);
-        if (p != null) ordre.AddRange(p.DisplayIds.Where(id => display.Any(d => d.Id == id)));
-
-        // vidéo : la disposition (la synchro du son est automatique, comme dans OBS)
-        disposition.Children.Add(Libelle("DISPOSITION", 10));
-        incrustation = new RadioButton { Content = "Incrustation : la 1re en grand, les autres en petit en bas à droite", GroupName = "disposition", IsChecked = p?.Layout != "cote", Margin = new Thickness(0, 0, 0, 8) };
-        cote = new RadioButton { Content = "Côte à côte : toutes de la même taille", GroupName = "disposition", IsChecked = p?.Layout == "cote" };
+        optionsVideo.Children.Add(liste);
+        disposition.Children.Add(Libelle("Disposition", 8));
+        incrustation = Option("Une en grand, les autres en petit", "En bas à droite, comme une caméra dans un coin.", p?.Layout != "cote", "disposition");
+        cote = Option("Côte à côte", "Toutes de la même taille.", p?.Layout == "cote", "disposition");
         disposition.Children.Add(incrustation);
         disposition.Children.Add(cote);
         optionsVideo.Children.Add(disposition);
-        optionsVideo.Children.Add(Note("Le son et l'image se synchronisent tout seuls, comme dans OBS : chaque image et chaque son sont placés selon l'instant où ils ont été captés (retard de MyCam compris)."));
-        optionsVideo.Children.Add(Note("Vidéo 1280 × 720, 30 images par seconde, H.264 (carte graphique si possible), fichier MKV lisible même après une coupure de courant."));
+        optionsVideo.Children.Add(Note("Vidéo 1280 × 720, 30 images par seconde, fichier MKV (lisible par le Lecteur multimédia de Windows et VLC, même après une coupure de courant). Le son tombe sur les lèvres tout seul."));
         Corps.Children.Add(optionsVideo);
+        if (p != null) ordre.AddRange(p.DisplayIds.Where(id => display.Any(d => d.Id == id)));
+        if (ordre.Count == 0) ordre.Add(RecordingProfile.Projection);
 
-        // son seul : le format
-        optionsSon.Children.Add(Libelle("FORMAT"));
-        wav = new RadioButton { Content = "WAV : 24 bits, sans perte", GroupName = "format", IsChecked = p?.Format != "flac", Margin = new Thickness(0, 0, 0, 8) };
-        flac = new RadioButton { Content = "FLAC : compressé, sans perte", GroupName = "format", IsChecked = p?.Format == "flac" };
-        optionsSon.Children.Add(wav);
-        optionsSon.Children.Add(flac);
-        Corps.Children.Add(optionsSon);
+        Corps.Children.Add(Libelle("Ce qu'on entend"));
+        sons = new ChoixSons(p?.ChoixSons);
+        Corps.Children.Add(sons);
 
-        Corps.Children.Add(Libelle("DOSSIER"));
+        Corps.Children.Add(Libelle("Dossier"));
         dossier = new TextBox { Style = Style_("Champ"), IsReadOnly = true, FontSize = 14, Text = p?.Directory ?? "" };
         var choisir = new Button { Style = Style_("Btn"), Content = "Choisir…", Height = 40, Padding = new Thickness(14, 0, 14, 0), FontSize = 14, Margin = new Thickness(8, 0, 0, 0) };
         choisir.Click += (_, _) =>
@@ -195,12 +156,13 @@ public sealed class EnregistrementWindow : FenetreDestination
         ligneDossier.Children.Add(choisir);
         ligneDossier.Children.Add(dossier);
         Corps.Children.Add(ligneDossier);
-        Corps.Children.Add(Note("Chaque fichier porte le nom de l'enregistrement, la date et l'heure ; rien n'est jamais écrasé."));
-
+        Corps.Children.Add(Note("Chaque fichier porte le nom, la date et l'heure : rien n'est jamais écrasé."));
         dossierChoisi = p != null && !string.Equals(p.Directory, DossierParDefaut(p.Name), StringComparison.OrdinalIgnoreCase);
         if (!dossierChoisi) dossier.Text = DossierParDefaut(nom.Text);
         nom.TextChanged += (_, _) => { if (!dossierChoisi) dossier.Text = DossierParDefaut(nom.Text); };
 
+        sonSeul.Checked += (_, _) => MajOptions();
+        video.Checked += (_, _) => MajOptions();
         Valider.Click += (_, _) => Enregistrer();
         Supprimer.IsEnabled = !tourne;
         if (tourne) { Supprimer.ToolTip = "Arrêtez d'abord cet enregistrement"; ToolTipService.SetShowOnDisabled(Supprimer, true); }
@@ -222,12 +184,18 @@ public sealed class EnregistrementWindow : FenetreDestination
     {
         var rang = new TextBlock { FontSize = 12, FontWeight = FontWeights.Bold, Foreground = Pinceau("SurOr"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         var pastille = new Border { Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Background = Pinceau("OrVif"), Margin = new Thickness(0, 0, 8, 0), Child = rang, Visibility = Visibility.Collapsed, VerticalAlignment = VerticalAlignment.Center };
-        var cb = Case(titre, detail, existant?.DisplayIds.Contains(id) ?? false, pastille);
+        var textes = new StackPanel { MaxWidth = 240 };
+        textes.Children.Add(new TextBlock { Text = titre, FontSize = 14.5, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = titre });
+        if (detail.Length > 0) textes.Children.Add(new TextBlock { Text = detail, FontSize = 12, Foreground = Pinceau("Brume"), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) });
+        var contenu = new DockPanel();
+        contenu.Children.Add(pastille);
+        contenu.Children.Add(textes);
+        var cb = new CheckBox { Content = contenu, IsChecked = existant == null ? id == RecordingProfile.Projection : existant.DisplayIds.Contains(id), Margin = new Thickness(0, 0, 12, 10), HorizontalAlignment = HorizontalAlignment.Left };
         cb.Click += (_, _) =>
         {
             if (cb.IsChecked == true)
             {
-                if (ordre.Count >= 6) { cb.IsChecked = false; Erreur("6 sources Display au plus dans une vidéo."); return; }
+                if (ordre.Count >= 6) { cb.IsChecked = false; Erreur("6 choses à l'image au plus."); return; }
                 ordre.Add(id);
             }
             else ordre.Remove(id);
@@ -239,32 +207,34 @@ public sealed class EnregistrementWindow : FenetreDestination
 
     void MajOptions()
     {
+        bool estVideo = video.IsChecked == true;
         foreach (var d in display)
         {
             int i = ordre.IndexOf(d.Id);
+            d.Case.IsChecked = i >= 0;
             d.Pastille.Visibility = i >= 0 ? Visibility.Visible : Visibility.Collapsed;
             d.Rang.Text = (i + 1).ToString();
         }
-        bool video = ordre.Count > 0;
-        optionsVideo.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
+        optionsVideo.Visibility = estVideo ? Visibility.Visible : Visibility.Collapsed;
         disposition.Visibility = ordre.Count >= 2 ? Visibility.Visible : Visibility.Collapsed;
-        optionsSon.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
-        EffacerErreur();
+        optionsSon.Visibility = estVideo ? Visibility.Collapsed : Visibility.Visible;
     }
 
     void Enregistrer()
     {
         string n = nom.Text.Trim();
-        if (n.Length == 0) { Erreur("Donnez un nom à l'enregistrement."); nom.Focus(); return; }
+        if (n.Length == 0) { Erreur("Donnez un nom à l'enregistrement (par exemple « Culte »)."); nom.Focus(); return; }
         if (existant == null && C.Profiles.Count >= AudioConfiguration.MaxEnregistrements) { Erreur($"{AudioConfiguration.MaxEnregistrements} enregistrements au plus."); return; }
         if (C.Profiles.Any(x => x != existant && string.Equals(x.Name, n, StringComparison.OrdinalIgnoreCase))) { Erreur($"Un autre enregistrement s'appelle déjà « {n} »."); return; }
+        bool estVideo = video.IsChecked == true;
+        if (estVideo && ordre.Count == 0) { Erreur("Cochez au moins une chose à voir (par exemple « Ce qui est à l'écran »)."); return; }
         var p = existant ?? new RecordingProfile();
         p.Name = n;
-        p.Track = piste.SelectedIndex + 1;
-        p.DisplayIds = ordre.ToList();
+        p.DisplayIds = estVideo ? ordre.ToList() : new();
         p.Layout = cote.IsChecked == true ? "cote" : "incrustation";
-        p.AudioOnly = ordre.Count == 0;
-        p.Format = ordre.Count > 0 ? "mkv" : flac.IsChecked == true ? "flac" : "wav";
+        p.AudioOnly = !estVideo;
+        p.Format = estVideo ? "mkv" : studio.IsChecked == true ? "wav" : "mp3";
+        p.ChoixSons = sons.Choix;
         p.Directory = dossier.Text;
         if (existant == null) C.Profiles.Add(p);
         A.Apply();
@@ -273,74 +243,103 @@ public sealed class EnregistrementWindow : FenetreDestination
 }
 
 /// <summary>
-/// Créer ou modifier une sortie MyVirtualSound : son nom, le câble virtuel (ou la sortie) où elle joue et sa piste audio, comme dans OBS.
-/// Plusieurs sorties peuvent être actives en même temps.
+/// Un envoi du son : vers un autre logiciel (Zoom, OBS, Teams, Facebook dans le navigateur) par le câble audio virtuel,
+/// ou vers une sortie de l'ordinateur. Il reçoit tout le son, ou les sons choisis.
 /// </summary>
-public sealed class SortieWindow : FenetreDestination
+public sealed class EnvoiWindow : FenetreSon
 {
     readonly VirtualSoundSettings? existant;
     readonly TextBox nom;
-    readonly ComboBox peripherique = new() { MinHeight = 40 };
-    readonly ComboBox piste;
-    readonly CheckBox activer;
+    readonly RadioButton parCable, versSortie;
+    readonly ComboBox sortie = new() { MinHeight = 40, Margin = new Thickness(28, 0, 0, 0) };
+    readonly ChoixSons sons;
+    readonly TextBlock etatCable = new() { FontSize = 13.5, TextWrapping = TextWrapping.Wrap };
+    readonly Button installer;
 
-    public SortieWindow(VirtualSoundSettings? v) : base(
-        v == null ? "Créer une sortie MyVirtualSound" : $"Modifier « {v.Name} »",
-        "Une piste audio (1 à 6), envoyée vers un câble audio virtuel : Zoom, Teams, OBS ou un navigateur la reçoivent comme un micro. Plusieurs sorties peuvent être actives en même temps.",
-        v != null, v == null ? "Créer" : "Enregistrer")
+    public EnvoiWindow(VirtualSoundSettings? v) : base(
+        v == null ? "Nouvel envoi" : $"Régler « {v.Name} »",
+        "MyChurch devient un micro pour vos autres logiciels : Zoom, OBS (pour YouTube ou Facebook en direct), Teams… Ils entendent le son du culte.",
+        v != null, v == null ? "Créer" : "Terminé")
     {
         existant = v;
-        Corps.Children.Add(Libelle("NOM", 6));
-        nom = new TextBox { Style = Style_("Champ"), FontSize = 15, Text = v?.Name ?? (C.VirtualSounds.Count == 0 ? "Zoom" : "Sortie " + AudioPanel.MarqueSortie(C.VirtualSounds.Count)) };
+        Corps.Children.Add(Libelle("Nom", 6));
+        nom = new TextBox { Style = Style_("Champ"), FontSize = 15, Text = v?.Name ?? (C.VirtualSounds.Count == 0 ? "Zoom" : "Envoi " + (C.VirtualSounds.Count + 1)) };
         Corps.Children.Add(nom);
 
-        Corps.Children.Add(Libelle("SORTIE"));
-        var cable = VbCable.Entree();
-        peripherique.Items.Add(new ComboBoxItem { Content = "Automatique : " + (cable is { } c ? c.Nom : "câble virtuel installé"), Tag = "" });
-        peripherique.Items.Add(new ComboBoxItem { Content = "Sortie Windows par défaut", Tag = "default" });
-        var liste = SortiesWindows.Lister();
-        foreach (var d in liste) peripherique.Items.Add(new ComboBoxItem { Content = d.Name, Tag = d.Id });
+        Corps.Children.Add(Libelle("Vers"));
+        parCable = Option("Un autre logiciel (Zoom, OBS, Teams, navigateur)", "Par le câble audio virtuel : dans ce logiciel, choisissez le micro « CABLE Output ».", v == null || v.ParCable, "vers");
+        Corps.Children.Add(parCable);
+        var cadre = new Border { Background = Pinceau("Nuit2"), CornerRadius = new CornerRadius(10), Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(28, 0, 0, 12) };
+        var pile = new StackPanel();
+        pile.Children.Add(etatCable);
+        installer = new Button { Style = Style_("BtnOr"), Content = "Installer le câble (gratuit, 1 minute)", Height = 38, Padding = new Thickness(14, 0, 14, 0), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) };
+        installer.Click += async (_, _) =>
+        {
+            installer.IsEnabled = false;
+            var etat = new Progress<string>(t => etatCable.Text = t);
+            try { await VbCable.InstallerAsync(etat); }
+            catch (Exception e) { etatCable.Text = "Installation impossible : " + e.Message; Journal.Erreur("installation de VB-CABLE", e); }
+            finally { installer.IsEnabled = true; A.Sorties.Reset(); A.Apply(); MajCable(); }
+        };
+        pile.Children.Add(installer);
+        cadre.Child = pile;
+        Corps.Children.Add(cadre);
+        versSortie = Option("Une sortie de l'ordinateur", "Des haut-parleurs, une autre table de mixage, une salle à côté…", v is { ParCable: false }, "vers");
+        Corps.Children.Add(versSortie);
+        sortie.Items.Add(new ComboBoxItem { Content = "Sortie de Windows (par défaut)", Tag = "default" });
+        var sorties = A.Outputs();
+        foreach (var d in sorties) sortie.Items.Add(new ComboBoxItem { Content = d.Name, Tag = d.Id });
         string choisi = v?.DeviceId ?? "";
-        if (choisi.Length > 0 && choisi != "default" && liste.All(d => d.Id != choisi))
-            peripherique.Items.Add(new ComboBoxItem { Content = (v!.DeviceName.Length > 0 ? v.DeviceName : "Sortie enregistrée") + " (absente)", Tag = choisi });
-        peripherique.SelectedItem = peripherique.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == choisi) ?? peripherique.Items[0];
-        Corps.Children.Add(peripherique);
-        Corps.Children.Add(Note(cable is { } trouve
-            ? $"Câble détecté : {trouve.Nom}. Dans Zoom, choisissez « CABLE Output » comme microphone."
-            : "Aucun câble audio virtuel détecté : installez VB-CABLE dans Réglages › MyVirtualSound (sur clic), ou choisissez une sortie."));
+        if (choisi.Length > 0 && choisi != "default" && sorties.All(d => d.Id != choisi))
+            sortie.Items.Add(new ComboBoxItem { Content = (v!.DeviceName.Length > 0 ? v.DeviceName : "Sortie choisie") + " (débranchée)", Tag = choisi });
+        sortie.SelectedItem = sortie.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == choisi) ?? sortie.Items[0];
+        Corps.Children.Add(sortie);
+        Corps.Children.Add(Note("Le son de l'ordinateur ne repart jamais vers la sortie d'où il vient : pas de larsen.", 6));
 
-        Corps.Children.Add(Libelle("PISTE AUDIO"));
-        piste = ChoixPiste(v?.Track ?? 1);
-
-        activer = new CheckBox { Content = "Activer cette sortie", FontSize = 14.5, FontWeight = FontWeights.SemiBold, IsChecked = v?.Enabled ?? true, Margin = new Thickness(0, 18, 0, 0) };
-        Corps.Children.Add(activer);
+        Corps.Children.Add(Libelle("Ce qu'il entend"));
+        sons = new ChoixSons(v?.ChoixSons);
+        Corps.Children.Add(sons);
         Corps.Children.Add(Note(VbCable.Mention, 16));
 
+        parCable.Checked += (_, _) => MajVers();
+        versSortie.Checked += (_, _) => MajVers();
         Valider.Click += (_, _) => Enregistrer();
         Supprimer.Click += (_, _) =>
         {
-            if (existant == null || !Dialogue.Confirmer(this, $"Supprimer la sortie MyVirtualSound « {existant.Name} » ?", "Supprimer")) return;
+            if (existant == null || !Dialogue.Confirmer(this, $"Supprimer l'envoi « {existant.Name} » ?", "Supprimer")) return;
             C.VirtualSounds.Remove(existant);
             A.Apply();
             Close();
         };
         Loaded += (_, _) => { nom.Focus(); nom.SelectAll(); };
+        MajCable();
+        MajVers();
     }
+
+    void MajCable()
+    {
+        var cable = VbCable.Entree();
+        etatCable.Text = cable is { } c ? $"Câble prêt : {c.Nom}. Dans Zoom (ou OBS, Teams…), choisissez le micro « CABLE Output »." : "Il manque le câble audio virtuel : installez-le d'un clic (Windows demande votre accord).";
+        etatCable.Foreground = Pinceau(cable != null ? "Encre2" : "RougeTexte");
+        installer.Visibility = VbCable.Installe ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    void MajVers() => sortie.IsEnabled = versSortie.IsChecked == true;
 
     void Enregistrer()
     {
         string n = nom.Text.Trim();
-        if (n.Length == 0) { Erreur("Donnez un nom à la sortie (par exemple « Zoom »)."); nom.Focus(); return; }
-        if (existant == null && C.VirtualSounds.Count >= AudioConfiguration.MaxSortiesVirtuelles) { Erreur($"{AudioConfiguration.MaxSortiesVirtuelles} sorties au plus."); return; }
-        var v = existant ?? new VirtualSoundSettings();
+        if (n.Length == 0) { Erreur("Donnez un nom à l'envoi (par exemple « Zoom »)."); nom.Focus(); return; }
+        if (existant == null && C.VirtualSounds.Count >= AudioConfiguration.MaxSortiesVirtuelles) { Erreur($"{AudioConfiguration.MaxSortiesVirtuelles} envois au plus."); return; }
+        var v = existant ?? new VirtualSoundSettings { Enabled = true };
         v.Name = n;
-        v.Track = piste.SelectedIndex + 1;
-        v.Enabled = activer.IsChecked == true;
-        if (peripherique.SelectedItem is ComboBoxItem { Tag: string id } item)
+        if (parCable.IsChecked == true) { v.DeviceId = ""; v.DeviceName = ""; }
+        else if (sortie.SelectedItem is ComboBoxItem { Tag: string id } item)
         {
             v.DeviceId = id;
-            v.DeviceName = id.Length == 0 || id == "default" ? "" : (item.Content as string ?? "").Replace(" (absente)", "");
+            v.DeviceName = id == "default" ? "" : (item.Content as string ?? "").Replace(" (débranchée)", "");
         }
+        v.ChoixSons = sons.Choix;
         if (existant == null) C.VirtualSounds.Add(v);
         A.Apply();
         Close();

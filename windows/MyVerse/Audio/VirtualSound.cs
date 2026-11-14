@@ -5,25 +5,30 @@ using NAudio.Wave;
 namespace MyVerse.Ui.Audio;
 
 /// <summary>
-/// Une sortie MyVirtualSound : le mélange de ses sources (une piste d'OBS), avec son propre volume et sa sourdine,
-/// joué sur le périphérique choisi. Vers « CABLE Input » (VB-CABLE), Zoom ou OBS le reçoivent comme un micro (« CABLE Output »).
-/// MyChurch ne mélange rien ici : il recopie la piste d'OBS et applique seulement le volume de sortie.
+/// Une sortie du son vers un appareil de l'ordinateur : un envoi (vers « CABLE Input » de VB-CABLE, que Zoom, OBS ou Teams
+/// reçoivent comme un micro « CABLE Output », ou vers une autre sortie), ou le casque de la régie.
+/// Elle recopie la piste d'OBS que MyChurch lui donne, protégée contre la saturation. MyChurch ne mélange rien ici.
 /// </summary>
-public sealed class VirtualSound : IDisposable
+public sealed class SortieSon : IDisposable
 {
     sealed class Lecteur : IWaveProvider
     {
         readonly float[] anneau = new float[AudioBlock.Rate * 2]; // 0,5 s stéréo
+        readonly float[] bloc = new float[AudioBlock.Samples];
+        readonly ProtectionSaturation protection = new(AudioBlock.Rate);
         int lecture, quantite;
         readonly object verrou = new();
         float[] tampon = new float[4096];
-        public volatile float Gain = 1;
         public float Crete;
         public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(AudioBlock.Rate, 2);
-        public void Ecrire(float[] bloc)
+        /// <summary>Un bloc de la piste (partagé avec les autres destinations) : recopié, protégé, puis mis en attente.</summary>
+        public void Ecrire(float[] source)
         {
+            if (source.Length != bloc.Length) return;
             lock (verrou)
             {
+                Array.Copy(source, bloc, bloc.Length);
+                protection.Traiter(bloc, bloc.Length);
                 foreach (float v in bloc)
                 {
                     if (quantite == anneau.Length) { lecture = (lecture + 1) % anneau.Length; quantite--; }
@@ -37,11 +42,11 @@ public sealed class VirtualSound : IDisposable
         {
             int n = count / 4;
             if (tampon.Length < n) tampon = new float[n];
-            float g = Gain, c = 0;
+            float c = 0;
             lock (verrou)
             {
                 int dispo = Math.Min(n, quantite);
-                for (int i = 0; i < dispo; i++) { tampon[i] = anneau[lecture] * g; lecture = (lecture + 1) % anneau.Length; }
+                for (int i = 0; i < dispo; i++) { tampon[i] = anneau[lecture]; lecture = (lecture + 1) % anneau.Length; }
                 quantite -= dispo;
                 Array.Clear(tampon, dispo, n - dispo);
             }
@@ -57,49 +62,55 @@ public sealed class VirtualSound : IDisposable
     readonly Action<float[], long> consommateur;
     WasapiOut? sortie;
     MMDevice? peripherique;
-    // null : rien d'ouvert (après Reset, on recherche de nouveau le câble) ; "" : sortie automatique (le câble installé)
+    // null : rien d'ouvert ; sinon l'appareil voulu (vide = le câble audio virtuel installé)
     string? signature;
     int piste = -1;
-    public string Status { get; private set; } = "Désactivée";
+    /// <summary>En mots simples : « Coupé », « En marche », « Il manque le câble audio virtuel »…</summary>
+    public string Statut { get; private set; } = "Coupé";
+    /// <summary>Le nom de l'appareil où le son sort (vide s'il ne sort pas).</summary>
+    public string Appareil { get; private set; } = "";
     public bool Actif => sortie != null;
+    /// <summary>Il manque le câble audio virtuel (VB-CABLE) pour cet envoi.</summary>
+    public bool SansCable { get; private set; }
 
-    public VirtualSound(ChurchAudioService audio)
+    public SortieSon(ChurchAudioService audio)
     {
         this.audio = audio;
         consommateur = (bloc, _) => lecteur.Ecrire(bloc);
     }
 
-    /// <summary>Niveau de sortie en dBFS (−∞ = silence).</summary>
+    /// <summary>Niveau envoyé en dBFS (−∞ = silence).</summary>
     public float Level => sortie == null || lecteur.Crete <= 1e-6f ? float.NegativeInfinity : (float)AudioMath.Db(lecteur.Crete);
 
     /// <summary>Force une nouvelle recherche du câble (après l'installation de VB-CABLE).</summary>
     public void Reset() => Fermer();
 
-    public void Apply(VirtualSoundSettings v)
+    /// <param name="appareil">Vide : le câble audio virtuel installé ; « default » : la sortie de Windows ; sinon un appareil.</param>
+    public void Apply(bool actif, string appareil, int nouvellePiste)
     {
-        lecteur.Gain = v.Muted ? 0 : (float)AudioMath.Linear(v.VolumeDb);
-        // le périphérique ouvert ne change que si la sortie change ; la piste d'OBS peut changer sans couper le son
-        string voulu = v.Enabled && audio.Running && v.Track > 0 ? v.DeviceId : "\u0000";
+        string voulu = actif && audio.Running ? appareil ?? "" : "\u0000";
         if (voulu != signature)
         {
             Fermer();
             signature = voulu;
+            SansCable = false;
             if (voulu == "\u0000")
             {
-                Status = !v.Enabled ? "Désactivée" : "En attente du moteur OBS";
+                Statut = !actif ? "Coupé" : "En attente du moteur du son";
                 return;
             }
             try
             {
-                var enumerateur = new MMDeviceEnumerator();
-                if (string.IsNullOrEmpty(v.DeviceId))
+                using var enumerateur = new MMDeviceEnumerator();
+                if (voulu.Length == 0)
                 {
-                    // automatique : le câble virtuel installé (VB-CABLE, Virtual Audio Driver, Virtual Cables)
+                    // le câble audio virtuel installé (VB-CABLE, Virtual Audio Driver, Virtual Cables)
                     var cable = VbCable.Entree();
-                    if (cable == null) { Status = "Aucun câble audio virtuel : installez VB-CABLE dans Réglages › MyVirtualSound, ou choisissez une sortie."; return; }
+                    if (cable == null) { SansCable = true; Statut = "Il manque le câble audio virtuel"; return; }
                     peripherique = enumerateur.GetDevice(cable.Value.Id);
                 }
-                else peripherique = v.DeviceId == "default" ? enumerateur.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia) : enumerateur.GetDevice(v.DeviceId);
+                else peripherique = voulu == "default" ? enumerateur.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia) : enumerateur.GetDevice(voulu);
+                Appareil = peripherique.FriendlyName;
                 sortie = new WasapiOut(peripherique, AudioClientShareMode.Shared, true, 50);
                 sortie.Init(lecteur);
                 sortie.Play();
@@ -107,19 +118,19 @@ public sealed class VirtualSound : IDisposable
             catch (Exception e)
             {
                 Fermer(); signature = voulu;
-                Status = "Sortie impossible : " + e.Message;
-                Journal.Erreur("MyVirtualSound", e);
+                Statut = "Impossible d'ouvrir la sortie : " + e.Message;
+                Journal.Erreur("sortie du son", e);
                 return;
             }
         }
         if (sortie == null) return;
-        if (piste != v.Track - 1)
+        if (piste != nouvellePiste - 1)
         {
             if (piste >= 0) audio.RemoveTrackConsumer(piste, consommateur);
-            piste = v.Track - 1;
+            piste = nouvellePiste - 1;
             audio.AddTrackConsumer(piste, consommateur);
         }
-        Status = "Active → " + peripherique?.FriendlyName;
+        Statut = "En marche";
     }
 
     void Fermer()
@@ -129,34 +140,42 @@ public sealed class VirtualSound : IDisposable
         sortie?.Dispose(); sortie = null;
         peripherique?.Dispose(); peripherique = null;
         signature = null;
+        Appareil = "";
     }
 
     public void Dispose() => Fermer();
 }
 
-/// <summary>Toutes les sorties MyVirtualSound (4 au plus), chacune avec son câble ou sa sortie, actives en même temps si besoin.</summary>
+/// <summary>Les envois (4 au plus, actifs en même temps si besoin) et le casque de la régie.</summary>
 public sealed class SortiesVirtuelles : IDisposable
 {
     readonly ChurchAudioService audio;
-    readonly Dictionary<string, VirtualSound> sorties = new();
+    readonly Dictionary<string, SortieSon> sorties = new();
     public SortiesVirtuelles(ChurchAudioService audio) => this.audio = audio;
 
-    public void Apply(IReadOnlyList<VirtualSoundSettings> reglages)
+    SortieSon De(string id)
     {
-        foreach (var id in sorties.Keys.Where(id => reglages.All(v => v.Id != id)).ToList())
+        if (!sorties.TryGetValue(id, out var s)) sorties[id] = s = new SortieSon(audio);
+        return s;
+    }
+
+    public void Apply(AudioConfiguration c, PlanAudio plan)
+    {
+        var voulues = c.VirtualSounds.Select(v => v.Id).Append(AudioConfiguration.IdCasque).ToHashSet();
+        foreach (var id in sorties.Keys.Where(id => !voulues.Contains(id)).ToList())
         {
             sorties[id].Dispose();
             sorties.Remove(id);
         }
-        foreach (var v in reglages)
-        {
-            if (!sorties.TryGetValue(v.Id, out var s)) sorties[v.Id] = s = new VirtualSound(audio);
-            s.Apply(v);
-        }
+        foreach (var v in c.VirtualSounds) De(v.Id).Apply(v.Enabled, v.DeviceId, plan.PisteDe(v.Id));
+        De(AudioConfiguration.IdCasque).Apply(c.Casque.Actif, c.Casque.Appareil, plan.PisteDe(AudioConfiguration.IdCasque));
     }
+
     public float Level(string id) => sorties.TryGetValue(id, out var s) ? s.Level : float.NegativeInfinity;
-    public string Status(string id) => sorties.TryGetValue(id, out var s) ? s.Status : "Désactivée";
+    public string Status(string id) => sorties.TryGetValue(id, out var s) ? s.Statut : "Coupé";
+    public string Appareil(string id) => sorties.TryGetValue(id, out var s) ? s.Appareil : "";
     public bool Actif(string id) => sorties.TryGetValue(id, out var s) && s.Actif;
+    public bool SansCable(string id) => sorties.TryGetValue(id, out var s) && s.SansCable;
     /// <summary>Force une nouvelle recherche des câbles (après l'installation de VB-CABLE).</summary>
     public void Reset() { foreach (var s in sorties.Values) s.Reset(); }
     public void Dispose() { foreach (var s in sorties.Values) s.Dispose(); sorties.Clear(); }

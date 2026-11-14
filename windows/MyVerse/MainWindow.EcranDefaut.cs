@@ -43,7 +43,7 @@ public partial class MainWindow
         LogoLarge.Visibility = large ? Visibility.Visible : Visibility.Collapsed;
         LogoCompact.Visibility = large ? Visibility.Collapsed : Visibility.Visible;
         var style = Style_(large ? "OngletBarre" : "OngletRail");
-        foreach (var o in new[] { OngletAgenda, OngletBible, OngletChants, OngletAnnonces, OngletDuo, OngletReglages }) o.Style = style;
+        foreach (var o in new[] { OngletAgenda, OngletBible, OngletChants, OngletAnnonces, OngletDuo, OngletSon, OngletReglages }) o.Style = style;
         OngletReglages.Margin = large ? new Thickness(12, 0, 12, 0) : new Thickness(0);
         ThemeBtn.Style = Style_(large ? "BtnBarre" : "BtnRail");
         VersionBtn.HorizontalAlignment = large ? HorizontalAlignment.Left : HorizontalAlignment.Center;

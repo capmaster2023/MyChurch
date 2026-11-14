@@ -6,8 +6,9 @@ namespace MyVerse.Ui.Audio;
 public enum ChurchRecordingState { Ready, Preparing, Recording, Finalizing, Error }
 
 /// <summary>
-/// Les enregistrements créés par l'utilisateur (5 au plus), qui peuvent tourner en même temps.
-/// Comme dans OBS, chacun enregistre sa piste (1 à 6) et, s'il a des sources Display, une vidéo composée (MKV).
+/// Les enregistrements (5 au plus), qui peuvent tourner en même temps. Chacun garde « tout le son » ou les sons choisis
+/// (MyChurch lui donne la piste d'OBS qui porte ce mélange), en MP3 ou en WAV, ou en vidéo MKV avec des sources Display.
+/// Une protection anti-saturation empêche le fichier de « craquer » quand plusieurs sons forts s'additionnent.
 /// </summary>
 public sealed class ChurchRecordingService : IDisposable
 {
@@ -68,27 +69,29 @@ public sealed class ChurchRecordingService : IDisposable
         try
         {
             if (run.Session != null) { await StopCore(run); return; }
-            Status(run, ChurchRecordingState.Preparing, "Vérification…");
-            if (!audio.Running) throw new IOException("Le moteur audio OBS n'est pas démarré.");
-            if (!audio.TracksActive) throw new IOException("Les pistes d'OBS sont indisponibles sur cet ordinateur (carte graphique) : enregistrement impossible.");
+            Status(run, ChurchRecordingState.Preparing, "Préparation…");
+            if (!audio.Running) throw new IOException("le moteur du son n'est pas démarré.");
+            if (!audio.TracksActive) throw new IOException("cet ordinateur ne peut pas mélanger le son pour l'enregistrement (pilote de la carte graphique).");
             run.Reserve = true;
+            // l'enregistrement qui démarre passe en priorité pour sa piste d'OBS
             audio.Apply(false);
-            var actuel = audio.Config.Profiles.FirstOrDefault(p => p.Id == profile.Id) ?? throw new IOException("Cet enregistrement a été supprimé.");
+            var actuel = audio.Config.Profiles.FirstOrDefault(p => p.Id == profile.Id) ?? throw new IOException("cet enregistrement a été supprimé.");
             var selected = AudioConfiguration.Copy(actuel);
+            selected.Track = audio.PisteDe(actuel.Id);
             if (!selected.AudioOnly) selected.Visuals = selected.VisuelsDisplay();
             RecordingFiles.Validate(selected);
             Directory.CreateDirectory(selected.Directory);
             var probe = Path.Combine(selected.Directory, ".mychurch-write-" + Guid.NewGuid().ToString("N"));
             using (File.Create(probe)) { }
             File.Delete(probe);
-            if (RecordingFiles.FreeSpace(selected.Directory) < RecordingFiles.ReserveBytes) throw new IOException("Au moins 512 Mio libres sont nécessaires.");
+            if (RecordingFiles.FreeSpace(selected.Directory) < RecordingFiles.ReserveBytes) throw new IOException("le disque est presque plein : il faut au moins 512 Mo libres.");
             string encoder = "PCM 24 bits";
             if (!selected.AudioOnly || selected.Format != "wav") encoder = await ProbeEncoderAsync(audio.Ffmpeg, selected);
             RecordingCompositor? compositor = null;
             try
             {
                 if (!selected.AudioOnly) { compositor = new(selected); await compositor.ValidateAsync(); }
-                Status(run, ChurchRecordingState.Preparing, "Préparation de l'enregistrement…");
+                Status(run, ChurchRecordingState.Preparing, "Préparation…");
                 string path = RecordingFiles.ReservePath(selected.Directory, selected.Name, selected.Format);
                 run.LastFile = path;
                 var session = new RecordingSession(selected, path, audio.Ffmpeg, encoder, compositor);
@@ -99,12 +102,21 @@ public sealed class ChurchRecordingService : IDisposable
                     run.Compositor = compositor; compositor = null;
                     run.Profile = selected; run.Encoder = encoder;
                     Volatile.Write(ref run.Session, session);
-                    // chaque bloc arrive avec l'instant où OBS l'a capté : la vidéo se cale dessus (synchro automatique, comme OBS)
-                    run.Consumer = (block, instant) => Volatile.Read(ref run.Session)?.Accept(block, instant);
+                    // chaque bloc arrive avec l'instant où OBS l'a capté : la vidéo se cale dessus (synchro automatique, comme OBS) ;
+                    // il est recopié (les autres destinations lisent le même bloc), puis protégé contre la saturation
+                    var protection = new ProtectionSaturation(AudioBlock.Rate);
+                    var copie = new float[AudioBlock.Samples];
+                    run.Consumer = (block, instant) =>
+                    {
+                        if (block.Length != copie.Length) return;
+                        Array.Copy(block, copie, copie.Length);
+                        protection.Traiter(copie, copie.Length);
+                        Volatile.Read(ref run.Session)?.Accept(copie, instant);
+                    };
                     run.Piste = selected.Track;
                     // la piste d'OBS de cet enregistrement alimente le fichier, bloc par bloc, depuis le fil audio d'OBS
                     audio.AddTrackConsumer(run.Piste - 1, run.Consumer);
-                    Status(run, ChurchRecordingState.Recording, selected.AudioOnly ? $"Enregistrement · {selected.Format.ToUpperInvariant()}" : "Enregistrement vidéo · " + encoder);
+                    Status(run, ChurchRecordingState.Recording, selected.AudioOnly ? $"Enregistrement en cours · {selected.Format.ToUpperInvariant()}" : "Enregistrement vidéo en cours");
                 }
                 catch { session.Dispose(); throw; }
             }
@@ -113,34 +125,43 @@ public sealed class ChurchRecordingService : IDisposable
         catch (Exception e)
         {
             if (run.Session == null && run.Reserve) { run.Reserve = false; audio.Apply(false); }
-            Status(run, ChurchRecordingState.Error, "Impossible de démarrer : " + e.Message);
+            Status(run, ChurchRecordingState.Error, "Impossible de démarrer : " + e.Message.TrimEnd('.') + ".");
             Journal.Erreur("enregistrement", e);
         }
         finally { run.Operation.Release(); }
     }
 
-    /// <summary>Après chaque changement de réglages : un enregistrement en cours suit sa piste si elle a été changée dans « Modifier ».</summary>
+    /// <summary>Après chaque changement : un enregistrement en cours suit la piste que MyChurch donne à ses sons (s'ils ont changé dans « Régler »).</summary>
     public void SuivrePistes()
     {
-        List<(Run Run, RecordingProfile Profil)> actifs;
-        lock (runs) actifs = runs.Where(r => r.Value.Session != null && r.Value.Consumer != null)
-            .Select(r => (r.Value, audio.Config.Profiles.FirstOrDefault(p => p.Id == r.Key)!)).Where(x => x.Item2 != null).ToList();
-        foreach (var (run, profil) in actifs)
+        List<(string Id, Run Run)> actifs;
+        lock (runs) actifs = runs.Where(r => r.Value.Session != null && r.Value.Consumer != null).Select(r => (r.Key, r.Value)).ToList();
+        foreach (var (id, run) in actifs)
         {
-            if (profil.Track <= 0 || profil.Track == run.Piste) continue;
+            if (audio.Config.Profiles.All(p => p.Id != id)) continue;
+            int piste = audio.PisteDe(id);
+            if (piste <= 0 || piste == run.Piste) continue;
             audio.RemoveTrackConsumer(run.Piste - 1, run.Consumer!);
-            run.Piste = profil.Track;
+            run.Piste = piste;
             audio.AddTrackConsumer(run.Piste - 1, run.Consumer!);
         }
     }
 
     static async Task<string> ProbeEncoderAsync(string executable, RecordingProfile profile)
     {
-        if (!File.Exists(executable)) throw new IOException("ffmpeg est introuvable (dossier « ffmpeg » de MyChurch). Réinstallez MyChurch ou choisissez un ffmpeg.exe dans les Paramètres.");
+        if (!File.Exists(executable)) throw new IOException("le programme d'enregistrement (dossier « ffmpeg » de MyChurch) est introuvable : réinstallez MyChurch.");
         if (profile.AudioOnly)
         {
-            await TestAsync(executable, new[] { "-hide_banner", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "0.1", "-c:a", "flac", "-f", "null", "-" });
-            return "flac";
+            Task Essai(string codec) => TestAsync(executable, new[] { "-hide_banner", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "0.1", "-c:a", codec, "-f", "null", "-" });
+            if (profile.Format == "mp3")
+            {
+                try { await Essai("libmp3lame"); return "libmp3lame"; }
+                // sans l'encodeur MP3 : un fichier M4A, tout aussi léger et lisible partout
+                catch (Exception e) { Journal.Info("MP3 indisponible, M4A à la place : " + e.Message); profile.Format = "m4a"; }
+            }
+            string codec = profile.Format == "flac" ? "flac" : "aac";
+            await Essai(codec);
+            return codec;
         }
         // « auto » : la carte graphique d'abord (NVIDIA, Intel, AMD), puis x264, puis MJPEG ; le résultat est gardé pour la séance
         var allowed = new[] { "h264_nvenc", "h264_qsv", "h264_amf", "libx264", "mjpeg" };

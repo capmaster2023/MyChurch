@@ -6,15 +6,15 @@ using System.Windows.Shapes;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// La page Réglages (MyChurch 3.1) : un sommaire à gauche (Apparence, Audio, MyVirtualSound, Enregistrements, Projection,
-/// Téléphone, Mise à jour, Transfert, Journal, Licences) et les sections en cartes à droite. Le sommaire suit le défilement.
+/// La page Réglages (MyChurch 3.1) : un sommaire à gauche (Apparence, Son, Projection, Téléphone, Mise à jour, Transfert,
+/// Journal, Licences) et les sections en cartes à droite. Le sommaire suit le défilement.
 /// </summary>
 public sealed class ReglagesPage : Grid
 {
     readonly ScrollViewer defil;
     readonly StackPanel pile = new() { MaxWidth = 920, HorizontalAlignment = HorizontalAlignment.Left };
     readonly List<(string Id, RadioButton Bouton, FrameworkElement Section)> sections = new();
-    readonly Audio.AudioSettingsPanel audio = new();
+    readonly Audio.ReglagesSon son = new();
     readonly StackPanel ecrans = new() { Margin = new Thickness(0, 8, 0, 0) };
     readonly Button clair, sombre;
     bool defilement;
@@ -43,20 +43,18 @@ public sealed class ReglagesPage : Grid
         jumeler.Click += (_, _) => { if (Principale is { } m) new TelephoneWindow { Owner = m }.ShowDialog(); };
         var telephone = Section("Téléphone", "La télécommande Android passe les diapositives et choisit les chants. Le PC et le téléphone doivent être sur le même réseau.", jumeler);
 
-        // l'ordre de la page : Licences (dernière section de l'audio) passe tout en bas
-        audio.Children.Remove(audio.Licences);
+        // l'ordre de la page : Licences (dernière section du son) passe tout en bas
+        son.Children.Remove(son.Licences);
         Outils.Children_Retirer(out var maj, out var transfert, out var journal);
         Ajouter("apparence", "Apparence", apparence);
-        Ajouter("audio", "Audio", audio.Peripheriques, false);
-        Ajouter("myvirtualsound", "MyVirtualSound", audio.VirtualSound, false);
-        Ajouter("enregistrements", "Enregistrements", audio.Enregistrements, false);
-        pile.Children.Add(audio);
+        Ajouter("son", "Son", son.Son, false);
+        pile.Children.Add(son);
         Ajouter("projection", "Projection", projection);
         Ajouter("telephone", "Téléphone", telephone);
         Ajouter("maj", "Mise à jour", maj);
         Ajouter("transfert", "Transfert", transfert);
         Ajouter("journal", "Journal", journal);
-        Ajouter("licences", "Licences", audio.Licences);
+        Ajouter("licences", "Licences", son.Licences);
 
         // ---------------- sommaire et défilement
         var sommaire = new StackPanel { Margin = new Thickness(20, 22, 14, 18) };
@@ -81,7 +79,7 @@ public sealed class ReglagesPage : Grid
         if (dansLaPile) pile.Children.Add(section);
     }
 
-    /// <summary>Fait défiler jusqu'à une section (« apparence », « audio », « maj »…) ; « maj » avec chercher : recherche une mise à jour.</summary>
+    /// <summary>Fait défiler jusqu'à une section (« apparence », « son », « maj »…) ; « maj » avec chercher : recherche une mise à jour.</summary>
     public async void Aller(string id, bool chercher)
     {
         var s = sections.FirstOrDefault(x => x.Id == id);

@@ -107,7 +107,7 @@ jobs:
           $racine = $exe.Directory.Parent.FullName
           $licence = Get-ChildItem $racine -File -Filter "LICENSE*" | Select-Object -First 1
           if (-not $licence) { throw "Licence de FFmpeg introuvable dans le paquet" }
-          # MyChurch ne livre que ffmpeg.exe (FLAC et vidéo MKV), avec sa licence et le README du build
+          # MyChurch ne livre que ffmpeg.exe (MP3 et vidéo MKV), avec sa licence et le README du build
           New-Item -ItemType Directory -Force out/ffmpeg | Out-Null
           Copy-Item $exe.FullName out/ffmpeg/
           Copy-Item $licence.FullName out/ffmpeg/LICENSE.txt
@@ -117,7 +117,9 @@ jobs:
           $version = @(& $exe.FullName -hide_banner -version)
           $version[0] | Tee-Object -FilePath ci/ffmpeg.txt -Append
           $encodeurs = @(& $exe.FullName -hide_banner -encoders)
-          $encodeurs | Where-Object { $_ -match "libx264|h264_nvenc|h264_qsv|h264_amf|mjpeg| flac | aac " } | ForEach-Object { $_.Trim() } | Tee-Object -FilePath ci/ffmpeg.txt -Append
+          $encodeurs | Where-Object { $_ -match "libx264|h264_nvenc|h264_qsv|h264_amf|mjpeg|libmp3lame| flac | aac " } | ForEach-Object { $_.Trim() } | Tee-Object -FilePath ci/ffmpeg.txt -Append
+          # MyChurch 1.3 enregistre le son en MP3 : l'encodeur libmp3lame doit être dans ffmpeg.exe
+          if (-not ($encodeurs | Where-Object { $_ -match "libmp3lame" })) { throw "ffmpeg.exe sans encodeur MP3 (libmp3lame)" }
 
       - name: Tests du cœur (Bible, recherche, chants, téléphone, mélangeur sur la vraie libobs)
         run: |
@@ -163,7 +165,7 @@ jobs:
           # moteur audio OBS (libobs, GNU GPL v2 ou ultérieure) et le texte de la licence
           Copy-Item -Recurse out/obs out/MyChurch/obs
           Copy-Item COPYING out/MyChurch/COPYING.txt
-          # ffmpeg.exe (GNU GPL v3) pour le FLAC et la vidéo des enregistrements, avec sa licence
+          # ffmpeg.exe (GNU GPL v3) pour le MP3 et la vidéo des enregistrements, avec sa licence
           Copy-Item -Recurse out/ffmpeg out/MyChurch/ffmpeg
           Copy-Item out/cam-x64/Release/MyVirtualCam.dll out/MyChurch/MyVirtualCam.dll
           Copy-Item out/cam-Win32/Release/MyVirtualCam.dll out/MyChurch/MyVirtualCam32.dll
