@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.Manifest
 import android.app.Activity
@@ -106,7 +106,7 @@ private fun temoinActuel(remote: Remote): Temoin {
     val sombre = Temoin("", "", C.CamSurface2, C.CamBord2, C.CamBrume, null)
     return when {
         link != Link.CONNECTED -> Temoin("PC introuvable", "reconnexion…", sombre.fond, sombre.bord, C.CamAmbreVif, null)
-        proto < 2 -> Temoin("MyChurch 4.0 requis sur le PC", "mise à jour", sombre.fond, sombre.bord, C.CamAmbreVif, null)
+        proto < 2 -> Temoin("Siloé Stream 4.0 requis sur le PC", "mise à jour", sombre.fond, sombre.bord, C.CamAmbreVif, null)
         !diffuse -> Temoin("Diffusion arrêtée", "rien n’est envoyé", sombre.fond, sombre.bord, C.CamBrume, null)
         t == "live" -> {
             val s = if (depuis > 0) ((maintenant - depuis) / 1000).coerceAtLeast(0) else 0
@@ -319,7 +319,7 @@ fun MyCamOnglet(remote: Remote) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    T("Caméra pour MyChurch · " + pc.ifBlank { "PC" }, taille = 12.sp, poids = FontWeight.Bold, couleur = C.CamBrume, lignes = 1)
+                    T("Caméra pour Siloé Stream · " + pc.ifBlank { "PC" }, taille = 12.sp, poids = FontWeight.Bold, couleur = C.CamBrume, lignes = 1)
                     Row {
                         T("My", taille = 28.sp, poids = FontWeight.ExtraBold, couleur = C.CamTexte)
                         T("Cam", taille = 28.sp, poids = FontWeight.ExtraBold, couleur = C.OrClair)
@@ -627,13 +627,13 @@ private fun MyCamReglages(remote: Remote, fermer: () -> Unit) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            TitreSection("Nom dans MyChurch")
+            TitreSection("Nom dans Siloé Stream")
             BasicTextField(
                 value = nom,
                 onValueChange = { nom = it.take(40) },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(C.CamSurface)
                     .border(1.dp, C.CamBord2, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 13.dp)
-                    .semantics { contentDescription = "Nom de la source dans MyChurch" },
+                    .semantics { contentDescription = "Nom de la source dans Siloé Stream" },
                 singleLine = true,
                 textStyle = TextStyle(fontFamily = Manrope, fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = C.CamTexte),
                 cursorBrush = SolidColor(C.OrClair),
@@ -673,8 +673,8 @@ private fun MyCamReglages(remote: Remote, fermer: () -> Unit) {
                     MyCam.reconfigurer()
                 }
                 T(
-                    if (formatVideo == "jpeg") "JPEG : des images une à une, plus lourdes. Pour un PC en MyChurch 4.0."
-                    else "H.264 : de la vidéo fluide, comme DroidCam, environ 10 fois plus légère que le JPEG. Demande MyChurch 4.1 sur le PC (sinon, JPEG automatiquement).",
+                    if (formatVideo == "jpeg") "JPEG : des images une à une, plus lourdes. Pour un PC en Siloé Stream 4.0."
+                    else "H.264 : de la vidéo fluide, comme DroidCam, environ 10 fois plus légère que le JPEG. Demande Siloé Stream 4.1 sur le PC (sinon, JPEG automatiquement).",
                     taille = 12.sp, couleur = C.CamBrume, interligne = 17.sp,
                 )
                 T("720p à 30 i/s : le bon choix sur le Wi-Fi de l’église. 1080p demande un Wi-Fi 5 GHz ou le câble. Si le Wi-Fi faiblit, la qualité baisse un moment pour garder le direct.", taille = 12.sp, couleur = C.CamBrume, interligne = 17.sp)

@@ -19,7 +19,7 @@ public static class MiseAJour
     static HttpClient Creer()
     {
         var h = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-        h.DefaultRequestHeaders.UserAgent.ParseAdd("MyChurch-Updater");
+        h.DefaultRequestHeaders.UserAgent.ParseAdd("SiloeStream-Updater");
         return h;
     }
 
@@ -89,7 +89,7 @@ public static class MiseAJour
                     {
                         var nom = a.GetProperty("name").GetString() ?? "";
                         var u = a.GetProperty("browser_download_url").GetString() ?? "";
-                        if ((nom.StartsWith("MyChurch-Setup-") || nom.StartsWith("MyVerse-Setup-")) && nom.EndsWith(".exe") && u.StartsWith(Prefixe)) url = u;
+                        if ((nom.StartsWith("SiloeStream-Setup-") || nom.StartsWith("MyChurch-Setup-") || nom.StartsWith("MyVerse-Setup-")) && nom.EndsWith(".exe") && u.StartsWith(Prefixe)) url = u;
                     }
                 var derniere = tag.TrimStart('v');
                 return new Resultat(url.Length > 0 && PlusRecente(derniere, actuelle), derniere, url, null);
@@ -107,7 +107,7 @@ public static class MiseAJour
         if (!url.StartsWith(Prefixe) || !url.EndsWith(".exe")) throw new InvalidOperationException("Adresse de mise à jour refusée.");
         using var r = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, t);
         r.EnsureSuccessStatusCode();
-        var chemin = Path.Combine(Path.GetTempPath(), "MyChurch-Setup.exe");
+        var chemin = Path.Combine(Path.GetTempPath(), "SiloeStream-Setup.exe");
         long total = r.Content.Headers.ContentLength ?? -1, fait = 0;
         await using (var f = File.Create(chemin))
         await using (var s = await r.Content.ReadAsStreamAsync(t))

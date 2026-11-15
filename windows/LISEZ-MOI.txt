@@ -1,7 +1,7 @@
 MYCHURCH 1.0.0
 
 PREMIER LANCEMENT
-MyChurch démarre vide : aucun chant, aucune source, aucun enregistrement. Seules deux Bibles libres de droits sont livrées : Louis Segond 1910 (français) et King James (anglais). Les chants s'ajoutent avec + Importer chants ou recueil (ou + Nouveau chant), les autres Bibles avec + Importer une Bible.
+Siloé Stream démarre vide : aucun chant, aucune source, aucun enregistrement. Seules deux Bibles libres de droits sont livrées : Louis Segond 1910 (français) et King James (anglais). Les chants s'ajoutent avec + Importer chants ou recueil (ou + Nouveau chant), les autres Bibles avec + Importer une Bible.
 
 INTERFACE (DESIGN « PUPITRE »)
 Les pages sont dans la barre de gauche : Culte, Bible, Chants, Display, Duo ; en bas Sombre / Clair et Réglages.
@@ -24,7 +24,7 @@ DISPLAY
 Le menu + Ajouter une source propose Nouveau texte, Images, Vidéos, Périphérique de capture vidéo, Capture de fenêtre et MyVirtualCam. Dans la bibliothèque, + ajoute une source à la grille (le bouton devient ✓ ; un clic sur ✓ la retire). Modifier est dans le clic droit. Un clic sur une vignette affiche son contenu; le clic droit propose les autres actions.
 
 AUDIO (MOTEUR OBS, SIMPLIFIÉ COMME OBS)
-Le panneau Audio est dans Display, sous la grille. Le son est traité par libobs, la bibliothèque d'OBS Studio 33.0.1 (dossier « obs » à côté de MyChurch.exe), avec les réglages par défaut d'OBS (48 kHz, stéréo).
+Le panneau Audio est dans Display, sous la grille. Le son est traité par libobs, la bibliothèque d'OBS Studio 33.0.1 (dossier « obs » à côté de SiloeStream.exe), avec les réglages par défaut d'OBS (48 kHz, stéréo).
 - + Source audio, comme le + des sources d'OBS : Capture audio (entrée), Capture audio (sortie), Média, ou le son de la vidéo projetée depuis Display.
 - Propriétés d'une capture audio, comme dans OBS : Périphérique (Par défaut ou un périphérique) et Utiliser l'horodatage du périphérique. Pour une carte son à plusieurs entrées (Behringer, Focusrite…), Entrée : toutes, ou une seule (un micro par source).
 - Chaque bande du mélangeur : son nom, son volume, 2 vumètres, un fader de -60 à +6 dB (double-clic : 0 dB), M = sourdine, casque = monitoring, ⋮ = Propriétés, Filtres, Renommer, Propriétés audio avancées, déplacer, Supprimer.
@@ -34,12 +34,12 @@ Le panneau Audio est dans Display, sous la grille. Le son est traité par libobs
 - Si le dossier « obs » manque, le panneau propose Réparer le moteur audio (réinstallation, données gardées).
 
 ENREGISTREMENTS
-Rien n'est préréglé. + Créer un enregistrement : son nom, sa piste audio (1 à 6, comme dans OBS) et ses sources Display pour une vidéo MKV (la 1re en grand ; incrustation ou côte à côte ; synchro du son pour une caméra en retard). Sans source Display : WAV ou FLAC. Dossier par défaut : Vidéos\MyChurch\<nom>.
+Rien n'est préréglé. + Créer un enregistrement : son nom, sa piste audio (1 à 6, comme dans OBS) et ses sources Display pour une vidéo MKV (la 1re en grand ; incrustation ou côte à côte ; synchro du son pour une caméra en retard). Sans source Display : WAV ou FLAC. Dossier par défaut : Vidéos\Siloé Stream\<nom>.
 Jusqu'à 5 enregistrements, qui peuvent tourner en même temps. FFmpeg 8.0.1 est inclus (dossier « ffmpeg ») : rien à installer.
 
 MYVIRTUALSOUND (ZOOM)
 + Créer une sortie : son nom, son câble audio virtuel (ou une sortie) et sa piste audio (1 à 6). Jusqu'à 4 sorties, actives en même temps si besoin. Zoom, Teams ou un navigateur la reçoivent comme un micro : dans Zoom, choisissez « CABLE Output » comme microphone.
-VB-CABLE n'est pas inclus dans MyChurch. Réglages > MyVirtualSound > Installer VB-CABLE télécharge le paquet officiel et lance son installateur (accord administrateur de Windows), seulement quand vous cliquez.
+VB-CABLE n'est pas inclus dans Siloé Stream. Réglages > MyVirtualSound > Installer VB-CABLE télécharge le paquet officiel et lance son installateur (accord administrateur de Windows), seulement quand vous cliquez.
 VB-CABLE est un logiciel de VB-Audio Software (www.vb-cable.com), distribué en donationware : chacun paie ce qu'il veut s'il le trouve utile.
 
 DUO
@@ -48,7 +48,7 @@ Pour épingler à la volée : affichez un premier contenu, puis Épingler le con
 Retirer de l'écran ne vide que le contenu principal. Retirer le duo enlève le contenu épinglé. B masque tout temporairement.
 
 MYVIRTUALCAM
-La caméra virtuelle reçoit automatiquement la sortie de MyChurch, Duo compris. L'installation demande l'autorisation Windows une fois. En version portable, utilisez + Ajouter une source > Caméra virtuelle MyVirtualCam pour l'enregistrer. Elle reste sélectionnable avec une image noire quand MyChurch est fermé. Le son passe par MyVirtualSound.
+La caméra virtuelle reçoit automatiquement la sortie de Siloé Stream, Duo compris. L'installation demande l'autorisation Windows une fois. En version portable, utilisez + Ajouter une source > Caméra virtuelle MyVirtualCam pour l'enregistrer. Elle reste sélectionnable avec une image noire quand Siloé Stream est fermé. Le son passe par MyVirtualSound.
 
 RÉGLAGES
 Le bouton Réglages, en bas de la barre de gauche, ouvre la page Réglages avec son sommaire : apparence (clair ou sombre), périphérique de monitoring audio (casque), MyVirtualSound (VB-CABLE), enregistrements (dossier), projection (écrans), téléphone, mise à jour, transfert vers un autre ordinateur, journal d'erreurs, code source et licences.
@@ -57,14 +57,14 @@ MISE À JOUR
 Les chants, Bibles, réglages et jumelages sont conservés. Une caméra virtuelle déjà utilisée est renommée avant remplacement. Fermez puis rouvrez le logiciel vidéo qui l'utilise pour charger la nouvelle version.
 
 TÉLÉPHONE
-Installez MyChurch.apk sur Android. Ouvrez Téléphone dans MyChurch et scannez le code QR pour le premier jumelage. Gardez le PC et le téléphone sur le même réseau.
+Installez SiloeStream.apk sur Android. Ouvrez Téléphone dans Siloé Stream et scannez le code QR pour le premier jumelage. Gardez le PC et le téléphone sur le même réseau.
 
 CAPTURE
 Gardez la fenêtre à capturer ouverte et non réduite. Certains contenus protégés ou accélérés par le GPU ne permettent pas la capture. Une webcam ou carte de capture nécessite un pilote Windows et les permissions de caméra.
 
 LICENCE ET CODE SOURCE
-MyChurch est un logiciel libre, sous licence GNU GPL version 2 ou ultérieure, parce que son moteur audio utilise libobs (OBS Studio 33.0.1). Le texte de la licence est dans COPYING.txt, à côté de MyChurch.exe.
-Code source de MyChurch : https://github.com/capmaster2023/MyChurch
+Siloé Stream est un logiciel libre, sous licence GNU GPL version 2 ou ultérieure, parce que son moteur audio utilise libobs (OBS Studio 33.0.1). Le texte de la licence est dans COPYING.txt, à côté de SiloeStream.exe.
+Code source de Siloé Stream : https://github.com/capmaster2023/MyChurch
 Code source d'OBS Studio 33.0.1 : https://github.com/obsproject/obs-studio/tree/33.0.1
 Le dossier « obs » contient aussi le runtime Microsoft Visual C++ (fichiers redistribuables) dont libobs a besoin.
 Le dossier « ffmpeg » contient ffmpeg.exe 8.0.1 (build « essentials » de gyan.dev), un programme séparé sous licence GNU GPL version 3 : texte dans ffmpeg\LICENSE.txt, sources sur https://ffmpeg.org/releases/

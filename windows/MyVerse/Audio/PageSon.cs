@@ -48,7 +48,7 @@ internal static class ActionsSon
         A.Apply();
     }
 
-    /// <summary>Le premier enregistrement, d'un clic : « Culte », le son en MP3 (tout le son), dans Vidéos › MyChurch › Culte.</summary>
+    /// <summary>Le premier enregistrement, d'un clic : « Culte », le son en MP3 (tout le son), dans Vidéos › Siloé Stream › Culte.</summary>
     public static RecordingProfile NouveauCulte()
     {
         string nom = C.Profiles.Any(p => p.Name == "Culte") ? "Culte " + (C.Profiles.Count + 1) : "Culte";
@@ -130,19 +130,19 @@ internal static class ActionsSon
         finally { A.Sorties.Reset(); A.Apply(); }
     }
 
-    /// <summary>« Réparer » : MyChurch se télécharge de nouveau et se réinstalle (chants et réglages gardés).</summary>
+    /// <summary>« Réparer » : Siloé Stream se télécharge de nouveau et se réinstalle (chants et réglages gardés).</summary>
     public static async void Reparer(Button bouton, Window? fenetre)
     {
-        if (!Dialogue.Confirmer(fenetre, "Réparer le moteur du son : MyChurch télécharge sa dernière version sur GitHub et la réinstalle. Vos chants, cultes et réglages sont gardés. MyChurch se fermera puis se rouvrira.", "Réparer")) return;
+        if (!Dialogue.Confirmer(fenetre, "Réparer le moteur du son : Siloé Stream télécharge sa dernière version sur GitHub et la réinstalle. Vos chants, cultes et réglages sont gardés. Siloé Stream se fermera puis se rouvrira.", "Réparer")) return;
         object texte = bouton.Content;
         bouton.IsEnabled = false;
         try
         {
             var r = await MiseAJour.Verifier("0.0.0");
-            if (r.Erreur != null || r.Url.Length == 0) { SonUi.Toast(r.Erreur ?? "Aucun installateur de MyChurch trouvé sur GitHub."); return; }
+            if (r.Erreur != null || r.Url.Length == 0) { SonUi.Toast(r.Erreur ?? "Aucun installateur de Siloé Stream trouvé sur GitHub."); return; }
             await MiseAJour.Installer(r.Url, new Progress<int>(n => bouton.Content = $"Téléchargement… {n} %"));
-            Journal.Info("réparation du moteur du son : réinstallation de MyChurch " + r.Version);
-            SonUi.Toast("Installation… MyChurch va se fermer puis se rouvrir.");
+            Journal.Info("réparation du moteur du son : réinstallation de Siloé Stream " + r.Version);
+            SonUi.Toast("Installation… Siloé Stream va se fermer puis se rouvrir.");
             await Task.Delay(800);
             Application.Current.Shutdown();
         }
@@ -193,11 +193,11 @@ internal static class ActionsSon
 }
 
 /// <summary>
-/// La page Son (MyChurch 1.3), toute simple :
+/// La page Son (Siloé Stream 1.3), toute simple :
 /// CE QU'ON ENTEND : une carte par son (micro, instrument, table de mixage, ordinateur, musique, vidéos) avec sa barre qui bouge,
 /// un mot (« Bon niveau », « Trop fort ! »), son volume en %, Couper et Régler ; « + Ajouter un son » pose trois questions.
 /// OÙ VA LE SON : dans l'église, l'enregistrement, Zoom (ou OBS) et le casque. Les pistes, le monitoring et les filtres d'OBS
-/// sont décidés par MyChurch : on ne les voit jamais.
+/// sont décidés par Siloé Stream : on ne les voit jamais.
 /// </summary>
 public sealed class PageSon : Grid
 {
@@ -235,7 +235,7 @@ public sealed class PageSon : Grid
         titres.Children.Add(new TextBlock { Text = "Son", Style = S("GrandTitre") });
         titres.Children.Add(new TextBlock
         {
-            Text = "Ce qu'on entend, et où ça va. Branchez, choisissez : MyChurch règle le reste (bruit, volume, synchro).",
+            Text = "Ce qu'on entend, et où ça va. Branchez, choisissez : Siloé Stream règle le reste (bruit, volume, synchro).",
             Style = S("Muet"), FontSize = 14, Margin = new Thickness(0, 4, 0, 0),
         });
         tete.Children.Add(titres);
@@ -243,7 +243,7 @@ public sealed class PageSon : Grid
 
         // ---------------- le moteur du son absent ou en panne : « Réparer »
         reparer = new Button { Style = S("BtnOr"), Content = "Réparer", Height = 40, Padding = new Thickness(18, 0, 18, 0), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        reparer.ToolTip = "Télécharge MyChurch sur GitHub et le réinstalle (chants, cultes et réglages gardés)";
+        reparer.ToolTip = "Télécharge Siloé Stream sur GitHub et le réinstalle (chants, cultes et réglages gardés)";
         reparer.Click += (_, _) => ActionsSon.Reparer(reparer, Window.GetWindow(this));
         var ligneMoteur = new DockPanel();
         DockPanel.SetDock(reparer, Dock.Right);
@@ -637,7 +637,7 @@ public sealed class PageSon : Grid
             b.ToolTip = "Démarre tout de suite : le son du culte en MP3";
             b.Click += (_, _) => ActionsSon.EnregistrerLeCulte();
             corps.Children.Add(b);
-            corps.Children.Add(SonUi.Note("Un fichier MP3 avec tout le son, prêt à partager (WhatsApp, site). Il se range dans Vidéos › MyChurch."));
+            corps.Children.Add(SonUi.Note("Un fichier MP3 avec tout le son, prêt à partager (WhatsApp, site). Il se range dans Vidéos › Siloé Stream."));
         }
         foreach (var p in C.Profiles) corps.Children.Add(LigneEnregistrement(p));
         var liens = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
@@ -712,7 +712,7 @@ public sealed class PageSon : Grid
         return ligne;
     }
 
-    /// <summary>Zoom et en ligne : MyChurch devient un micro (« CABLE Output ») pour Zoom, OBS, Teams.</summary>
+    /// <summary>Zoom et en ligne : Siloé Stream devient un micro (« CABLE Output ») pour Zoom, OBS, Teams.</summary>
     FrameworkElement CarteEnLigne()
     {
         var (cadre, corps) = Destination(SonUi.EnLigne, "TypeChant", "Zoom et en ligne", "Zoom, OBS (YouTube, Facebook), Teams entendent le culte");
@@ -750,7 +750,7 @@ public sealed class PageSon : Grid
     {
         var cadre = new Border { Background = P("OrLeger"), BorderBrush = P("OrBord"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 12, 14, 12), Margin = new Thickness(0, 4, 0, 0) };
         var p = new StackPanel();
-        p.Children.Add(SonUi.Texte("Il manque le câble audio virtuel : c'est lui qui fait entendre MyChurch à Zoom. Gratuit, une minute.", 13.5, "Blanc"));
+        p.Children.Add(SonUi.Texte("Il manque le câble audio virtuel : c'est lui qui fait entendre Siloé Stream à Zoom. Gratuit, une minute.", 13.5, "Blanc"));
         var etat = SonUi.Texte("", 12.5, "Encre2");
         etat.Margin = new Thickness(0, 6, 0, 0);
         etat.Visibility = Visibility.Collapsed;

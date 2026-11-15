@@ -35,7 +35,7 @@ public sealed class EcranWindow : Window
     {
         moniteur = m;
         plein = pleinEcran;
-        Title = "MyChurch — écran";
+        Title = "Siloé Stream — écran";
         Background = Brushes.Black;
         // code QR « suivre sur son téléphone », dans un coin (case « QR à l'écran »)
         RenderOptions.SetBitmapScalingMode(qrImage, BitmapScalingMode.NearestNeighbor);

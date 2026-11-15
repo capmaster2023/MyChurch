@@ -11,7 +11,7 @@ using System.Text.Json.Serialization;
 
 namespace MyVerse;
 
-/// <summary>Téléphones jumelés (%APPDATA%\VerseLight\devices.json, même fichier que la 3.x : les téléphones restent jumelés).</summary>
+/// <summary>Téléphones jumelés (%APPDATA%\SiloeStream\devices.json, repris de l'ancien dossier : les téléphones restent jumelés).</summary>
 public sealed class AppareilsJumeles
 {
     public sealed class Appareil
@@ -137,7 +137,7 @@ public sealed class AppareilsJumeles
 }
 
 /// <summary>
-/// MyChurch 1.7.1 : les rôles des téléphones. Admin : tout (et démarrer / fermer MyChurch) ; Bible : les versets ;
+/// Siloé Stream 1.7.1 : les rôles des téléphones. Admin : tout (et démarrer / fermer Siloé Stream) ; Bible : les versets ;
 /// Chants : les chants ; Caméra : MyCam seulement. Le PC refuse ce que le rôle ne permet pas, l'app cache ces onglets.
 /// </summary>
 public static class Roles
@@ -176,15 +176,15 @@ public static class Roles
 public sealed class Telephone : IDisposable
 {
     public const int PremierPort = 47900, DernierPort = 47909, PortDecouverte = 47901, Protocole = 1;
-    /// <summary>Fonctions du PC annoncées au téléphone : 2 = MyChurch 4.0 (déroulé, écran par défaut, noir, MyCam).</summary>
+    /// <summary>Fonctions du PC annoncées au téléphone : 2 = Siloé Stream 4.0 (déroulé, écran par défaut, noir, MyCam).</summary>
     public const int Fonctions = 2;
 
     readonly Regie regie;
     readonly string dossier;
     readonly Func<Func<Task>, Task> surUi;
     /// <summary>
-    /// 1.7.0 : un téléphone demande de fermer MyChurch (« app.quit », de chez lui par Internet). Appelé sur l'interface ;
-    /// rend null si MyChurch se ferme, sinon la raison du refus (un direct YouTube en cours…).
+    /// 1.7.0 : un téléphone demande de fermer Siloé Stream (« app.quit », de chez lui par Internet). Appelé sur l'interface ;
+    /// rend null si Siloé Stream se ferme, sinon la raison du refus (un direct YouTube en cours…).
     /// </summary>
     public Func<string?>? FermerDemande;
     readonly AppareilsJumeles store;
@@ -203,7 +203,7 @@ public sealed class Telephone : IDisposable
     readonly Dictionary<string, DateTime> suiveurs = new();
     Timer? minuterieEtat;
 
-    /// <summary>Téléphones MyCam : images et état (MyChurch 4.0).</summary>
+    /// <summary>Téléphones MyCam : images et état (Siloé Stream 4.0).</summary>
     public MyCams Cameras { get; } = new();
     /// <summary>Le caméraman a vu un message de la régie : (téléphone, texte du message). Thread quelconque.</summary>
     public event Action<string, string>? MessageVu;
@@ -262,9 +262,16 @@ public sealed class Telephone : IDisposable
         return Convert.FromBase64String(s.PadRight(s.Length + (4 - s.Length % 4) % 4, '='));
     }
     internal static string Hasard(int n) => B64(RandomNumberGenerator.GetBytes(n));
-    public static byte[] DeriverCle(byte[] secret, string pcId, string deviceId) => HMACSHA256.HashData(secret, Encoding.UTF8.GetBytes($"verselight-pair|{pcId}|{deviceId}"));
+    /// <summary>
+    /// <paramref name="siloe"/> (1.9.0) : l'app Siloé Stream (bonjour « v » 2) ; sinon l'ancienne app MyChurch, qui reste acceptée
+    /// le temps de la remplacer sur les téléphones.
+    /// </summary>
+    public static byte[] DeriverCle(byte[] secret, string pcId, string deviceId, bool siloe = false) =>
+        HMACSHA256.HashData(secret, Encoding.UTF8.GetBytes($"{(siloe ? "siloe" : "verselight")}-pair|{pcId}|{deviceId}"));
     public static string HmacB64(byte[] cle, string msg) => B64(HMACSHA256.HashData(cle, Encoding.UTF8.GetBytes(msg)));
-    public static string PreuveServeur(byte[] cle, string cnonce, string nonce) => HmacB64(cle, $"verselight-srv|{cnonce}|{nonce}");
+    public static string PreuveServeur(byte[] cle, string cnonce, string nonce, bool siloe = false) => HmacB64(cle, $"{(siloe ? "siloe" : "verselight")}-srv|{cnonce}|{nonce}");
+    /// <summary>1.9.0 : le bonjour de l'app Siloé Stream (version 2 du protocole).</summary>
+    public static bool BonjourSiloe(JsonObject hello) => hello["v"] is JsonValue v && v.TryGetValue<int>(out var n) && n >= 2;
     public static string MacClient(byte[] cle, string nonce, string deviceId) => HmacB64(cle, nonce + deviceId);
 
     /// <summary>Adresses IPv4 privées, les cartes Wi-Fi/Ethernet réelles d'abord.</summary>
@@ -315,8 +322,8 @@ public sealed class Telephone : IDisposable
             return;
         }
         Journal.Info($"écoute des téléphones sur le port {Port}");
-        // 1.7.0 : l'agent « à distance » sait que MyChurch est ouvert, et sur quel port lui passer un téléphone venu par Internet
-        PortMyChurch.Ecrire(dossier, Port);
+        // 1.7.0 : l'agent « à distance » sait que Siloé Stream est ouvert, et sur quel port lui passer un téléphone venu par Internet
+        PortSiloe.Ecrire(dossier, Port);
         // MyCam H.264 : le FFmpeg d'OBS est chargé et vérifié d'avance, le premier téléphone n'attend pas
         _ = Task.Run(() => Journal.Info("MyCam H.264 : " + (DecodeurH264.Disponible ? DecodeurH264.Etat : "indisponible, images JPEG (" + DecodeurH264.Etat + ")")));
         _ = Accepter(ecoute);
@@ -362,14 +369,16 @@ public sealed class Telephone : IDisposable
             catch (Exception) when (fin.IsCancellationRequested) { return; }
             catch (SocketException) { continue; } // Windows : ICMP « port injoignable » d'un envoi précédent
             catch (ObjectDisposedException) { return; }
-            if (!Encoding.UTF8.GetString(r.Buffer).StartsWith("VERSELIGHT_DISCOVER")) continue;
+            var demande = Encoding.UTF8.GetString(r.Buffer);
+            // 1.9.0 : l'app Siloé Stream (SILOE_DISCOVER) et l'ancienne app MyChurch
+            if (!demande.StartsWith("SILOE_DISCOVER") && !demande.StartsWith("VERSELIGHT_DISCOVER")) continue;
             var ip = r.RemoteEndPoint.Address.ToString();
             if (!vus.TryGetValue(ip, out var t) || DateTime.Now - t > TimeSpan.FromMinutes(1))
             {
                 vus[ip] = DateTime.Now;
                 Journal.Info($"recherche du PC par le téléphone {ip} : réponse envoyée");
             }
-            var rep = Encoding.UTF8.GetBytes(new JsonObject { ["t"] = "verselight", ["v"] = Protocole, ["pcId"] = PcId, ["name"] = NomPc, ["port"] = Port }.ToJsonString());
+            var rep = Encoding.UTF8.GetBytes(new JsonObject { ["t"] = "siloe", ["v"] = Protocole, ["pcId"] = PcId, ["name"] = NomPc, ["port"] = Port }.ToJsonString());
             try { await u.SendAsync(rep, rep.Length, r.RemoteEndPoint); } catch (SocketException) { }
         }
     }
@@ -387,7 +396,7 @@ public sealed class Telephone : IDisposable
         var ips = AdressesLocales();
         // 1.7.0 : le relais (contrôle à distance actif) : le téléphone joint aussi ce PC par Internet
         var relais = RelaisActif();
-        return "verselight://pair?pcId=" + Uri.EscapeDataString(PcId) + "&name=" + Uri.EscapeDataString(NomPc) +
+        return "siloe://pair?pcId=" + Uri.EscapeDataString(PcId) + "&name=" + Uri.EscapeDataString(NomPc) +
                "&ips=" + string.Join(",", ips) + "&port=" + Port + "&secret=" + B64(secret) +
                (relais != null ? "&relay=" + Uri.EscapeDataString(relais) : "");
     }
@@ -595,7 +604,7 @@ public sealed class Telephone : IDisposable
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#FBF8F2">
-<title>MyChurch · en direct</title>
+<title>Siloé Stream · en direct</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;background:#FBF8F2;color:#1F1B16;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
@@ -617,7 +626,7 @@ footer{position:fixed;bottom:0;left:0;right:0;padding:8px 16px;font-size:12px;co
 </head>
 <body>
 <header>
-  <span class="marque">MyChurch</span>
+  <span class="marque">Siloé Stream</span>
   <span class="direct"><i></i>EN DIRECT</span>
   <div class="outils">
     <span id="langues" hidden>
@@ -689,7 +698,7 @@ boucle();
 
     async Task PageTest(Stream s)
     {
-        var html = $"<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><body style=\"font:20px sans-serif;background:#0A1028;color:#F7F4EC;padding:24px\"><h1 style=\"color:#E4AF41\">MyChurch ✓</h1><p>Le PC <b>{WebUtility.HtmlEncode(NomPc)}</b> est joignable sur le port {Port}.</p><p>Si l'app ne se connecte pas, ouvrez MyChurch sur le PC et scannez de nouveau le code QR (bouton « Téléphone »).</p></body>";
+        var html = $"<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><body style=\"font:20px sans-serif;background:#0A1028;color:#F7F4EC;padding:24px\"><h1 style=\"color:#E4AF41\">Siloé Stream ✓</h1><p>Le PC <b>{WebUtility.HtmlEncode(NomPc)}</b> est joignable sur le port {Port}.</p><p>Si l'app ne se connecte pas, ouvrez Siloé Stream sur le PC et scannez de nouveau le code QR (bouton « Téléphone »).</p></body>";
         var corps = Encoding.UTF8.GetBytes(html);
         var tete = Encoding.ASCII.GetBytes($"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {corps.Length}\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n");
         await s.WriteAsync(tete, fin.Token);
@@ -739,7 +748,7 @@ boucle();
     }
 
     /// <summary>
-    /// MyChurch 1.2 : toutes les 2 s, « cam.ping » avec l'heure du PC ; le téléphone le renvoie aussitôt (« cam.pong »).
+    /// Siloé Stream 1.2 : toutes les 2 s, « cam.ping » avec l'heure du PC ; le téléphone le renvoie aussitôt (« cam.pong »).
     /// L'aller-retour donne le trajet des images sur le Wi-Fi, pour dater chaque image MyCam sur l'horloge du PC.
     /// </summary>
     async Task Pings(Connexion p)
@@ -814,7 +823,7 @@ boucle();
         byte[]? cle;
         if (jumelage)
         {
-            lock (phones) cle = cleJumelage != null && DateTime.UtcNow < jumelageFin ? DeriverCle(cleJumelage, PcId, deviceId) : null;
+            lock (phones) cle = cleJumelage != null && DateTime.UtcNow < jumelageFin ? DeriverCle(cleJumelage, PcId, deviceId, BonjourSiloe(hello)) : null;
             if (cle == null)
             {
                 await Refus("pairing_closed", "Code QR expiré : ouvrez « Téléphone » dans MyVerse et scannez de nouveau.");
@@ -833,7 +842,7 @@ boucle();
 
         // 2. défi : nonce + preuve que le PC connaît la clé
         var nonce = Hasard(32);
-        await EnvoyerBrut(ws, new JsonObject { ["t"] = "challenge", ["v"] = Protocole, ["nonce"] = nonce, ["proof"] = PreuveServeur(cle, cnonce, nonce), ["pcName"] = NomPc }.ToJsonString(), fin.Token);
+        await EnvoyerBrut(ws, new JsonObject { ["t"] = "challenge", ["v"] = Protocole, ["nonce"] = nonce, ["proof"] = PreuveServeur(cle, cnonce, nonce, BonjourSiloe(hello)), ["pcName"] = NomPc }.ToJsonString(), fin.Token);
 
         // 3. réponse HMAC(clé, nonce + deviceId)
         JsonObject? auth;
@@ -898,7 +907,7 @@ boucle();
                 if (!Roles.Permis(p.Role, t))
                 {
                     if (!Roles.Automatique(t) && m["rid"] is { } ridRefus)
-                        await Envoyer(p, new JsonObject { ["t"] = "error", ["rid"] = ridRefus.DeepClone(), ["message"] = $"Ce téléphone est « {Roles.Nom(p.Role)} » : demandez à l'admin de changer son rôle (MyChurch › Téléphone)." });
+                        await Envoyer(p, new JsonObject { ["t"] = "error", ["rid"] = ridRefus.DeepClone(), ["message"] = $"Ce téléphone est « {Roles.Nom(p.Role)} » : demandez à l'admin de changer son rôle (Siloé Stream › Téléphone)." });
                     continue;
                 }
                 _ = Traiter(p, t, m);
@@ -1040,7 +1049,7 @@ boucle();
                     if (!ok) await Erreur("Source Display introuvable. Actualisez la liste.");
                     break;
                 }
-                // ---- MyChurch 4.0 : déroulé, écran par défaut, noir, MyCam
+                // ---- Siloé Stream 4.0 : déroulé, écran par défaut, noir, MyCam
                 case "noir":
                 {
                     bool ok = false;
@@ -1100,8 +1109,8 @@ boucle();
                 case "next": await surUi(() => { regie.Bouger(1); return Task.CompletedTask; }); break;
                 case "app.quit":
                 {
-                    // 1.7.0 : fermer MyChurch depuis le téléphone (de chez soi) ; l'agent « à distance » peut le redémarrer
-                    string? refus = "Impossible de fermer MyChurch d'ici.";
+                    // 1.7.0 : fermer Siloé Stream depuis le téléphone (de chez soi) ; l'agent « à distance » peut le redémarrer
+                    string? refus = "Impossible de fermer Siloé Stream d'ici.";
                     if (FermerDemande is { } fermer) await surUi(() => { refus = fermer(); return Task.CompletedTask; });
                     if (refus != null) await Erreur(refus);
                     else await Rep(new JsonObject { ["t"] = "app.etat", ["app"] = "fermeture" });
@@ -1200,7 +1209,7 @@ boucle();
             ["ecranOuvert"] = regie.EcranOuvert(),
             ["obsActif"] = false,
             ["obsConnecte"] = false,
-            // MyChurch 4.0 : le vrai mode (« fond » compris), noir, écran par défaut, déroulé
+            // Siloé Stream 4.0 : le vrai mode (« fond » compris), noir, écran par défaut, déroulé
             ["ecran"] = e.Mode,
             ["theme"] = e.Theme,
             ["sous"] = SousTitre(e, c),
@@ -1330,7 +1339,7 @@ boucle();
 
     public void Dispose()
     {
-        PortMyChurch.Effacer(dossier);
+        PortSiloe.Effacer(dossier);
         fin.Cancel();
         regie.Change -= EtatChange;
         regie.AgendaChange -= AgendaChange;

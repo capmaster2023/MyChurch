@@ -258,7 +258,7 @@ public sealed class EnvoiWindow : FenetreSon
 
     public EnvoiWindow(VirtualSoundSettings? v) : base(
         v == null ? "Nouvel envoi" : $"Régler « {v.Name} »",
-        "MyChurch devient un micro pour vos autres logiciels : Zoom, OBS (pour YouTube ou Facebook en direct), Teams… Ils entendent le son du culte.",
+        "Siloé Stream devient un micro pour vos autres logiciels : Zoom, OBS (pour YouTube ou Facebook en direct), Teams… Ils entendent le son du culte.",
         v != null, v == null ? "Créer" : "Terminé")
     {
         existant = v;

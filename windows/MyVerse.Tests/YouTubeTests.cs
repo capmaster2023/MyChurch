@@ -8,7 +8,7 @@ using MyVerse;
 namespace MyVerse.Tests;
 
 /// <summary>
-/// MyChurch 1.6.0 : le direct YouTube contre un faux serveur de Google (même adresses, mêmes réponses JSON) : connexion du compte
+/// Siloé Stream 1.6.0 : le direct YouTube contre un faux serveur de Google (même adresses, mêmes réponses JSON) : connexion du compte
 /// (PKCE, adresse locale), jetons, création du direct, flux réutilisable, liaison, directs prévus, erreurs dites simplement.
 /// </summary>
 public static class YouTubeTests
@@ -66,7 +66,7 @@ public static class YouTubeTests
 
     public static async Task RunAsync(Action<bool, string, string?> ok)
     {
-        string dossier = Path.Combine(Path.GetTempPath(), "mychurch-youtube-" + Guid.NewGuid().ToString("N")[..8]);
+        string dossier = Path.Combine(Path.GetTempPath(), "siloestream-youtube-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(dossier);
 
         // ------------------------------------------------------------ le navigateur revient sur l'adresse locale
@@ -81,7 +81,7 @@ public static class YouTubeTests
             using (var mauvais = await http.GetAsync($"http://127.0.0.1:{port}/?code=pirate&state=autre")) ok(mauvais.StatusCode == HttpStatusCode.BadRequest, "adresse locale : un autre « state » est refusé", null);
             var page = await http.GetStringAsync($"http://127.0.0.1:{port}/?state=etat-1&code=4%2F0Abc&scope=youtube");
             var code = await attente.WaitAsync(TimeSpan.FromSeconds(10));
-            ok(code == "4/0Abc" && page.Contains("MyChurch est connecté à YouTube"), "adresse locale : le code de Google est reçu, la page dit de revenir à MyChurch", code);
+            ok(code == "4/0Abc" && page.Contains("Siloé Stream est connecté à YouTube"), "adresse locale : le code de Google est reçu, la page dit de revenir à Siloé Stream", code);
             var refus = YouTubeCompte.AttendreCodeAsync(ecoute, "etat-2", CancellationToken.None);
             _ = http.GetStringAsync($"http://127.0.0.1:{port}/?error=access_denied&state=etat-2");
             try { await refus.WaitAsync(TimeSpan.FromSeconds(10)); ok(false, "connexion refusée dans Google : erreur claire", null); }
@@ -142,7 +142,7 @@ public static class YouTubeTests
         ok(!compte.Connecte && compte.Disponible, "YouTube : pas encore connecté, identifiant Google présent", null);
         var chaine = await compte.ConnecterAsync(url =>
         {
-            // le « navigateur » : la page de Google renvoie le code à MyChurch
+            // le « navigateur » : la page de Google renvoie le code à Siloé Stream
             var q = YouTubeCompte.LireRequete(new Uri(url).Query.TrimStart('?'));
             defi = q.GetValueOrDefault("code_challenge"); retour = q.GetValueOrDefault("redirect_uri");
             bool bonneDemande = q.GetValueOrDefault("client_id") == "client-123.apps.googleusercontent.com" && q.GetValueOrDefault("code_challenge_method") == "S256"

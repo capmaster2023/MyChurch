@@ -7,7 +7,7 @@ namespace MyVerse.Ui.Audio;
 
 /// <summary>
 /// VB-CABLE (VB-Audio Software, www.vb-cable.com, donationware) : le câble audio virtuel qui fait de MyVirtualSound un micro
-/// pour Zoom, OBS ou un navigateur. MyChurch ne le contient pas : il télécharge le paquet officiel sur vb-audio.com
+/// pour Zoom, OBS ou un navigateur. Siloé Stream ne le contient pas : il télécharge le paquet officiel sur vb-audio.com
 /// et lance son installateur, avec l'accord de l'utilisateur (droits administrateur).
 /// </summary>
 public static class VbCable
@@ -56,13 +56,13 @@ public static class VbCable
     /// <summary>Télécharge le paquet officiel et lance l'installateur 64 bits. Retourne false si l'utilisateur refuse ou si le téléchargement échoue (la page officielle s'ouvre alors).</summary>
     public static async Task<bool> InstallerAsync(IProgress<string>? etat = null)
     {
-        string dossier = Path.Combine(Path.GetTempPath(), "MyChurch-VBCABLE-" + Guid.NewGuid().ToString("N"));
+        string dossier = Path.Combine(Path.GetTempPath(), "SiloeStream-VBCABLE-" + Guid.NewGuid().ToString("N"));
         try
         {
             Directory.CreateDirectory(dossier);
             etat?.Report("Téléchargement de VB-CABLE depuis vb-audio.com…");
             using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("MyChurch/" + App.Version);
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("Siloé Stream/" + App.Version);
             string zip = Path.Combine(dossier, "VBCABLE_Driver_Pack.zip");
             await File.WriteAllBytesAsync(zip, await http.GetByteArrayAsync(Paquet));
             ZipFile.ExtractToDirectory(zip, Path.Combine(dossier, "pack"));

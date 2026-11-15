@@ -234,7 +234,7 @@ if (Actif())
     try { ChantsFormats.ParseSongFile("x.pro", "\u0001\u0002binaire"); Ok(false, "ProPresenter 7 refusé"); }
     catch (InvalidDataException) { Ok(true, "ProPresenter 7 refusé"); }
 
-    Ok(!File.Exists(Path.Combine(res, "chants-inclus.json")), "4.2 : aucun recueil de chants livré avec MyChurch");
+    Ok(!File.Exists(Path.Combine(res, "chants-inclus.json")), "4.2 : aucun recueil de chants livré avec Siloé Stream");
 }
 
 // ------------------------------------------------------------------ rangement automatique
@@ -524,7 +524,7 @@ if (Actif())
     var don = Donnees.Charger(Temp(), res);
     var bib = new Bibles(don);
     var rg = new Regie(don, bib);
-    // 4.2 : MyChurch démarre sans chant ; quelques chants pour le téléphone
+    // 4.2 : Siloé Stream démarre sans chant ; quelques chants pour le téléphone
     rg.AjouterChants(new[] {
         new Chant { Title = "1 - Grâce infinie", Sections = { new Section { Label = "Couplet 1", Text = "Grâce infinie\nô quel doux son" }, new Section { Label = "Refrain", Text = "Gloire à Dieu" } } },
         new Chant { Title = "12 - Mon Dieu est bon", Sections = { new Section { Label = "Couplet 1", Text = "Mon Dieu est bon" } } } }, "Recueil de test");
@@ -532,7 +532,7 @@ if (Actif())
     tel.Demarrer();
     Ok(tel.Port >= 47900 && tel.Port <= 47909, $"écoute sur le port {tel.Port}");
     var url = tel.OuvrirJumelage();
-    var q = System.Web.HttpUtility.ParseQueryString(new Uri(url.Replace("verselight://pair", "http://x/pair")).Query);
+    var q = System.Web.HttpUtility.ParseQueryString(new Uri(url.Replace("siloe://pair", "http://x/pair")).Query);
     Egal(q["pcId"], tel.PcId, "code QR : pcId");
     Ok((q["ips"] ?? "").Length >= 0 && q["port"] == tel.Port.ToString(), "code QR : port");
     var secret = Telephone.B64Dec(q["secret"]!);
@@ -663,7 +663,7 @@ if (Actif())
     tel.Revoquer("tel-1");
     Ok(!tel.Store.Liste().Any(a => a.DeviceId == "tel-1"), "téléphone révoqué");
     using (var http = new HttpClient())
-        Ok((await http.GetStringAsync($"http://127.0.0.1:{tel.Port}/")).Contains("MyChurch ✓"), "page de test http://IP:port");
+        Ok((await http.GetStringAsync($"http://127.0.0.1:{tel.Port}/")).Contains("Siloé Stream ✓"), "page de test http://IP:port");
     using (var u = new System.Net.Sockets.UdpClient())
     {
         var b = System.Text.Encoding.UTF8.GetBytes("VERSELIGHT_DISCOVER " + tel.PcId);
@@ -684,7 +684,7 @@ if (Actif())
     using (var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) })
     {
         var page = await http.GetStringAsync($"http://127.0.0.1:{tel.Port}/suivre");
-        Ok(page.Contains("MyChurch") && page.Contains("/suivre/etat"), "page « suivre »");
+        Ok(page.Contains("Siloé Stream") && page.Contains("/suivre/etat"), "page « suivre »");
         var e0 = System.Text.Json.Nodes.JsonNode.Parse(await http.GetStringAsync($"http://127.0.0.1:{tel.Port}/suivre/etat?v=-1&id=test1"))!;
         int v0 = (int)e0["v"]!;
         var attente = http.GetStringAsync($"http://127.0.0.1:{tel.Port}/suivre/etat?v={v0}&id=test1");
@@ -1350,7 +1350,7 @@ if (Actif())
     var entRelu = System.Text.Json.JsonSerializer.Deserialize<MyVerse.Audio.AudioConfiguration>(System.Text.Json.JsonSerializer.Serialize(ent, Donnees.Json), Donnees.Json)!;
     Ok(entRelu.Sons[0].Entree == 3, "l'entrée d'un son est enregistrée dans les réglages");
 
-    // 1.3 : chaque destination reçoit « tout le son » ou les sons choisis ; MyChurch donne les pistes d'OBS tout seul
+    // 1.3 : chaque destination reçoit « tout le son » ou les sons choisis ; Siloé Stream donne les pistes d'OBS tout seul
     var cfg = new MyVerse.Audio.AudioConfiguration();
     foreach (var n in new[] { "guitare", "piano", "chanteur", "pasteur" }) cfg.Ajouter(new MyVerse.Audio.Son { Id = n, Nom = n, Genre = MyVerse.Audio.GenreSon.Voix });
     var louange = new MyVerse.Audio.RecordingProfile { Name = "Louange", ChoixSons = new() { "guitare", "piano", "chanteur" } };
@@ -1362,7 +1362,7 @@ if (Actif())
     cfg.VirtualSounds.Add(zoom); cfg.VirtualSounds.Add(flux);
     cfg.Normalize();
     Ok(louange.AudioOnly && louange.Format == "mp3" && !predication.AudioOnly && predication.Format == "mkv", "sans source Display : le son seul, en MP3 ; avec : vidéo MKV");
-    Ok(louange.Directory.EndsWith("Louange"), "dossier propre à chaque enregistrement : Vidéos\\MyChurch\\Louange");
+    Ok(louange.Directory.EndsWith("Louange"), "dossier propre à chaque enregistrement : Vidéos\\Siloé Stream\\Louange");
     var vis = predication.VisuelsDisplay();
     Ok(vis.Count == 2 && vis[0].Kind == "projection" && vis[1].Kind == "annonce" && vis[1].Annonce == "camera1" && vis[1].X == 0.5, "vidéo : la projection et la caméra côte à côte");
     Ok(predication.ChoixSons!.SequenceEqual(new[] { "pasteur" }), "un son inconnu est oublié");
@@ -1520,7 +1520,7 @@ if (Actif())
     Ok(cams.Liste().Count == 1 && !cams.Liste()[0].EnDirect, "déconnecté : le téléphone reste connu");
     Egal(MyCams.Duree(0), "", "durée vide");
 
-    // MyChurch 1.2 : l'âge de chaque image (bit 4 + 4 octets, µs) et l'aller-retour « cam.ping » datent l'image sur l'horloge du PC
+    // Siloé Stream 1.2 : l'âge de chaque image (bit 4 + 4 octets, µs) et l'aller-retour « cam.ping » datent l'image sur l'horloge du PC
     Ok(MyCams.LireEntete(new byte[] { (byte)'M', (byte)'C', 2, 8 | 0x10, 0x40, 0x0D, 0x03, 0, 0, 0, 0, 1, 0x65 }) is { H264: true, Cle: true, Debut: 8, AgeUs: 200_000 }, "en-tête MC 2 avec âge : 200 ms, données après 8 octets");
     Ok(MyCams.LireEntete(new byte[] { (byte)'M', (byte)'C', 1, 0x10, 0xA0, 0x86, 0x01, 0, 0xFF, 0xD8, 0xFF, 0xE0 }) is { H264: false, Debut: 8, AgeUs: 100_000 }, "en-tête MC 1 (JPEG) avec âge : 100 ms");
     Ok(MyCams.LireEntete(img) is { AgeUs: -1 }, "en-tête sans âge (téléphone 1.1) : âge inconnu");
@@ -1583,7 +1583,7 @@ if (Actif())
     rg.EstNoir = () => noirPc;
     rg.BasculerNoir = () => { noirPc = !noirPc; tel.Actualiser(); };
     var url = tel.OuvrirJumelage();
-    var q = System.Web.HttpUtility.ParseQueryString(new Uri(url.Replace("verselight://pair", "http://x/pair")).Query);
+    var q = System.Web.HttpUtility.ParseQueryString(new Uri(url.Replace("siloe://pair", "http://x/pair")).Query);
     var cle = Telephone.DeriverCle(Telephone.B64Dec(q["secret"]!), tel.PcId, "tel-cam");
     var ws = new System.Net.WebSockets.ClientWebSocket();
     await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{tel.Port}/"), CancellationToken.None);
@@ -1814,7 +1814,7 @@ if (Actif())
     Egal(a6.Recoit(a6.VirtualSounds[0]), "Capture audio (entrée), Chant et Vidéo Display", "1.2 : la piste 6 de Zoom → ses sources");
     Egal(a6.Recoit(a6.Profiles.First(x => x.Id == "film")), "Capture audio (entrée), Chant et Vidéo Display", "1.2 : la vidéo sur la piste 6 → les mêmes sources");
     a6.Planifier();
-    Ok(a6.VirtualSounds[0].Track == a6.Profiles.First(x => x.Id == "film").Track && a6.VirtualSounds[0].Track == 2, "1.2 : Zoom et la vidéo partagent une piste, donnée par MyChurch", a6.VirtualSounds[0].Track.ToString());
+    Ok(a6.VirtualSounds[0].Track == a6.Profiles.First(x => x.Id == "film").Track && a6.VirtualSounds[0].Track == 2, "1.2 : Zoom et la vidéo partagent une piste, donnée par Siloé Stream", a6.VirtualSounds[0].Track.ToString());
 
     // capture ASIO : une entrée (mono) ou deux (stéréo)
     var asio = new MyVerse.Audio.AudioConfiguration();
@@ -1858,11 +1858,11 @@ if (Actif())
     Ok(Projecteur.NomGenerique("Écran 2") && Projecteur.NomGenerique("Écran principal") && Projecteur.NomGenerique("") && !Projecteur.NomGenerique("EPSON PJ"), "noms génériques");
     Ok(Projecteur.ARouvrir(choix), "démarrage : projection laissée ouverte, rouverte");
     Ok(!Projecteur.ARouvrir(new EcranChoisi { Mode = "plein", Nom = "EPSON PJ", Ouvert = false }), "démarrage : arrêtée par l'opérateur, pas rouverte");
-    Ok(Projecteur.ARouvrir(new EcranChoisi { Mode = "plein", Nom = "EPSON PJ" }), "démarrage : réglage de MyChurch 4 (sans « ouvert »), rouverte");
+    Ok(Projecteur.ARouvrir(new EcranChoisi { Mode = "plein", Nom = "EPSON PJ" }), "démarrage : réglage de Siloé Stream 4 (sans « ouvert »), rouverte");
     Ok(!Projecteur.ARouvrir(Projecteur.Choix(regie, true)), "démarrage : jamais de plein écran automatique sur l'écran de la régie");
     Ok(Projecteur.ARouvrir(Projecteur.Choix(regie, false)), "démarrage : une fenêtre se rouvre");
     Ok(!Projecteur.ARouvrir(new EcranChoisi { Mode = "obs" }) && !Projecteur.ARouvrir(null), "démarrage : OBS seulement ou rien de choisi, rien à rouvrir");
-    // les réglages : écrits, relus, et ceux de MyChurch 4
+    // les réglages : écrits, relus, et ceux de Siloé Stream 4
     var dirP = Temp();
     var dP = Donnees.Charger(dirP, res);
     dP.Reglages.Ecran = choix;
@@ -1873,7 +1873,7 @@ if (Actif())
     var ancien = json.Replace("\"ouvert\"", "\"ancien-ouvert\"").Replace("\"periph\"", "\"ancien-periph\"");
     File.WriteAllText(Path.Combine(dirP, "reglages.json"), ancien);
     var relu4 = Donnees.Charger(dirP, res).Reglages.Ecran;
-    Ok(relu4 is { Ouvert: null, Peripherique: "" } && Projecteur.ARouvrir(relu4) && Projecteur.Retrouver(relu4, new[] { regie, ailleurs }) == ailleurs, "réglage de MyChurch 4 : rouvert au démarrage, projecteur retrouvé par son nom");
+    Ok(relu4 is { Ouvert: null, Peripherique: "" } && Projecteur.ARouvrir(relu4) && Projecteur.Retrouver(relu4, new[] { regie, ailleurs }) == ailleurs, "réglage de Siloé Stream 4 : rouvert au démarrage, projecteur retrouvé par son nom");
 }
 
 Groupe("Audio OBS");
@@ -1898,7 +1898,7 @@ if (Actif())
 Groupe("YouTube (1.6.0)");
 if (Actif()) MyVerse.Tests.YouTubeTests.RunAsync(Ok).GetAwaiter().GetResult();
 
-Groupe("À distance par Internet (1.7.0) : relais, agent, démarrer MyChurch");
+Groupe("À distance par Internet (1.7.0) : relais, agent, démarrer Siloé Stream");
 if (Actif())
 {
     // le vrai relais (relais/relais.js, Node + ws) sur ce PC, en ws:// ; l'agent et un « téléphone » s'y relient
@@ -1997,42 +1997,42 @@ if (Actif())
             return (ws, await TelRec(ws));
         }
 
-        // MyChurch fermé : l'agent répond
+        // Siloé Stream fermé : l'agent répond
         var (w1, b1) = await TelConnecter(cleTel);
-        Ok((string?)b1?["t"] == "welcome" && (bool?)b1?["agent"] == true && (string?)b1?["app"] == "ferme", "MyChurch fermé : l'agent accueille le téléphone (« MyChurch est fermé »)", b1?.ToJsonString());
+        Ok((string?)b1?["t"] == "welcome" && (bool?)b1?["agent"] == true && (string?)b1?["app"] == "ferme", "Siloé Stream fermé : l'agent accueille le téléphone (« Siloé Stream est fermé »)", b1?.ToJsonString());
         await TelEnv(w1, new { t = "bible.show", @ref = "jn 3 16", rid = "7" });
         var er = await TelRec(w1, "error");
-        Ok(er != null && (string?)er["rid"] == "7" && ((string?)er["message"] ?? "").Contains("Démarrer MyChurch"), "une commande pendant que MyChurch est fermé : « appuyez sur Démarrer MyChurch »");
-        // démarrer MyChurch depuis le téléphone
+        Ok(er != null && (string?)er["rid"] == "7" && ((string?)er["message"] ?? "").Contains("Démarrer Siloé Stream"), "une commande pendant que Siloé Stream est fermé : « appuyez sur Démarrer Siloé Stream »");
+        // démarrer Siloé Stream depuis le téléphone
         await TelEnv(w1, new { t = "app.start", rid = "8" });
         var e1 = await TelRec(w1, "app.etat");
         var e2 = await TelRec(w1, "app.etat", 10000);
-        Ok((string?)e1?["app"] == "demarrage" && (string?)e2?["app"] == "ouvert" && demarrages == 1 && myChurch?.Port > 0, "« Démarrer MyChurch » : l'agent le lance, puis dit « ouvert »");
+        Ok((string?)e1?["app"] == "demarrage" && (string?)e2?["app"] == "ouvert" && demarrages == 1 && myChurch?.Port > 0, "« Démarrer Siloé Stream » : l'agent le lance, puis dit « ouvert »");
         Ok(await TelRec(w1, null, 3000) == null, "… et ferme la connexion : le téléphone se reconnecte");
-        Egal(PortMyChurch.Lire(dossier), myChurch?.Port, "MyChurch ouvert : son port est connu de l'agent");
+        Egal(PortSiloe.Lire(dossier), myChurch?.Port, "Siloé Stream ouvert : son port est connu de l'agent");
 
-        // MyChurch ouvert : le téléphone passe par l'agent jusqu'à MyChurch (même vérification, mêmes commandes)
+        // Siloé Stream ouvert : le téléphone passe par l'agent jusqu'à Siloé Stream (même vérification, mêmes commandes)
         var (w2, b2) = await TelConnecter(cleTel);
-        Ok((string?)b2?["t"] == "welcome" && b2?["agent"] == null && (string?)b2?["relay"] == ReglagesDistance.Nettoyer(relais), "MyChurch ouvert : le téléphone joint MyChurch lui-même (et apprend le relais)", b2?.ToJsonString());
+        Ok((string?)b2?["t"] == "welcome" && b2?["agent"] == null && (string?)b2?["relay"] == ReglagesDistance.Nettoyer(relais), "Siloé Stream ouvert : le téléphone joint Siloé Stream lui-même (et apprend le relais)", b2?.ToJsonString());
         await TelEnv(w2, new { t = "bible.show", @ref = "jn 3 16", rid = 1 });
         var st = await TelRec(w2, "state");
         Egal((string?)st?["ref"], "Jean 3:16 (LSG)", "par Internet : un verset affiché à l'église depuis la maison");
-        Ok(myChurch!.Connectes().Contains("tel-maison"), "MyChurch voit le téléphone connecté");
+        Ok(myChurch!.Connectes().Contains("tel-maison"), "Siloé Stream voit le téléphone connecté");
         Ok(myChurch.OuvrirJumelage().Contains("&relay=" + Uri.EscapeDataString(ReglagesDistance.Nettoyer(relais))), "code QR : le relais y est (nouveaux téléphones)");
         myChurch.FermerJumelage();
         await TelEnv(w2, new { t = "app.quit", rid = "9" });
         var fq = await TelRec(w2, "app.etat");
-        Egal((string?)fq?["app"], "fermeture", "« Fermer MyChurch » depuis le téléphone");
+        Egal((string?)fq?["app"], "fermeture", "« Fermer Siloé Stream » depuis le téléphone");
         try { w2.Abort(); } catch { }
 
-        // un téléphone inconnu (pas jumelé) est refusé, par l'agent comme par MyChurch
+        // un téléphone inconnu (pas jumelé) est refusé, par l'agent comme par Siloé Stream
         var (w3, b3) = await TelConnecter(RandomNumberGenerator.GetBytes(32), "intrus");
         Ok((string?)b3?["t"] == "auth.fail", "un téléphone pas jumelé est refusé par Internet", b3?.ToJsonString());
         try { w3.Abort(); } catch { }
         myChurch.Dispose();
-        Ok(PortMyChurch.Lire(dossier) == null, "MyChurch fermé : le port n'est plus annoncé");
+        Ok(PortSiloe.Lire(dossier) == null, "Siloé Stream fermé : le port n'est plus annoncé");
         var (w4, b4) = await TelConnecter(cleTel);
-        Ok((bool?)b4?["agent"] == true, "MyChurch refermé : l'agent reprend le téléphone");
+        Ok((bool?)b4?["agent"] == true, "Siloé Stream refermé : l'agent reprend le téléphone");
         try { w4.Abort(); } catch { }
 
 
@@ -2053,7 +2053,7 @@ if (Actif())
     Egal(st.Role("t1"), Roles.Admin, "un téléphone déjà jumelé reste Admin");
     st.ChangerRole("t1", Roles.Chants);
     Egal(new AppareilsJumeles(dossierR).Role("t1"), Roles.Chants, "le rôle est gardé (devices.json)");
-    Ok(Roles.Permis(Roles.Chants, "song.show") && !Roles.Permis(Roles.Chants, "bible.show") && !Roles.Permis(Roles.Chants, "display.show") && !Roles.Permis(Roles.Chants, "app.quit"), "Chants : les chants, pas la Bible, ni les médias, ni fermer MyChurch");
+    Ok(Roles.Permis(Roles.Chants, "song.show") && !Roles.Permis(Roles.Chants, "bible.show") && !Roles.Permis(Roles.Chants, "display.show") && !Roles.Permis(Roles.Chants, "app.quit"), "Chants : les chants, pas la Bible, ni les médias, ni fermer Siloé Stream");
     Ok(Roles.Permis(Roles.Bible, "bible.show") && Roles.Permis(Roles.Bible, "next") && !Roles.Permis(Roles.Bible, "song.show"), "Versets : la Bible et Suivant, pas les chants");
     Ok(Roles.Permis(Roles.Camera, "cam.ack") && !Roles.Permis(Roles.Camera, "next") && Roles.Images(Roles.Camera) && !Roles.Images(Roles.Bible), "Caméraman : MyCam seulement");
     Ok(Roles.Permis(Roles.Admin, "app.quit") && Roles.Permis(Roles.Admin, "display.show"), "Admin : tout");
@@ -2100,7 +2100,7 @@ if (Actif())
     Ok(dim.Prochain(new DateTime(2026, 11, 18, 12, 0, 0)) == new DateTime(2026, 11, 22, 10, 0, 0), "mercredi : le prochain, dimanche 22 novembre");
     Ok(dim.AFaire(dimanche.AddHours(9).AddMinutes(59)) == null, "9:59 : pas encore");
     Ok(dim.AFaire(dimanche.AddHours(10)) == dimanche.AddHours(10), "10:00 : le direct démarre");
-    Ok(dim.AFaire(dimanche.AddHours(10).AddMinutes(14)) == dimanche.AddHours(10), "10:14 (MyChurch ouvert en retard) : il démarre encore");
+    Ok(dim.AFaire(dimanche.AddHours(10).AddMinutes(14)) == dimanche.AddHours(10), "10:14 (Siloé Stream ouvert en retard) : il démarre encore");
     Ok(dim.AFaire(dimanche.AddHours(10).AddMinutes(16)) == null, "10:16 : trop tard, il ne démarre plus tout seul");
     dim.Dernier = dimanche.AddHours(10);
     Ok(dim.AFaire(dimanche.AddHours(10).AddMinutes(5)) == null, "déjà démarré ce dimanche : il ne repart pas");

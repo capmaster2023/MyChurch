@@ -82,7 +82,7 @@ public static class RecordingIntegrationTests
         return (fin.Success ? double.Parse(fin.Groups[1].Value, CultureInfo.InvariantCulture) : null, image);
     }
     /// <summary>
-    /// MyChurch 1.2 : une vraie session vidéo où le son arrive en retard (mélange d'OBS) et la caméra aussi (MyCam), puis la mesure du clap :
+    /// Siloé Stream 1.2 : une vraie session vidéo où le son arrive en retard (mélange d'OBS) et la caméra aussi (MyCam), puis la mesure du clap :
     /// la synchro est automatique, sans réglage.
     /// </summary>
     static async Task<(double? Son, double? Image)> SessionClapAsync(string ffmpeg, string directory, int retardSonMs, int retardCameraMs)
@@ -102,7 +102,7 @@ public static class RecordingIntegrationTests
         return await ClapAsync(ffmpeg, path);
     }
     /// <summary>Une vraie session x264 (encodeur avec retard : il garde des images avant de sortir la première).
-    /// La vidéo doit suivre le son reçu, sinon ffmpeg et MyChurch s'attendent l'un l'autre et le fichier reste vide.</summary>
+    /// La vidéo doit suivre le son reçu, sinon ffmpeg et Siloé Stream s'attendent l'un l'autre et le fichier reste vide.</summary>
     static async Task<string> SessionX264Async(string ffmpeg, string directory, Frames frame)
     {
         var profile = new RecordingProfile { Name = "x264", Format = "mkv", AudioOnly = false, Directory = directory, Width = 640, Height = 360, Fps = 30, Encoder = "libx264" };
@@ -124,7 +124,7 @@ public static class RecordingIntegrationTests
         return path;
     }
     /// <summary>
-    /// MyChurch 1.6.0 : un vrai direct (FLV vers RTMP, comme vers YouTube) reçu par un serveur local (ffmpeg lui-même, en écoute),
+    /// Siloé Stream 1.6.0 : un vrai direct (FLV vers RTMP, comme vers YouTube) reçu par un serveur local (ffmpeg lui-même, en écoute),
     /// puis relu : H.264 et AAC 48 kHz stéréo, une image clé toutes les 2 s, la bonne durée.
     /// </summary>
     static async Task<(bool Ok, string Detail)> SessionDirectAsync(string ffmpeg, string directory, Frames frame)
@@ -191,15 +191,15 @@ public static class RecordingIntegrationTests
     public static async Task RunAsync(Action<bool, string, string?> ok)
     {
         string? executable = Environment.GetEnvironmentVariable("MYCHURCH_FFMPEG");
-        string directory = Environment.GetEnvironmentVariable("MYCHURCH_AUDIO_FIXTURES") ?? Path.Combine(Path.GetTempPath(), "mychurch-recording-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
+        string directory = Environment.GetEnvironmentVariable("MYCHURCH_AUDIO_FIXTURES") ?? Path.Combine(Path.GetTempPath(), "siloestream-recording-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
         var frame = new Frames(); var block = new float[AudioBlock.Samples];
-        // MyChurch 1.3 : le son seul s'enregistre en MP3 (léger, à partager) ou en WAV (studio) ; M4A si l'encodeur MP3 manquait ; FLAC encore lu
+        // Siloé Stream 1.3 : le son seul s'enregistre en MP3 (léger, à partager) ou en WAV (studio) ; M4A si l'encodeur MP3 manquait ; FLAC encore lu
         var formats = executable == null ? new[] { "wav" } : new[] { "wav", "mp3", "m4a", "flac", "mkv" };
         foreach (string format in formats)
         {
             var profile = new RecordingProfile { Name = "integration-" + format, Format = format, AudioOnly = format != "mkv", Directory = directory, Width = 320, Height = 180, Fps = 30, Encoder = "mjpeg" };
             string path = RecordingFiles.ReservePath(directory, profile.Name, format);
-            // vraie session : tubes nommés sous Windows, prises Unix ailleurs ; ffmpeg lit en direct, comme dans MyChurch
+            // vraie session : tubes nommés sous Windows, prises Unix ailleurs ; ffmpeg lit en direct, comme dans Siloé Stream
             using (var session = new RecordingSession(profile, path, executable ?? "", "mjpeg", format == "mkv" ? frame : null))
             {
                 long t0 = Horloge.Ns();
@@ -234,7 +234,7 @@ public static class RecordingIntegrationTests
                     // synchro : le son fort et l'image claire arrivent ensemble (blocs 50 à 59)
                     var (son, image) = await ClapAsync(executable, path);
                     ok(son != null && image != null && Math.Abs(son.Value - image.Value) < 0.05, "Synchro image/son mesurée dans le MKV", $"son {son:0.000} s · image {image:0.000} s");
-                    // MyChurch 1.2 : synchro automatique, le son en retard (mélange d'OBS) et la caméra en retard (MyCam)
+                    // Siloé Stream 1.2 : synchro automatique, le son en retard (mélange d'OBS) et la caméra en retard (MyCam)
                     foreach (var (retardSon, retardCamera) in new[] { (150, 0), (150, 100), (0, 250), (300, 120), (500, 0) })
                     {
                         var (s2, i2) = await SessionClapAsync(executable, directory, retardSon, retardCamera);

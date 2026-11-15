@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -180,7 +180,7 @@ fun BibleOnglet(remote: Remote) {
         haptique.performHapticFeedback(HapticFeedbackType.LongPress)
         focus.clearFocus()
         if (remote.send("bible.show", "ref" to (refChoisie.ifBlank { q.trim() }))) Bulles.dire("${refChoisie.ifBlank { q.trim() }} à l’écran")
-        else Bulles.dire("MyChurch n’est pas relié au PC.")
+        else Bulles.dire("Siloé Stream n’est pas relié au PC.")
     }
 
     Column(Modifier.fillMaxSize()) {

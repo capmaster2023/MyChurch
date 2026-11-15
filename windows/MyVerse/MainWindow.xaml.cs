@@ -10,7 +10,7 @@ using System.Windows.Threading;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// La régie, design « Pupitre » (MyChurch 3.2) : barre des pages, colonne de la page (déroulé, Bibles, recueil, bibliothèque, dossiers),
+/// La régie, design « Pupitre » (Siloé Stream 3.2) : barre des pages, colonne de la page (déroulé, Bibles, recueil, bibliothèque, dossiers),
 /// centre (vignettes du culte, versets, strophes, grille, dossier), colonne de contrôle à droite (petit écran en direct, suivant,
 /// boutons, audio) et barre du bas (enregistrements, sorties, écran, téléphones, heure).
 /// </summary>
@@ -117,7 +117,7 @@ public partial class MainWindow : Window
         minuterieNum.Tick += (_, _) => AllerAuNumero(false);
         TelBtn.Click += (_, _) => new TelephoneWindow { Owner = this }.ShowDialog();
         ProjectionBtn.Click += (_, _) => MenuProjection();
-        // la page Son (MyChurch 1.3) : ce qu'on entend, et où ça va
+        // la page Son (Siloé Stream 1.3) : ce qu'on entend, et où ça va
         PageSon = new Audio.PageSon();
         PanneauSon.Child = PageSon;
         Reglages = new ReglagesPage();
@@ -199,7 +199,7 @@ public partial class MainWindow : Window
 
         // ---------- régie et téléphones
         R.EcranOuvert = () => ecran != null;
-        // écran noir (touche B) : le téléphone le voit et peut le basculer (MyChurch 4.0)
+        // écran noir (touche B) : le téléphone le voit et peut le basculer (Siloé Stream 4.0)
         R.EstNoir = () => noir && ReferenceEquals(R.Etat, etatNoir);
         R.BasculerNoir = BasculerNoir;
         R.Change += MajEcran;
@@ -324,7 +324,7 @@ public partial class MainWindow : Window
         ecran?.Close();
     }
 
-    /// <summary>Un 2e lancement de MyChurch ramène cette fenêtre.</summary>
+    /// <summary>Un 2e lancement de Siloé Stream ramène cette fenêtre.</summary>
     public void Ramener()
     {
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
@@ -1104,7 +1104,7 @@ public partial class MainWindow : Window
         {
             if (ecran == w) ecran = null;
             // fermée par l'opérateur (Arrêter, croix, Alt+F4) : elle ne se rouvrira pas toute seule ;
-            // fermée par MyChurch (projecteur débranché, fermeture de MyChurch) : elle se rouvrira
+            // fermée par Siloé Stream (projecteur débranché, fermeture de Siloé Stream) : elle se rouvrira
             if (ecran == null && !fermetureAuto && !fermetureApp && App.Donnees.Reglages.Ecran is { } c && c.Ouvert != false)
             {
                 c.Ouvert = false;

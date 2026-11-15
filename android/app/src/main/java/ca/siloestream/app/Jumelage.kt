@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -48,8 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 
-/** Croix et vagues : le logo MyChurch (au trait, teinté par l'appelant). */
-val LogoMyChurch: ImageVector by lazy {
+/** Croix et vagues : le logo Siloé Stream (au trait, teinté par l'appelant). */
+val LogoSiloe: ImageVector by lazy {
     val b = ImageVector.Builder(defaultWidth = 48.dp, defaultHeight = 48.dp, viewportWidth = 48f, viewportHeight = 48f)
     listOf("M24 6v20M17.5 12.5h13" to 3.2f, "M9 32c5-3.2 10-3.2 15 0s10 3.2 15 0M9 38.5c5-3.2 10-3.2 15 0s10 3.2 15 0" to 2.6f).forEach { (d, w) ->
         b.addPath(pathData = addPathNodes(d), stroke = SolidColor(Color.Black), strokeLineWidth = w, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round)
@@ -61,7 +61,7 @@ val LogoMyChurch: ImageVector by lazy {
 @Composable
 fun TuileLogo(taille: Dp = 64.dp) {
     Box(Modifier.size(taille).clip(RoundedCornerShape(taille * 0.31f)).background(C.Marine), contentAlignment = Alignment.Center) {
-        Ico(LogoMyChurch, C.OrClair, taille * 0.62f)
+        Ico(LogoSiloe, C.OrClair, taille * 0.62f)
     }
 }
 
@@ -98,7 +98,7 @@ fun Jumelage(remote: Remote, enCours: Boolean) {
             Carte(rayon = 24.dp, padding = PaddingValues(18.dp), espace = 14.dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     T("Jumeler avec le PC de l’église", taille = 18.sp, poids = FontWeight.ExtraBold)
-                    T("Sur le PC : MyChurch › Téléphone › Jumeler… puis visez le code.", taille = 13.5.sp, couleur = C.Encre2, interligne = 19.sp)
+                    T("Sur le PC : Siloé Stream › Téléphone › Jumeler… puis visez le code.", taille = 13.5.sp, couleur = C.Encre2, interligne = 19.sp)
                 }
                 Box(
                     Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF111827)),
@@ -108,7 +108,7 @@ fun Jumelage(remote: Remote, enCours: Boolean) {
                         scan -> QrScanner(
                             onCode = { code ->
                                 scan = false
-                                if (!remote.pair(code)) Bulles.dire("Ce code QR n’est pas un code MyChurch.")
+                                if (!remote.pair(code)) Bulles.dire("Ce code QR n’est pas un code Siloé Stream.")
                             },
                             modifier = Modifier.fillMaxSize(),
                         )

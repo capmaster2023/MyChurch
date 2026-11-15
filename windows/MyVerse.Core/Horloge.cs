@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace MyVerse;
 
 /// <summary>
-/// L'horloge commune du son et de l'image (MyChurch 1.1.1), en nanosecondes : le compteur haute précision de Windows
+/// L'horloge commune du son et de l'image (Siloé Stream 1.1.1), en nanosecondes : le compteur haute précision de Windows
 /// (QueryPerformanceCounter), le même que celui d'OBS (os_gettime_ns). Les blocs de son d'OBS, les images MyCam
 /// et les images de l'enregistrement sont datés avec elle : c'est ce qui les garde synchrones, comme dans OBS.
 /// </summary>

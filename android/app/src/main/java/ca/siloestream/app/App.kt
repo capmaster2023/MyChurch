@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.app.Activity
 import android.content.ClipData
@@ -74,7 +74,7 @@ object AppEtat {
     val chercherChant = MutableStateFlow("")
 }
 
-/** MyChurch 1.7.1 : les onglets de chaque rôle (0 Régie, 1 Bible, 2 Chants, 3 Culte, 4 MyCam). */
+/** Siloé Stream 1.7.1 : les onglets de chaque rôle (0 Régie, 1 Bible, 2 Chants, 3 Culte, 4 MyCam). */
 fun ongletsDuRole(role: String): List<Int> = when (role) {
     "bible" -> listOf(0, 1)
     "chants" -> listOf(0, 2)
@@ -130,7 +130,7 @@ private fun Principal(remote: Remote) {
     Box(Modifier.fillMaxSize().background(if (sombre) C.CamFond else C.Page)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
             BandeauMiseAJour(remote)
-            BandeauMyChurchFerme(remote)
+            BandeauSiloeFerme(remote)
             Box(Modifier.weight(1f).fillMaxWidth().then(if (clavier) Modifier.imePadding() else Modifier)) {
                 when (onglet) {
                     0 -> RegieOnglet(remote) { reglages = true }
@@ -204,16 +204,16 @@ private fun BandeauMiseAJour(remote: Remote) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Ico(I.telecharger, C.Or, 20.dp)
-        T("MyChurch $version est prête : télécharger", taille = 13.5.sp, poids = FontWeight.ExtraBold, couleur = C.Or, modifier = Modifier.weight(1f), lignes = 2)
+        T("Siloé Stream $version est prête : télécharger", taille = 13.5.sp, poids = FontWeight.ExtraBold, couleur = C.Or, modifier = Modifier.weight(1f), lignes = 2)
     }
 }
 
 /**
- * MyChurch 1.7.0 : par Internet, MyChurch est fermé sur le PC de l'église (l'agent répond) : un bouton le démarre ;
+ * Siloé Stream 1.7.0 : par Internet, Siloé Stream est fermé sur le PC de l'église (l'agent répond) : un bouton le démarre ;
  * pendant le démarrage, on patiente (le téléphone se reconnecte tout seul quand il est prêt).
  */
 @Composable
-private fun BandeauMyChurchFerme(remote: Remote) {
+private fun BandeauSiloeFerme(remote: Remote) {
     val app by remote.appPc.collectAsState()
     val link by remote.link.collectAsState()
     val pc by remote.pcName.collectAsState()
@@ -226,13 +226,13 @@ private fun BandeauMyChurchFerme(remote: Remote) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Ico(I.ecran, C.AmbreTexte, 20.dp)
             T(
-                if (app == "ferme") "MyChurch est fermé sur « ${pc.ifBlank { "le PC" }} »" else "Démarrage de MyChurch sur le PC…",
+                if (app == "ferme") "Siloé Stream est fermé sur « ${pc.ifBlank { "le PC" }} »" else "Démarrage de Siloé Stream sur le PC…",
                 taille = 13.5.sp, poids = FontWeight.ExtraBold, couleur = C.AmbreTexte, modifier = Modifier.weight(1f), lignes = 2,
             )
         }
         val role by remote.role.collectAsState()
-        if (app == "ferme" && role == "admin") Touche(onClick = { if (remote.demarrerMyChurch()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), fond = C.Ambre) {
-            T("Démarrer MyChurch", couleur = Color.White, poids = FontWeight.ExtraBold)
+        if (app == "ferme" && role == "admin") Touche(onClick = { if (remote.demarrerSiloe()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), fond = C.Ambre) {
+            T("Démarrer Siloé Stream", couleur = Color.White, poids = FontWeight.ExtraBold)
         }
     }
 }
@@ -264,9 +264,9 @@ private fun Reglages(remote: Remote, fermer: () -> Unit) {
     if (journal) JournalDialog(remote) { journal = false }
     if (fermerPc) AlertDialog(
         onDismissRequest = { fermerPc = false },
-        title = { Text("Fermer MyChurch sur « $pc » ?", fontFamily = Manrope, fontWeight = FontWeight.ExtraBold) },
-        text = { Text("L'écran de l'église et MyStream s'arrêtent. Vous pourrez le redémarrer d'ici (bouton « Démarrer MyChurch »).", fontFamily = Manrope) },
-        confirmButton = { TextButton(onClick = { fermerPc = false; if (!remote.fermerMyChurch()) Bulles.dire("PC injoignable.") }) { Text("Fermer", color = C.RougeTexte, fontFamily = Manrope, fontWeight = FontWeight.Bold) } },
+        title = { Text("Fermer Siloé Stream sur « $pc » ?", fontFamily = Manrope, fontWeight = FontWeight.ExtraBold) },
+        text = { Text("L'écran de l'église et MyStream s'arrêtent. Vous pourrez le redémarrer d'ici (bouton « Démarrer Siloé Stream »).", fontFamily = Manrope) },
+        confirmButton = { TextButton(onClick = { fermerPc = false; if (!remote.fermerSiloe()) Bulles.dire("PC injoignable.") }) { Text("Fermer", color = C.RougeTexte, fontFamily = Manrope, fontWeight = FontWeight.Bold) } },
         dismissButton = { TextButton(onClick = { fermerPc = false }) { Text("Annuler", color = C.Encre, fontFamily = Manrope) } },
         containerColor = C.Carte,
     )
@@ -303,25 +303,25 @@ private fun Reglages(remote: Remote, fermer: () -> Unit) {
                         Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(C.OrPale), contentAlignment = Alignment.Center) { Ico(I.ecran, C.Or, 22.dp) }
                         Column(Modifier.weight(1f)) {
                             T(pc.ifBlank { "PC" }, taille = 15.sp, poids = FontWeight.ExtraBold, lignes = 1)
-                            T(if (proto >= 2) "MyChurch 4.0 ou plus" else "MyChurch 3.3 ou avant : mettez le PC à jour pour le déroulé, Noir et MyCam", taille = 12.5.sp, couleur = C.Encre2)
+                            T(if (proto >= 2) "Siloé Stream 4.0 ou plus" else "Siloé Stream 3.3 ou avant : mettez le PC à jour pour le déroulé, Noir et MyCam", taille = 12.5.sp, couleur = C.Encre2)
                             // 1.7.0 : par où passe la connexion
                             if (link == Link.CONNECTED) T(
-                                if (route == "internet") "Relié par Internet (relais MyChurch)" + (if (app == "ferme") " · MyChurch fermé sur le PC" else "")
+                                if (route == "internet") "Relié par Internet (relais MyChurch)" + (if (app == "ferme") " · Siloé Stream fermé sur le PC" else "")
                                 else "Relié par le Wi-Fi de l'église",
                                 taille = 12.5.sp, couleur = C.Brume,
                             )
                         }
                     }
-                    // 1.7.0 : démarrer / fermer MyChurch sur le PC, de n'importe où
-                    if (link == Link.CONNECTED && app == "ferme" && role == "admin") Touche(onClick = { if (remote.demarrerMyChurch()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
+                    // 1.7.0 : démarrer / fermer Siloé Stream sur le PC, de n'importe où
+                    if (link == Link.CONNECTED && app == "ferme" && role == "admin") Touche(onClick = { if (remote.demarrerSiloe()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
                         Ico(I.ecran, C.Or, 18.dp)
                         Spacer(Modifier.width(8.dp))
-                        T("Démarrer MyChurch sur le PC", couleur = C.Or, poids = FontWeight.ExtraBold)
+                        T("Démarrer Siloé Stream sur le PC", couleur = C.Or, poids = FontWeight.ExtraBold)
                     }
                     if (link == Link.CONNECTED && app.isEmpty() && proto >= 2 && role == "admin") Touche(onClick = { fermerPc = true }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
                         Ico(I.sortir, C.Encre2, 18.dp)
                         Spacer(Modifier.width(8.dp))
-                        T("Fermer MyChurch sur le PC", couleur = C.Encre2, poids = FontWeight.ExtraBold)
+                        T("Fermer Siloé Stream sur le PC", couleur = C.Encre2, poids = FontWeight.ExtraBold)
                     }
                     Touche(onClick = { oublier = true }, modifier = Modifier.fillMaxWidth(), bord = C.RougeBord) {
                         Ico(I.sortir, C.RougeTexte, 18.dp)
@@ -334,7 +334,7 @@ private fun Reglages(remote: Remote, fermer: () -> Unit) {
                     Spacer(Modifier.width(8.dp))
                     T("Journal d’erreurs", couleur = C.Or, poids = FontWeight.ExtraBold)
                 }
-                T("MyChurch $version · polices Manrope et Cormorant Garamond (SIL Open Font License)", taille = 12.sp, couleur = C.Brume, centre = true, modifier = Modifier.fillMaxWidth())
+                T("Siloé Stream $version · polices Manrope et Cormorant Garamond (SIL Open Font License)", taille = 12.sp, couleur = C.Brume, centre = true, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -360,7 +360,7 @@ fun JournalDialog(remote: Remote, onClose: () -> Unit) {
         confirmButton = {
             TextButton(onClick = {
                 val cm = context.getSystemService(ClipboardManager::class.java)
-                cm?.setPrimaryClip(ClipData.newPlainText("Journal MyChurch", text))
+                cm?.setPrimaryClip(ClipData.newPlainText("Journal Siloé Stream", text))
                 Bulles.dire("Journal copié : collez-le dans votre message.")
             }) { Text("Copier", color = C.Or, fontFamily = Manrope, fontWeight = FontWeight.Bold) }
         },
@@ -390,8 +390,8 @@ fun PastilleConnexion(remote: Remote) {
     val pc by remote.pcName.collectAsState()
     val app by remote.appPc.collectAsState()
     val e = when (link) {
-        // 1.7.0 : par Internet, le PC répond mais MyChurch y est fermé
-        Link.CONNECTED -> if (app.isNotEmpty() && app != "fermeture") Pastille(C.AmbrePale, C.AmbreTexte, C.Ambre, if (app == "demarrage") "Démarrage…" else "MyChurch fermé")
+        // 1.7.0 : par Internet, le PC répond mais Siloé Stream y est fermé
+        Link.CONNECTED -> if (app.isNotEmpty() && app != "fermeture") Pastille(C.AmbrePale, C.AmbreTexte, C.Ambre, if (app == "demarrage") "Démarrage…" else "Siloé Stream fermé")
             else Pastille(C.VertFond, C.VertTexte, C.VertPoint, pc.ifBlank { "PC" })
         Link.CONNECTING -> Pastille(C.AmbrePale, C.AmbreTexte, C.Ambre, "Connexion…")
         else -> Pastille(Color(0xFFFDECEA), C.RougeTexte, C.Rouge, "Hors ligne")

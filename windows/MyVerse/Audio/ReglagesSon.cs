@@ -13,7 +13,7 @@ namespace MyVerse.Ui.Audio;
 /// </summary>
 public sealed class ReglagesSon : StackPanel
 {
-    public const string DepotMyChurch = "https://github.com/capmaster2023/MyChurch";
+    public const string DepotSiloe = "https://github.com/capmaster2023/MyChurch";
     public const string DepotObs = "https://github.com/obsproject/obs-studio/tree/33.0.1";
     public const string SiteVbCable = "https://www.vb-cable.com";
     public const string SourcesFfmpeg = "https://ffmpeg.org/releases/";
@@ -40,7 +40,7 @@ public sealed class ReglagesSon : StackPanel
     public ReglagesSon()
     {
         reparer = new Button { Style = S("BtnOr"), Content = "Réparer", Height = 38, Padding = new Thickness(16, 0, 16, 0), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        reparer.ToolTip = "Télécharge MyChurch sur GitHub et le réinstalle (chants, cultes et réglages gardés)";
+        reparer.ToolTip = "Télécharge Siloé Stream sur GitHub et le réinstalle (chants, cultes et réglages gardés)";
         reparer.Click += (_, _) => ActionsSon.Reparer(reparer, Window.GetWindow(this));
         installer = new Button { Style = S("BtnOr"), Content = "Installer le câble (gratuit)", Height = 40, Padding = new Thickness(16, 0, 16, 0), FontSize = 14, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
         installer.ToolTip = "Télécharge VB-CABLE sur vb-audio.com puis lance son installateur (Windows demande votre accord)";
@@ -138,8 +138,8 @@ public sealed class ReglagesSon : StackPanel
         corps.Children.Add(Champ("Dossier des enregistrements (un sous-dossier par enregistrement)", ligneDossier));
         bool ffmpeg = File.Exists(ChurchAudioService.FfmpegInclus);
         var t = Note(ffmpeg
-            ? "MP3 et vidéo : FFmpeg est inclus avec MyChurch, rien à installer. La vidéo utilise la carte graphique (NVIDIA, Intel, AMD) quand elle le peut ; le son et l'image se calent tout seuls."
-            : "FFmpeg manque dans le dossier de MyChurch : réinstallez MyChurch pour enregistrer en MP3 ou en vidéo (le WAV marche quand même).", 10);
+            ? "MP3 et vidéo : FFmpeg est inclus avec Siloé Stream, rien à installer. La vidéo utilise la carte graphique (NVIDIA, Intel, AMD) quand elle le peut ; le son et l'image se calent tout seuls."
+            : "FFmpeg manque dans le dossier de Siloé Stream : réinstallez Siloé Stream pour enregistrer en MP3 ou en vidéo (le WAV marche quand même).", 10);
         if (!ffmpeg) t.Foreground = P("Danger");
         corps.Children.Add(t);
         return cadre;
@@ -176,7 +176,7 @@ public sealed class ReglagesSon : StackPanel
         var trouve = VbCable.Entree();
         cable.Text = trouve is { } c
             ? $"Prêt : {c.Nom}. Dans Zoom, OBS ou Teams, choisissez le micro « CABLE Output »."
-            : "Pas encore installé. Il fait de MyChurch un micro pour Zoom, OBS ou Teams.";
+            : "Pas encore installé. Il fait de Siloé Stream un micro pour Zoom, OBS ou Teams.";
         cable.Foreground = P(trouve != null ? "Blanc" : "Encre2");
         installer.Visibility = VbCable.Installe ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -184,13 +184,13 @@ public sealed class ReglagesSon : StackPanel
     // ------------------------------------------------------------ code source et licences (GPL)
     static Border SectionLicences()
     {
-        var (cadre, corps) = Section("Code source et licences", "MyChurch est un logiciel libre : son code source et celui des programmes qu'il inclut sont à votre disposition.");
+        var (cadre, corps) = Section("Code source et licences", "Siloé Stream est un logiciel libre : son code source et celui des programmes qu'il inclut sont à votre disposition.");
         var texte = new TextBlock { FontSize = 14, TextWrapping = TextWrapping.Wrap, LineHeight = 21, Margin = new Thickness(0, 10, 0, 0) };
         texte.Inlines.Add(new Run("Son moteur du son utilise "));
         texte.Inlines.Add(new Bold(new Run("libobs")));
         texte.Inlines.Add(new Run(", la bibliothèque d'OBS Studio 33.0.1, distribuée sous licence GNU GPL version 2 ou ultérieure."));
         corps.Children.Add(texte);
-        corps.Children.Add(LigneDepot("Code source de MyChurch", DepotMyChurch));
+        corps.Children.Add(LigneDepot("Code source de Siloé Stream", DepotSiloe));
         corps.Children.Add(LigneDepot("Code source d'OBS Studio 33.0.1 (libobs)", DepotObs));
         corps.Children.Add(LigneDepot("Code source de FFmpeg (ffmpeg.exe 8.0.1, build gyan.dev)", SourcesFfmpeg));
 
@@ -202,10 +202,10 @@ public sealed class ReglagesSon : StackPanel
             SonUi.Ouvrir(File.Exists(copie) ? copie : LicenceGplEnLigne);
         };
         licence.Children.Add(lire);
-        licence.Children.Add(new TextBlock { Text = "Le texte complet de la licence est installé avec MyChurch (COPYING.txt).", FontSize = 12.5, Foreground = P("Brume"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), TextWrapping = TextWrapping.Wrap });
+        licence.Children.Add(new TextBlock { Text = "Le texte complet de la licence est installé avec Siloé Stream (COPYING.txt).", FontSize = 12.5, Foreground = P("Brume"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), TextWrapping = TextWrapping.Wrap });
         corps.Children.Add(licence);
-        corps.Children.Add(Note("FFmpeg (www.ffmpeg.org), livré dans le dossier « ffmpeg » de MyChurch pour le MP3 et la vidéo, est un programme libre sous licence GNU GPL version 3 : son texte est dans ffmpeg\\LICENSE.txt. Build « essentials » de gyan.dev (www.gyan.dev/ffmpeg/builds).", 14));
-        corps.Children.Add(Note(VbCable.Mention + " Il n'est pas inclus dans MyChurch : il s'installe à la demande depuis le site officiel.", 8));
+        corps.Children.Add(Note("FFmpeg (www.ffmpeg.org), livré dans le dossier « ffmpeg » de Siloé Stream pour le MP3 et la vidéo, est un programme libre sous licence GNU GPL version 3 : son texte est dans ffmpeg\\LICENSE.txt. Build « essentials » de gyan.dev (www.gyan.dev/ffmpeg/builds).", 14));
+        corps.Children.Add(Note(VbCable.Mention + " Il n'est pas inclus dans Siloé Stream : il s'installe à la demande depuis le site officiel.", 8));
         corps.Children.Add(Note("Polices Manrope, IBM Plex Mono, Literata, Atkinson Hyperlegible Next et Unbounded : licence SIL Open Font License 1.1.", 6));
         return cadre;
     }

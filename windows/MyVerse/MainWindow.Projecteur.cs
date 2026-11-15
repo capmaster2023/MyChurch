@@ -5,10 +5,10 @@ using System.Windows.Threading;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// MyChurch 1.0 : le projecteur.
+/// Siloé Stream 1.0 : le projecteur.
 /// • Pas de veille tant que la projection est ouverte (45 min de prédication sans toucher la souris) : Windows n'éteint ni l'écran
 ///   ni le PC, et l'économiseur d'écran ne démarre pas. Pendant un enregistrement, le PC reste éveillé.
-/// • Projecteur débranché : la projection se ferme tout de suite (Windows la poserait sinon sur l'écran de la régie) et MyChurch
+/// • Projecteur débranché : la projection se ferme tout de suite (Windows la poserait sinon sur l'écran de la régie) et Siloé Stream
 ///   l'attend ; rebranché : elle se rouvre toute seule dessus, à sa nouvelle place et à sa nouvelle résolution.
 /// • Au démarrage : la projection laissée ouverte se rouvre sur le dernier écran — jamais en plein écran sur l'écran de la régie.
 /// </summary>
@@ -16,9 +16,9 @@ public partial class MainWindow
 {
     /// <summary>La projection plein écran attend son projecteur (débranché, ou pas encore branché au démarrage).</summary>
     bool attenteProjecteur;
-    /// <summary>Fermeture décidée par MyChurch (projecteur débranché) : la projection reste « ouverte » dans les réglages.</summary>
+    /// <summary>Fermeture décidée par Siloé Stream (projecteur débranché) : la projection reste « ouverte » dans les réglages.</summary>
     bool fermetureAuto;
-    /// <summary>MyChurch se ferme : la projection se rouvrira au prochain démarrage.</summary>
+    /// <summary>Siloé Stream se ferme : la projection se rouvrira au prochain démarrage.</summary>
     bool fermetureApp;
     /// <summary>Veille demandée à Windows : -1 rien encore, sinon 1 = écran (projection), 2 = PC (enregistrement).</summary>
     int veille = -1;
@@ -111,7 +111,7 @@ public partial class MainWindow
         if (Reglages is { IsVisible: true } r) r.MajEcrans();
     }
 
-    /// <summary>Le projecteur a disparu : la projection se ferme (sinon Windows la pose sur l'écran de la régie) et MyChurch l'attend.</summary>
+    /// <summary>Le projecteur a disparu : la projection se ferme (sinon Windows la pose sur l'écran de la régie) et Siloé Stream l'attend.</summary>
     void FermerProjectionAuto()
     {
         var choix = App.Donnees.Reglages.Ecran;

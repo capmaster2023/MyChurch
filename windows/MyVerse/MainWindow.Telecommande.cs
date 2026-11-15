@@ -6,7 +6,7 @@ using System.Windows.Media;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// MyChurch 1.5.0, design « Télécommande » :
+/// Siloé Stream 1.5.0, design « Télécommande » :
 /// - trois pages dans la barre de gauche (Culte, Bibliothèque, Son) ; la Bibliothèque a ses onglets (Bible, Chants, Médias, Duo) ;
 /// - en bas, la télécommande, la même sur toutes les pages : ce qui est à l'écran (petit aperçu, titre, « Refrain, 2 sur 6 »),
 ///   Précédent, le gros Suivant, Noir, Effacer ;

@@ -7,7 +7,7 @@ namespace MyVerse.Ui.Audio;
 /// <summary>
 /// Une sortie du son vers un appareil de l'ordinateur : un envoi (vers « CABLE Input » de VB-CABLE, que Zoom, OBS ou Teams
 /// reçoivent comme un micro « CABLE Output », ou vers une autre sortie), ou le casque de la régie.
-/// Elle recopie la piste d'OBS que MyChurch lui donne, protégée contre la saturation. MyChurch ne mélange rien ici.
+/// Elle recopie la piste d'OBS que Siloé Stream lui donne, protégée contre la saturation. Siloé Stream ne mélange rien ici.
 /// </summary>
 public sealed class SortieSon : IDisposable
 {

@@ -7,7 +7,7 @@ using System.Windows.Threading;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// « Capture de fenêtre » (MyChurch 1.3.1), comme les propriétés de la capture de fenêtre d'OBS : l'image de la fenêtre en direct,
+/// « Capture de fenêtre » (Siloé Stream 1.3.1), comme les propriétés de la capture de fenêtre d'OBS : l'image de la fenêtre en direct,
 /// la liste « [Zoom.exe] : titre », la zone client, le nom dans Display, et où va la fenêtre : dans l'église, en streaming ou les deux.
 /// Sert à l'ajout (+ Ajouter une source) et à la modification (clic droit › Modifier).
 /// </summary>
@@ -67,7 +67,7 @@ public sealed class CaptureFenetreWindow : FenetreDialogue
         ligne.Children.Add(actualiser);
         ligne.Children.Add(liste);
         corps.Children.Add(ligne);
-        corps.Children.Add(Note("Gardez-la ouverte et non réduite. Fermée puis rouverte, MyChurch la retrouve tout seul : même programme et même titre, sinon même type de fenêtre."));
+        corps.Children.Add(Note("Gardez-la ouverte et non réduite. Fermée puis rouverte, Siloé Stream la retrouve tout seul : même programme et même titre, sinon même type de fenêtre."));
         zoneClient = new CheckBox { Content = "Zone client seulement (sans la barre de titre ni les bords)", IsChecked = existante?.ZoneClient ?? true, FontSize = 14, Margin = new Thickness(0, 14, 0, 0) };
         corps.Children.Add(zoneClient);
 

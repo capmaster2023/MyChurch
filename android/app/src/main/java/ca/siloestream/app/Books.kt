@@ -1,11 +1,11 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import java.text.Normalizer
 
 /** Une référence : livre (0 = Genèse), chapitre, versets v1 à v2 (v1 = 0 : chapitre entier). */
 data class Ref(val b: Int, val c: Int, val v1: Int, val v2: Int)
 
-/** Livres de la Bible et abréviations : les mêmes que bible.js dans VerseLight. */
+/** Livres de la Bible et abréviations : les mêmes que la Bible de Siloé Stream. */
 object Books {
     private val BOOKS = listOf(
         "Genèse" to "gn gen ge genese", "Exode" to "ex exo exod exode", "Lévitique" to "lv lev levit levitique",

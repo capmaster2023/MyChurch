@@ -1,7 +1,7 @@
 namespace MyVerse;
 
 /// <summary>
-/// MyStream (MyChurch 1.6.0) : l'écran envoyé sur Internet. Zoom (par MyVirtualCam) et YouTube (direct de MyChurch) montrent la même image.
+/// MyStream (Siloé Stream 1.6.0) : l'écran envoyé sur Internet. Zoom (par MyVirtualCam) et YouTube (direct de Siloé Stream) montrent la même image.
 /// <para>
 /// 1.6.4 : l'église et MyStream sont deux écrans indépendants. MyStream montre sa source principale (une caméra, MyCam, une fenêtre,
 /// une vidéo, une image), quoi que montre l'église : les paroles, les versets, les images de l'église n'y vont pas.

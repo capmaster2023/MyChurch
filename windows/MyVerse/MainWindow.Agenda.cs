@@ -11,7 +11,7 @@ using System.Windows.Threading;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// Une carte du déroulé (MyChurch 3.3) : icône du type sur sa couleur pâle, « heure · TYPE », titre, détail ;
+/// Une carte du déroulé (Siloé Stream 3.3) : icône du type sur sa couleur pâle, « heure · TYPE », titre, détail ;
 /// « À L'ÉCRAN », « PAR DÉFAUT » (écran principal choisi) et « passé » suivent l'écran.
 /// </summary>
 public sealed class LigneAgenda : INotifyPropertyChanged
@@ -43,7 +43,7 @@ public sealed class LigneAgenda : INotifyPropertyChanged
 }
 
 /// <summary>
-/// Page Culte (design « Pupitre », MyChurch 3.2) : le déroulé du culte en cartes à gauche (comme l'agenda de VideoPsalm),
+/// Page Culte (design « Pupitre », Siloé Stream 3.2) : le déroulé du culte en cartes à gauche (comme l'agenda de VideoPsalm),
 /// toutes ses diapositives en vignettes au centre (MainWindow.Vignettes.cs), résumé à partager, compte à rebours d'accueil,
 /// habillage de l'écran, écran de scène ; et la bibliothèque Display.
 /// </summary>

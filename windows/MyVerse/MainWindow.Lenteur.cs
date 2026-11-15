@@ -4,7 +4,7 @@ using System.Windows.Threading;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// MyChurch 1.8.0 : ce qui ralentit l'interface est noté au journal (Réglages › Journal) : une page lente à s'afficher, ou
+/// Siloé Stream 1.8.0 : ce qui ralentit l'interface est noté au journal (Réglages › Journal) : une page lente à s'afficher, ou
 /// l'interface bloquée plus d'une demi-seconde, avec ce qui tourne à ce moment (caméras, tuiles, mémoire). De quoi trouver la
 /// cause chez l'utilisateur, sans outil.
 /// </summary>

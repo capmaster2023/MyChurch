@@ -1,7 +1,7 @@
 namespace MyVerse;
 
 /// <summary>
-/// Écran par défaut (MyChurch 3.3).
+/// Écran par défaut (Siloé Stream 3.3).
 /// Le déroulé peut contenir des « écrans principaux » (logo, image, caméra, fenêtre, texte de bienvenue, fond seul) : quand l'un
 /// d'eux passe à l'écran, il y reste et devient l'écran par défaut. Dans la colonne de l'écran en direct, on choisit l'écran par
 /// défaut parmi eux, le fond seul ou noir. « Retirer de l'écran » (Échap) revient alors direct dessus au lieu de vider l'écran.

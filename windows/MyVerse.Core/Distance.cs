@@ -11,7 +11,7 @@ using System.Text.Json.Serialization;
 namespace MyVerse;
 
 /// <summary>
-/// MyChurch 1.7.0 : contrôle à distance par Internet (%APPDATA%\VerseLight\distance.json, à côté de devices.json).
+/// Siloé Stream 1.7.0 : contrôle à distance par Internet (%APPDATA%\SiloeStream\distance.json, à côté de devices.json).
 /// Réglé une fois dans Réglages › À distance ; l'agent le relit tout seul.
 /// </summary>
 public sealed class ReglagesDistance
@@ -88,10 +88,10 @@ public sealed class ReglagesDistance
 }
 
 /// <summary>
-/// 1.7.0 : MyChurch ouvert écrit ici le port de son module téléphone (et son numéro de processus) ; l'agent le lit pour
-/// savoir si MyChurch tourne et où lui passer un téléphone venu par Internet.
+/// 1.7.0 : Siloé Stream ouvert écrit ici le port de son module téléphone (et son numéro de processus) ; l'agent le lit pour
+/// savoir si Siloé Stream tourne et où lui passer un téléphone venu par Internet.
 /// </summary>
-public static class PortMyChurch
+public static class PortSiloe
 {
     public const string Fichier = "telephone-port.json";
 
@@ -111,7 +111,7 @@ public static class PortMyChurch
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or FormatException) { }
     }
 
-    /// <summary>Le port de MyChurch ouvert sur ce PC, ou null (fermé, ou planté sans effacer le fichier).</summary>
+    /// <summary>Le port de Siloé Stream ouvert sur ce PC, ou null (fermé, ou planté sans effacer le fichier).</summary>
     public static int? Lire(string dossier)
     {
         try
@@ -132,21 +132,21 @@ public static class PortMyChurch
 }
 
 /// <summary>
-/// MyChurch 1.7.0, l'agent « à distance » : un petit processus sans fenêtre (MyChurch.exe --agent), lancé à l'ouverture de
+/// Siloé Stream 1.7.0, l'agent « à distance » : un petit processus sans fenêtre (SiloeStream.exe --agent), lancé à l'ouverture de
 /// session Windows. Il garde une connexion avec le relais MyChurch (VPS). Un téléphone qui arrive par Internet :
 /// <list type="bullet">
-/// <item>MyChurch est ouvert : l'agent le relie au module téléphone de MyChurch (127.0.0.1), comme sur le Wi-Fi de l'église ;</item>
-/// <item>MyChurch est fermé : l'agent vérifie le téléphone (même clé de jumelage) et peut démarrer MyChurch (« app.start »).</item>
+/// <item>Siloé Stream est ouvert : l'agent le relie au module téléphone de Siloé Stream (127.0.0.1), comme sur le Wi-Fi de l'église ;</item>
+/// <item>Siloé Stream est fermé : l'agent vérifie le téléphone (même clé de jumelage) et peut démarrer Siloé Stream (« app.start »).</item>
 /// </list>
 /// Le relais ne fait que passer les messages ; le jumelage et la clé restent entre le téléphone et ce PC.
 /// </summary>
 public sealed class AgentDistance : IDisposable
 {
     readonly string dossier;
-    readonly Func<bool> demarrerMyChurch;
+    readonly Func<bool> demarrerSiloe;
     readonly string nomPc;
     readonly CancellationTokenSource fin = new();
-    /// <summary>Attente maximale du démarrage de MyChurch (module téléphone ouvert).</summary>
+    /// <summary>Attente maximale du démarrage de Siloé Stream (module téléphone ouvert).</summary>
     public TimeSpan AttenteDemarrage { get; init; } = TimeSpan.FromSeconds(90);
     /// <summary>Pause entre deux essais de connexion au relais.</summary>
     public TimeSpan PauseReconnexion { get; init; } = TimeSpan.FromSeconds(5);
@@ -156,10 +156,10 @@ public sealed class AgentDistance : IDisposable
     /// <summary>Téléphones reçus depuis le démarrage (journal, essais).</summary>
     public int Canaux;
 
-    public AgentDistance(string dossier, Func<bool> demarrerMyChurch, string? nomPc = null)
+    public AgentDistance(string dossier, Func<bool> demarrerSiloe, string? nomPc = null)
     {
         this.dossier = dossier;
-        this.demarrerMyChurch = demarrerMyChurch;
+        this.demarrerSiloe = demarrerSiloe;
         this.nomPc = nomPc ?? Environment.GetEnvironmentVariable("COMPUTERNAME") ?? System.Net.Dns.GetHostName();
     }
 
@@ -202,7 +202,7 @@ public sealed class AgentDistance : IDisposable
         var h = new SocketsHttpHandler
         {
             ConnectTimeout = TimeSpan.FromSeconds(15),
-            // MyChurch lui-même (127.0.0.1) : jamais par un proxy
+            // Siloé Stream lui-même (127.0.0.1) : jamais par un proxy
             UseProxy = !(adresse.IsLoopback),
             ConnectCallback = async (ctx, ct) =>
             {
@@ -301,13 +301,13 @@ public sealed class AgentDistance : IDisposable
         try
         {
             using var tel = await Ouvrir(ReglagesDistance.Adresse(r.Relais, "/canal/" + id), fin.Token);
-            if (PortMyChurch.Lire(dossier) is int port)
+            if (PortSiloe.Lire(dossier) is int port)
             {
                 ClientWebSocket local;
                 try { local = await Ouvrir(new Uri($"ws://127.0.0.1:{port}/"), fin.Token); }
                 catch (Exception e) when (e is WebSocketException or IOException or SocketException or HttpRequestException or OperationCanceledException)
                 {
-                    // MyChurch vient de se fermer (ou se ferme) : l'agent prend le téléphone
+                    // Siloé Stream vient de se fermer (ou se ferme) : l'agent prend le téléphone
                     await SessionAgent(tel);
                     return;
                 }
@@ -351,8 +351,8 @@ public sealed class AgentDistance : IDisposable
     }
 
     /// <summary>
-    /// MyChurch fermé : l'agent fait la même vérification que MyChurch (défi + HMAC avec la clé de jumelage), puis répond
-    /// « MyChurch est fermé » et démarre MyChurch quand le téléphone le demande.
+    /// Siloé Stream fermé : l'agent fait la même vérification que Siloé Stream (défi + HMAC avec la clé de jumelage), puis répond
+    /// « Siloé Stream est fermé » et démarre Siloé Stream quand le téléphone le demande.
     /// </summary>
     async Task SessionAgent(WebSocket ws)
     {
@@ -377,21 +377,21 @@ public sealed class AgentDistance : IDisposable
             hello = await Telephone.Recevoir(ws, d.Token);
         }
         if (hello == null) return;
-        var store = new AppareilsJumeles(dossier); // relu à chaque fois : un téléphone jumelé entre-temps dans MyChurch est connu
+        var store = new AppareilsJumeles(dossier); // relu à chaque fois : un téléphone jumelé entre-temps dans Siloé Stream est connu
         var deviceId = Champ(hello, "deviceId");
         var cnonce = Champ(hello, "cnonce");
         if (Champ(hello, "t") != "hello" || deviceId.Length == 0 || cnonce.Length == 0) { await Refus("protocol", "Message de connexion invalide."); return; }
         if (Champ(hello, "pcId") != store.PcId) { await Refus("wrong_pc", "Ce n'est pas le PC jumelé."); return; }
         if (hello["pair"] is JsonValue pv && pv.TryGetValue<bool>(out var pb) && pb)
         {
-            await Refus("pairing_closed", "MyChurch est fermé sur le PC : ouvrez-le pour jumeler un téléphone (bouton « Téléphone »).");
+            await Refus("pairing_closed", "Siloé Stream est fermé sur le PC : ouvrez-le pour jumeler un téléphone (bouton « Téléphone »).");
             return;
         }
         var cle = store.Cle(deviceId);
         if (cle == null) { await Refus("revoked", "Ce téléphone n'est plus jumelé avec ce PC."); return; }
 
         var nonce = Telephone.Hasard(32);
-        await Envoyer(new JsonObject { ["t"] = "challenge", ["v"] = Telephone.Protocole, ["nonce"] = nonce, ["proof"] = Telephone.PreuveServeur(cle, cnonce, nonce), ["pcName"] = nomPc });
+        await Envoyer(new JsonObject { ["t"] = "challenge", ["v"] = Telephone.Protocole, ["nonce"] = nonce, ["proof"] = Telephone.PreuveServeur(cle, cnonce, nonce, Telephone.BonjourSiloe(hello)), ["pcName"] = nomPc });
         JsonObject? auth;
         using (var d = CancellationTokenSource.CreateLinkedTokenSource(t))
         {
@@ -406,7 +406,7 @@ public sealed class AgentDistance : IDisposable
             return;
         }
         var nom = Champ(hello, "deviceName").Trim();
-        Journal.Info($"à distance : « {nom} » connecté (MyChurch fermé)");
+        Journal.Info($"à distance : « {nom} » connecté (Siloé Stream fermé)");
         await Envoyer(new JsonObject
         {
             ["t"] = "welcome", ["v"] = Telephone.Protocole, ["pcName"] = nomPc, ["paired"] = false, ["proto"] = Telephone.Fonctions,
@@ -425,43 +425,43 @@ public sealed class AgentDistance : IDisposable
                 case "ping": await Envoyer(new JsonObject { ["t"] = "pong" }); break;
                 case "app.start":
                 {
-                    // 1.7.1 : seul un téléphone « Admin » démarre MyChurch
+                    // 1.7.1 : seul un téléphone « Admin » démarre Siloé Stream
                     if (store.Role(deviceId) != Roles.Admin)
                     {
-                        await Envoyer(Rep(new JsonObject { ["t"] = "error", ["message"] = "Seul un téléphone « Admin » peut démarrer MyChurch." }));
+                        await Envoyer(Rep(new JsonObject { ["t"] = "error", ["message"] = "Seul un téléphone « Admin » peut démarrer Siloé Stream." }));
                         break;
                     }
-                    if (PortMyChurch.Lire(dossier) == null)
+                    if (PortSiloe.Lire(dossier) == null)
                     {
-                        Journal.Info($"à distance : « {nom} » démarre MyChurch");
-                        if (!demarrerMyChurch())
+                        Journal.Info($"à distance : « {nom} » démarre Siloé Stream");
+                        if (!demarrerSiloe())
                         {
-                            await Envoyer(Rep(new JsonObject { ["t"] = "error", ["message"] = "MyChurch n'a pas pu démarrer sur le PC." }));
+                            await Envoyer(Rep(new JsonObject { ["t"] = "error", ["message"] = "Siloé Stream n'a pas pu démarrer sur le PC." }));
                             break;
                         }
                     }
                     await Envoyer(Rep(new JsonObject { ["t"] = "app.etat", ["app"] = "demarrage" }));
                     var limite = DateTime.UtcNow + AttenteDemarrage;
-                    while (PortMyChurch.Lire(dossier) == null && DateTime.UtcNow < limite) await Task.Delay(500, t);
-                    if (PortMyChurch.Lire(dossier) == null)
+                    while (PortSiloe.Lire(dossier) == null && DateTime.UtcNow < limite) await Task.Delay(500, t);
+                    if (PortSiloe.Lire(dossier) == null)
                     {
                         await Envoyer(new JsonObject { ["t"] = "app.etat", ["app"] = "ferme" });
-                        await Envoyer(new JsonObject { ["t"] = "error", ["message"] = "MyChurch ne répond pas sur le PC (il démarre peut-être encore). Réessayez dans un instant." });
+                        await Envoyer(new JsonObject { ["t"] = "error", ["message"] = "Siloé Stream ne répond pas sur le PC (il démarre peut-être encore). Réessayez dans un instant." });
                         break;
                     }
-                    // MyChurch est prêt : le téléphone se reconnecte, et passe cette fois directement à MyChurch
+                    // Siloé Stream est prêt : le téléphone se reconnecte, et passe cette fois directement à Siloé Stream
                     await Envoyer(new JsonObject { ["t"] = "app.etat", ["app"] = "ouvert" });
                     using (var d = new CancellationTokenSource(2000))
                     {
-                        try { await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "MyChurch ouvert", d.Token); }
+                        try { await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Siloé Stream ouvert", d.Token); }
                         catch (Exception e) when (e is WebSocketException or OperationCanceledException or IOException) { }
                     }
                     return;
                 }
                 case "state.get" or "agenda.get" or "display.list" or "sync.get" or "cam.info" or "cam.ack":
-                    break; // envoyés d'office par l'app à la connexion : rien à répondre tant que MyChurch est fermé
+                    break; // envoyés d'office par l'app à la connexion : rien à répondre tant que Siloé Stream est fermé
                 default:
-                    if (rid != null) await Envoyer(Rep(new JsonObject { ["t"] = "error", ["message"] = "MyChurch est fermé sur le PC de l'église : appuyez sur « Démarrer MyChurch »." }));
+                    if (rid != null) await Envoyer(Rep(new JsonObject { ["t"] = "error", ["message"] = "Siloé Stream est fermé sur le PC de l'église : appuyez sur « Démarrer Siloé Stream »." }));
                     break;
             }
         }

@@ -5,8 +5,8 @@ using NAudio.Wave;
 namespace MyVerse.Ui.Audio;
 
 /// <summary>
-/// Les entrées séparées d'une carte son (MyChurch 3.1) : une carte à 4 entrées (Behringer UMC404HD, Focusrite…) arrive dans Windows
-/// comme un seul micro à 4 canaux. MyChurch l'écoute une seule fois (WASAPI partagé, comme OBS), sépare les canaux et envoie
+/// Les entrées séparées d'une carte son (Siloé Stream 3.1) : une carte à 4 entrées (Behringer UMC404HD, Focusrite…) arrive dans Windows
+/// comme un seul micro à 4 canaux. Siloé Stream l'écoute une seule fois (WASAPI partagé, comme OBS), sépare les canaux et envoie
 /// chacun à sa bande du mélangeur (source « entrée » d'OBS). Volume, filtres, écoute, vumètres et pistes restent ceux d'OBS.
 /// </summary>
 public sealed class CaptureEntrees : IDisposable

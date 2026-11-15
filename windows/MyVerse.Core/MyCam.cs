@@ -4,9 +4,9 @@ using System.Text.Json.Nodes;
 namespace MyVerse;
 
 /// <summary>
-/// MyCam (MyChurch 4.0) : les téléphones jumelés qui servent de caméra, comme DroidCam.
+/// MyCam (Siloé Stream 4.0) : les téléphones jumelés qui servent de caméra, comme DroidCam.
 /// Le téléphone envoie ses images par sa connexion WebSocket déjà authentifiée (messages binaires « MC ») : de la vidéo H.264
-/// depuis MyChurch 4.1 (décodée ici par le FFmpeg d'OBS), sinon des images JPEG une à une.
+/// depuis Siloé Stream 4.1 (décodée ici par le FFmpeg d'OBS), sinon des images JPEG une à une.
 /// Ce registre garde la dernière image et l'état de chaque téléphone (nom, image, batterie, lien).
 /// La source Display « mycam » (Peripherique = identifiant du téléphone) affiche ces images.
 /// </summary>
@@ -35,7 +35,7 @@ public sealed class MyCams
     public sealed record Cadre(byte[] Jpeg, int Rotation, bool Miroir, long Numero)
     {
         /// <summary>
-        /// MyChurch 1.2 : l'instant où le téléphone a pris l'image, sur l'horloge du PC (<see cref="Horloge"/>, ns) :
+        /// Siloé Stream 1.2 : l'instant où le téléphone a pris l'image, sur l'horloge du PC (<see cref="Horloge"/>, ns) :
         /// réception − trajet sur le Wi-Fi (moitié de l'aller-retour « cam.ping ») − âge de l'image dit par le téléphone.
         /// L'enregistrement s'en sert pour mettre chaque image en face du son du même instant.
         /// </summary>
@@ -75,7 +75,7 @@ public sealed class MyCams
     /// </summary>
     public event Action<string, JsonObject>? Demande;
 
-    /// <summary>Drapeau de l'en-tête (MyChurch 1.2) : l'âge de l'image suit, sur 4 octets (microsecondes, petit-boutiste).</summary>
+    /// <summary>Drapeau de l'en-tête (Siloé Stream 1.2) : l'âge de l'image suit, sur 4 octets (microsecondes, petit-boutiste).</summary>
     public const int DrapeauAge = 0x10;
 
     /// <summary>
@@ -107,8 +107,8 @@ public sealed class MyCams
         return null;
     }
 
-    // ------------------------------------------------------------ MyChurch 1.2 : l'heure de chaque image, pour la synchro du son
-    /// <summary>Retard d'un téléphone qui ne dit pas l'âge de ses images (MyChurch 1.1 et avant) : caméra et encodeur, environ.</summary>
+    // ------------------------------------------------------------ Siloé Stream 1.2 : l'heure de chaque image, pour la synchro du son
+    /// <summary>Retard d'un téléphone qui ne dit pas l'âge de ses images (Siloé Stream 1.1 et avant) : caméra et encodeur, environ.</summary>
     public const long AgeParDefaut = 100 * Horloge.Milliseconde;
     /// <summary>Images gardées par téléphone : l'enregistrement prend celle prise au plus près de l'instant voulu.</summary>
     const int Historique = 8;

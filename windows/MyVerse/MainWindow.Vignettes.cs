@@ -9,7 +9,7 @@ using System.Windows.Threading;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// Page Culte, design « Pupitre » (MyChurch 3.2) : toutes les diapositives du culte en vignettes, groupées par élément du déroulé.
+/// Page Culte, design « Pupitre » (Siloé Stream 3.2) : toutes les diapositives du culte en vignettes, groupées par élément du déroulé.
 /// Chaque vignette est dessinée comme l'écran (le même rendu que la projection, avec l'habillage choisi) ;
 /// « À l'écran » en rouge, « Ensuite » en or (1.5.0) ; un clic la montre, un clic droit ouvre le menu de l'élément.
 /// La colonne de droite montre aussi la diapositive suivante en petit.
@@ -121,7 +121,7 @@ public partial class MainWindow
         var grille = new WrapPanel();
         for (int i = 0; i < d.Count; i++) grille.Children.Add(CreerVignette(e, d[i], i));
         if (d.Count == 0)
-            grille.Children.Add(new TextBlock { Text = e.Type == "chant" ? "Ce chant n'existe plus dans MyChurch." : "Rien à afficher dans cette Bible.", Style = Style_("Muet"), FontSize = 14, Margin = new Thickness(2, 0, 0, 4) });
+            grille.Children.Add(new TextBlock { Text = e.Type == "chant" ? "Ce chant n'existe plus dans Siloé Stream." : "Rien à afficher dans cette Bible.", Style = Style_("Muet"), FontSize = 14, Margin = new Thickness(2, 0, 0, 4) });
         pile.Children.Add(grille);
         return pile;
     }

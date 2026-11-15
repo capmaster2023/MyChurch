@@ -201,42 +201,55 @@ public static class Natif
 
     const string CleExecuter = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
-    /// <summary>MyChurch s'ouvre quand Windows démarre (clé « Run » de l'utilisateur : visible dans le Gestionnaire des tâches › Démarrage).</summary>
+    /// <summary>Siloé Stream s'ouvre quand Windows démarre (clé « Run » de l'utilisateur : visible dans le Gestionnaire des tâches › Démarrage).</summary>
     public static bool DemarrageWindows
     {
         get
         {
-            try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(CleExecuter); return k?.GetValue("MyChurch") is string; }
+            try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(CleExecuter); return k?.GetValue("Siloé Stream") is string; }
             catch (Exception) { return false; }
         }
     }
 
-    /// <summary>Ouvrir (ou plus) MyChurch au démarrage de Windows. Rend faux si Windows refuse.</summary>
+    /// <summary>Ouvrir (ou plus) Siloé Stream au démarrage de Windows. Rend faux si Windows refuse.</summary>
     public static bool ChangerDemarrageWindows(bool oui)
     {
         try
         {
             using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(CleExecuter, true);
-            if (oui) k.SetValue("MyChurch", "\"" + Environment.ProcessPath + "\"");
-            else k.DeleteValue("MyChurch", false);
-            Journal.Info(oui ? "MyChurch s'ouvrira au démarrage de Windows" : "MyChurch ne s'ouvrira plus au démarrage de Windows");
+            k.DeleteValue("MyChurch", false); // l'ancien nom (avant Siloé Stream)
+            if (oui) k.SetValue("Siloé Stream", "\"" + Environment.ProcessPath + "\"");
+            else k.DeleteValue("Siloé Stream", false);
+            Journal.Info(oui ? "Siloé Stream s'ouvrira au démarrage de Windows" : "Siloé Stream ne s'ouvrira plus au démarrage de Windows");
             return true;
         }
         catch (Exception e) { Journal.Erreur("démarrage avec Windows", e); return false; }
     }
 
-    /// <summary>1.7.0 : l'agent « à distance » au démarrage de Windows (valeur « MyChurch Agent » de la clé « Run »).</summary>
+    /// <summary>1.9.0 : « MyChurch » ouvert au démarrage de Windows (ancien nom) : la valeur passe à « Siloé Stream ».</summary>
+    public static void MigrerDemarrage()
+    {
+        try
+        {
+            using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(CleExecuter, true);
+            if (k.GetValue("MyChurch") is string) { k.DeleteValue("MyChurch", false); k.SetValue("Siloé Stream", "\"" + Environment.ProcessPath + "\""); }
+        }
+        catch (Exception e) { Journal.Erreur("démarrage avec Windows (ancien nom)", e); }
+    }
+
+    /// <summary>1.7.0 : l'agent « à distance » au démarrage de Windows (valeur « Siloé Stream Agent » de la clé « Run »).</summary>
     public static bool ChangerAgentAuDemarrage(bool oui)
     {
         try
         {
             using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(CleExecuter, true);
             var voulu = "\"" + Environment.ProcessPath + "\" --agent";
+            k.DeleteValue("MyChurch Agent", false); // l'ancien nom (avant Siloé Stream)
             if (oui)
             {
-                if (k.GetValue("MyChurch Agent") as string != voulu) k.SetValue("MyChurch Agent", voulu);
+                if (k.GetValue("Siloé Stream Agent") as string != voulu) k.SetValue("Siloé Stream Agent", voulu);
             }
-            else k.DeleteValue("MyChurch Agent", false);
+            else k.DeleteValue("Siloé Stream Agent", false);
             return true;
         }
         catch (Exception e) { Journal.Erreur("agent au démarrage de Windows", e); return false; }

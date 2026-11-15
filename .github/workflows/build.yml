@@ -1,4 +1,4 @@
-name: Build MyChurch
+name: Build Siloé Stream
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   windows:
-    name: MyChurch Windows (natif)
+    name: Siloé Stream Windows (natif)
     runs-on: windows-latest
     defaults:
       run:
@@ -61,7 +61,7 @@ jobs:
           if (-not $crt) { throw "Runtime Visual C++ introuvable sur la machine de compilation" }
           foreach ($f in @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll")) { Copy-Item "$($crt.FullName)\$f" "$obs/bin/64bit/" }
           "runtime Visual C++ : $($crt.FullName)" | Tee-Object -FilePath ci/obs.txt -Append
-          # chaque DLL chargée par MyChurch doit trouver ses dépendances : dans bin/64bit, ou dans Windows (le runtime Visual C++ doit être dans bin/64bit)
+          # chaque DLL chargée par SiloeStream doit trouver ses dépendances : dans bin/64bit, ou dans Windows (le runtime Visual C++ doit être dans bin/64bit)
           $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Where-Object { $_.FullName -like '*Hostx64\x64*' } | Select-Object -First 1
           if (-not $dumpbin) { throw "dumpbin introuvable" }
           $bin = (Resolve-Path "$obs/bin/64bit").Path
@@ -107,7 +107,7 @@ jobs:
           $racine = $exe.Directory.Parent.FullName
           $licence = Get-ChildItem $racine -File -Filter "LICENSE*" | Select-Object -First 1
           if (-not $licence) { throw "Licence de FFmpeg introuvable dans le paquet" }
-          # MyChurch ne livre que ffmpeg.exe (MP3 et vidéo MKV), avec sa licence et le README du build
+          # SiloeStream ne livre que ffmpeg.exe (MP3 et vidéo MKV), avec sa licence et le README du build
           New-Item -ItemType Directory -Force out/ffmpeg | Out-Null
           Copy-Item $exe.FullName out/ffmpeg/
           Copy-Item $licence.FullName out/ffmpeg/LICENSE.txt
@@ -118,9 +118,9 @@ jobs:
           $version[0] | Tee-Object -FilePath ci/ffmpeg.txt -Append
           $encodeurs = @(& $exe.FullName -hide_banner -encoders)
           $encodeurs | Where-Object { $_ -match "libx264|h264_nvenc|h264_qsv|h264_amf|mjpeg|libmp3lame| flac | aac " } | ForEach-Object { $_.Trim() } | Tee-Object -FilePath ci/ffmpeg.txt -Append
-          # MyChurch 1.3 enregistre le son en MP3 : l'encodeur libmp3lame doit être dans ffmpeg.exe
+          # SiloeStream 1.3 enregistre le son en MP3 : l'encodeur libmp3lame doit être dans ffmpeg.exe
           if (-not ($encodeurs | Where-Object { $_ -match "libmp3lame" })) { throw "ffmpeg.exe sans encodeur MP3 (libmp3lame)" }
-          # MyChurch 1.6.0 : le direct part vers YouTube en RTMPS (et RTMP pour les autres services)
+          # SiloeStream 1.6.0 : le direct part vers YouTube en RTMPS (et RTMP pour les autres services)
           $protocoles = @(& $exe.FullName -hide_banner -protocols) | ForEach-Object { $_.Trim() }
           "protocoles du direct : rtmp $($protocoles -contains 'rtmp'), rtmps $($protocoles -contains 'rtmps')" | Tee-Object -FilePath ci/ffmpeg.txt -Append
           if (-not ($protocoles -contains 'rtmps')) { throw "ffmpeg.exe sans RTMPS (direct YouTube)" }
@@ -128,7 +128,7 @@ jobs:
       - name: Tests du cœur (Bible, recherche, chants, téléphone, mélangeur sur la vraie libobs)
         run: |
           New-Item -ItemType Directory -Force ci | Out-Null
-          # 1.7.0 : le relais MyChurch (Node + ws) tourne pendant les tests « À distance »
+          # 1.7.0 : le relais SiloeStream (Node + ws) tourne pendant les tests « À distance »
           npm install --prefix relais --no-save --no-package-lock ws@8 2>&1 | Out-Host
           $env:MYCHURCH_OBS = (Resolve-Path "out/obs").Path
           "ffmpeg des tests : $env:MYCHURCH_FFMPEG"
@@ -163,24 +163,24 @@ jobs:
             if ($p.ExitCode -ne 0) { throw "Désenregistrement caméra $arch : $($p.ExitCode)" }
           }
 
-      - name: Compilation de MyChurch.exe
+      - name: Compilation de SiloeStream.exe
         env:
           # 1.6.0 : « Connecter le compte YouTube » (identifiant Google de l'église, facultatif)
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
         run: |
-          dotnet publish windows/MyVerse/MyVerse.csproj -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -p:Version=${{ steps.v.outputs.version }} -o out/MyChurch -v:m 2>&1 | Tee-Object -FilePath ci/windows-build.log
+          dotnet publish windows/MyVerse/MyVerse.csproj -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -p:Version=${{ steps.v.outputs.version }} -o out/SiloeStream -v:m 2>&1 | Tee-Object -FilePath ci/windows-build.log
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          Copy-Item windows/LISEZ-MOI.txt out/MyChurch/
+          Copy-Item windows/LISEZ-MOI.txt out/SiloeStream/
           # moteur audio OBS (libobs, GNU GPL v2 ou ultérieure) et le texte de la licence
-          Copy-Item -Recurse out/obs out/MyChurch/obs
-          Copy-Item COPYING out/MyChurch/COPYING.txt
+          Copy-Item -Recurse out/obs out/SiloeStream/obs
+          Copy-Item COPYING out/SiloeStream/COPYING.txt
           # ffmpeg.exe (GNU GPL v3) pour le MP3 et la vidéo des enregistrements, avec sa licence
-          Copy-Item -Recurse out/ffmpeg out/MyChurch/ffmpeg
-          Copy-Item out/cam-x64/Release/MyVirtualCam.dll out/MyChurch/MyVirtualCam.dll
-          Copy-Item out/cam-Win32/Release/MyVirtualCam.dll out/MyChurch/MyVirtualCam32.dll
-          Get-ChildItem out/directshow/LICENSE* | Copy-Item -Destination out/MyChurch/
-          Get-ChildItem out/MyChurch | Measure-Object -Property Length -Sum | ForEach-Object { "{0} fichiers, {1:N1} Mo" -f $_.Count, ($_.Sum / 1MB) }
+          Copy-Item -Recurse out/ffmpeg out/SiloeStream/ffmpeg
+          Copy-Item out/cam-x64/Release/MyVirtualCam.dll out/SiloeStream/MyVirtualCam.dll
+          Copy-Item out/cam-Win32/Release/MyVirtualCam.dll out/SiloeStream/MyVirtualCam32.dll
+          Get-ChildItem out/directshow/LICENSE* | Copy-Item -Destination out/SiloeStream/
+          Get-ChildItem out/SiloeStream | Measure-Object -Property Length -Sum | ForEach-Object { "{0} fichiers, {1:N1} Mo" -f $_.Count, ($_.Sum / 1MB) }
 
       - name: Écran de 1920 × 1080 pour les captures (si Windows le permet)
         continue-on-error: true
@@ -192,13 +192,13 @@ jobs:
           $env:MYCHURCH_TEST_CAM = "1"
           $env:VERSELIGHT_DATA_DIR = "$env:RUNNER_TEMP\myverse-donnees"
           New-Item -ItemType Directory -Force ci/autotest | Out-Null
-          $p = Start-Process -FilePath "out\MyChurch\MyChurch.exe" -ArgumentList @("--autotest", "$PWD\ci\autotest") -PassThru
+          $p = Start-Process -FilePath "out\SiloeStream\SiloeStream.exe" -ArgumentList @("--autotest", "$PWD\ci\autotest") -PassThru
           $null = $p.Handle
           if (-not $p.WaitForExit(300000)) { $p.Kill(); "MyVerse ne s'est pas fermé (plus de 5 minutes)" | Tee-Object -FilePath ci/autotest/autotest.txt -Append; exit 1 }
           Get-Content ci/autotest/autotest.txt -ErrorAction SilentlyContinue
           "code de sortie : $($p.ExitCode)"
           if ($p.ExitCode -ne 0) {
-            # plantage : l'erreur .NET (journal Application de Windows) et le journal de MyChurch, pour ci-logs
+            # plantage : l'erreur .NET (journal Application de Windows) et le journal de SiloeStream, pour ci-logs
             try { Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = '.NET Runtime', 'Application Error' } -MaxEvents 4 -ErrorAction Stop | Format-List TimeCreated, ProviderName, Message | Out-File -Encoding utf8 ci/autotest/plantage.txt } catch { "journal Windows : $($_.Exception.Message)" | Out-File -Encoding utf8 ci/autotest/plantage.txt }
             Copy-Item "$env:VERSELIGHT_DATA_DIR\journal-myverse.txt" ci/autotest/ -ErrorAction SilentlyContinue
             Get-Content ci/autotest/plantage.txt -ErrorAction SilentlyContinue | Select-Object -First 60
@@ -218,9 +218,9 @@ jobs:
           "Pixel OBS : $($pixel.R),$($pixel.G),$($pixel.B)" | Tee-Object -FilePath ci/obs-browser.txt
           if ($pixel.R -ne 200 -or $pixel.G -ne 30 -or $pixel.B -ne 40) { throw "Le fond masque la vidéo dans la source navigateur OBS" }
 
-      - name: Règles du pare-feu (MyChurch.exe --parefeu)
+      - name: Règles du pare-feu (SiloeStream.exe --parefeu)
         run: |
-          $p = Start-Process -FilePath "out\MyChurch\MyChurch.exe" -ArgumentList "--parefeu" -PassThru
+          $p = Start-Process -FilePath "out\SiloeStream\SiloeStream.exe" -ArgumentList "--parefeu" -PassThru
           $null = $p.Handle
           if (-not $p.WaitForExit(120000)) { $p.Kill(); "délai dépassé" | Tee-Object -FilePath ci/parefeu.txt -Append; exit 1 }
           "code de sortie : $($p.ExitCode)" | Tee-Object -FilePath ci/parefeu.txt -Append
@@ -231,7 +231,7 @@ jobs:
             if ($code -ne 0) { "règle absente : $r" | Tee-Object -FilePath ci/parefeu.txt -Append; exit 1 }
           }
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }
-          $v = Start-Process -FilePath "out\MyChurch\MyChurch.exe" -ArgumentList "--parefeu-verifier" -PassThru
+          $v = Start-Process -FilePath "out\SiloeStream\SiloeStream.exe" -ArgumentList "--parefeu-verifier" -PassThru
           $null = $v.Handle
           $v.WaitForExit(120000) | Out-Null
           "vérification du pare-feu par MyVerse : code $($v.ExitCode) (0 = en place)" | Tee-Object -FilePath ci/parefeu.txt -Append
@@ -244,14 +244,14 @@ jobs:
           $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
           if (-not (Test-Path $nsis)) { choco install nsis -y --no-progress | Out-Null; $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
           Remove-Item -Recurse -Force windows/installer/app -ErrorAction SilentlyContinue
-          Copy-Item -Recurse out/MyChurch windows/installer/app
+          Copy-Item -Recurse out/SiloeStream windows/installer/app
           Push-Location windows/installer
           & $nsis -V2 "-DVERSION=$V" MyVerse.nsi
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Pop-Location
-          Move-Item windows/installer/MyChurch-Setup-*.exe .
-          Compress-Archive -Path out/MyChurch -DestinationPath "MyChurch-$V-Windows.zip" -CompressionLevel Optimal
-          Get-ChildItem MyChurch-*.zip, MyChurch-Setup-*.exe | Format-Table Name, Length
+          Move-Item windows/installer/SiloeStream-Setup-*.exe .
+          Compress-Archive -Path out/SiloeStream -DestinationPath "SiloeStream-$V-Windows.zip" -CompressionLevel Optimal
+          Get-ChildItem SiloeStream-*.zip, SiloeStream-Setup-*.exe | Format-Table Name, Length
 
       - name: Test de l'installateur (mise à jour d'une 3.x, puis désinstallation)
         if: success()
@@ -264,12 +264,12 @@ jobs:
           Set-Content "$dir\extensions\bridge\verselight-bridge.exe" "ancien"
           Set-Content "$dir\neutralinojs.log" "ancien"
           # Une application vidéo garde la DLL chargée pendant toute la mise à jour.
-          Copy-Item out/MyChurch/MyVirtualCam.dll "$dir/MyVirtualCam.dll"
-          Copy-Item out/MyChurch/MyVirtualCam32.dll "$dir/MyVirtualCam32.dll"
+          Copy-Item out/SiloeStream/MyVirtualCam.dll "$dir/MyVirtualCam.dll"
+          Copy-Item out/SiloeStream/MyVirtualCam32.dll "$dir/MyVirtualCam32.dll"
           Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class CameraChargee { [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern IntPtr LoadLibraryW(string path); [DllImport("kernel32.dll")] public static extern bool FreeLibrary(IntPtr module); }'
           $module = [CameraChargee]::LoadLibraryW("$dir/MyVirtualCam.dll")
           if ($module -eq [IntPtr]::Zero) { throw "La DLL de test n'a pas pu être chargée" }
-          $setup = (Get-ChildItem MyChurch-Setup-*.exe | Select-Object -First 1).FullName
+          $setup = (Get-ChildItem SiloeStream-Setup-*.exe | Select-Object -First 1).FullName
           try {
             $p = Start-Process $setup -ArgumentList "/S" -PassThru
             $null = $p.Handle
@@ -280,34 +280,34 @@ jobs:
             if ($p.ExitCode -ne 0 -or -not $remplacee) { throw "Échec de la mise à jour de MyVirtualCam" }
           } finally { [CameraChargee]::FreeLibrary($module) | Out-Null }
           Start-Sleep 4
-          $ouvert = Get-Process MyChurch -ErrorAction SilentlyContinue
+          $ouvert = Get-Process SiloeStream -ErrorAction SilentlyContinue
           "MyVerse rouvert après la mise à jour : $([bool]$ouvert)" | Tee-Object -FilePath ci/installateur.txt -Append
           $ouvert | Stop-Process -Force -ErrorAction SilentlyContinue
           $ok = $true
-          foreach ($f in @("MyChurch.exe", "Ressources\lsg.json", "Ressources\obs\ecran.html", "Desinstaller.exe", "obs\bin\64bit\obs.dll", "obs\core\win-wasapi\win-wasapi.dll", "COPYING.txt", "ffmpeg\ffmpeg.exe", "ffmpeg\LICENSE.txt")) { $e = Test-Path "$dir\$f"; "présent $f : $e" | Tee-Object -FilePath ci/installateur.txt -Append; if (-not $e) { $ok = $false } }
+          foreach ($f in @("SiloeStream.exe", "Ressources\lsg.json", "Ressources\obs\ecran.html", "Desinstaller.exe", "obs\bin\64bit\obs.dll", "obs\core\win-wasapi\win-wasapi.dll", "COPYING.txt", "ffmpeg\ffmpeg.exe", "ffmpeg\LICENSE.txt")) { $e = Test-Path "$dir\$f"; "présent $f : $e" | Tee-Object -FilePath ci/installateur.txt -Append; if (-not $e) { $ok = $false } }
           foreach ($f in @("resources.neu", "extensions", "neutralinojs.log")) { $e = Test-Path "$dir\$f"; "ancien $f retiré : $(-not $e)" | Tee-Object -FilePath ci/installateur.txt -Append; if ($e) { $ok = $false } }
-          "raccourci Bureau : $(Test-Path "$env:USERPROFILE\Desktop\MyChurch.lnk")" | Tee-Object -FilePath ci/installateur.txt -Append
+          "raccourci Bureau : $(Test-Path "$env:USERPROFILE\Desktop\Siloé Stream.lnk")" | Tee-Object -FilePath ci/installateur.txt -Append
           "Applications installées : $((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MyVerse' -ErrorAction SilentlyContinue).DisplayVersion)" | Tee-Object -FilePath ci/installateur.txt -Append
           $u = Start-Process "$dir\Desinstaller.exe" -ArgumentList @("/S", "_?=$dir") -PassThru
           $null = $u.Handle
           $u.WaitForExit(120000) | Out-Null
-          "désinstallé (MyChurch.exe supprimé) : $(-not (Test-Path "$dir\MyChurch.exe"))" | Tee-Object -FilePath ci/installateur.txt -Append
-          if (Test-Path "$dir\MyChurch.exe") { $ok = $false }
+          "désinstallé (SiloeStream.exe supprimé) : $(-not (Test-Path "$dir\SiloeStream.exe"))" | Tee-Object -FilePath ci/installateur.txt -Append
+          if (Test-Path "$dir\SiloeStream.exe") { $ok = $false }
           if (-not $ok) { exit 1 }
 
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: MyChurch-Setup-${{ steps.v.outputs.version }}
-          path: MyChurch-Setup-*.exe
+          name: SiloeStream-Setup-${{ steps.v.outputs.version }}
+          path: SiloeStream-Setup-*.exe
 
       - uses: actions/upload-artifact@v4
         if: success()
         with:
           name: windows-zip
           path: |
-            MyChurch-*-Windows.zip
-            MyChurch-Setup-*.exe
+            SiloeStream-*-Windows.zip
+            SiloeStream-Setup-*.exe
           retention-days: 3
 
       - name: Journal Windows
@@ -363,18 +363,18 @@ jobs:
           set -o pipefail
           ./gradlew --no-daemon assembleDebug assembleRelease 2>&1 | tee ../ci-android.log
           mkdir -p ../apk
-          cp app/build/outputs/apk/release/app-release.apk ../apk/MyChurch.apk
-          cp app/build/outputs/apk/debug/app-debug.apk ../apk/MyChurch-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk ../apk/SiloeStream.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ../apk/SiloeStream-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MyChurch
-          path: apk/MyChurch.apk
+          name: SiloeStream
+          path: apk/SiloeStream.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MyChurch-debug
-          path: apk/MyChurch-debug.apk
+          name: SiloeStream-debug
+          path: apk/SiloeStream-debug.apk
 
       - name: Journal Android
         if: always()
@@ -443,16 +443,18 @@ jobs:
           TAG="v$V"
           BETA=()
           if [[ "$V" == *-* ]]; then BETA=(--prerelease --latest=false); fi
-          FILES=(dl/windows-zip/*.zip dl/windows-zip/*.exe dl/MyChurch/MyChurch.apk dl/MyChurch-debug/MyChurch-debug.apk)
+          # 1.9.0 : les versions « MyChurch » (avant le nouveau nom) cherchent MyChurch-Setup-* pour leur mise à jour
+          for f in dl/windows-zip/SiloeStream-Setup-*.exe; do cp "$f" "${f/SiloeStream-Setup-/MyChurch-Setup-}"; done
+          FILES=(dl/windows-zip/*.zip dl/windows-zip/*.exe dl/SiloeStream/SiloeStream.apk dl/SiloeStream-debug/SiloeStream-debug.apk)
           ls -la "${FILES[@]}"
           # notes de version : windows/NOTES-<version>.md s'il existe
-          if [ -f "windows/NOTES-$V.md" ]; then NOTES=(--notes-file "windows/NOTES-$V.md"); else NOTES=(--notes "MyChurch $V : logiciel Windows natif (installateur MyVerse-Setup, dossier portable) et APK Android (MyChurch.apk)."); fi
+          if [ -f "windows/NOTES-$V.md" ]; then NOTES=(--notes-file "windows/NOTES-$V.md"); else NOTES=(--notes "SiloeStream $V : logiciel Windows natif (installateur MyVerse-Setup, dossier portable) et APK Android (SiloeStream.apk)."); fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             if [[ "$V" == *-* ]]; then
               gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true
             fi
             gh release upload "$TAG" "${FILES[@]}" --clobber
-            gh release edit "$TAG" --title "MyChurch $V" "${NOTES[@]}" "${BETA[@]}"
+            gh release edit "$TAG" --title "Siloé Stream $V" "${NOTES[@]}" "${BETA[@]}"
           else
-            gh release create "$TAG" "${FILES[@]}" "${BETA[@]}" --target "$GITHUB_SHA" --title "MyChurch $V" "${NOTES[@]}"
+            gh release create "$TAG" "${FILES[@]}" "${BETA[@]}" --target "$GITHUB_SHA" --title "Siloé Stream $V" "${NOTES[@]}"
           fi

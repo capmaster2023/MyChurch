@@ -4,7 +4,7 @@ using System.Windows.Media;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// Les couleurs de l'interface : thème clair par défaut (MyChurch 1.5.0 : blanc chaud et bordeaux #930000), thème sombre (noyer) au choix (Réglages › Apparence ou barre de gauche).
+/// Les couleurs de l'interface : thème clair par défaut (Siloé Stream 1.5.0 : blanc chaud et bordeaux #930000), thème sombre (noyer) au choix (Réglages › Apparence ou barre de gauche).
 /// Chaque pinceau de Theme.xaml est lié à une couleur d'ici : changer de thème met à jour d'un coup toute l'interface,
 /// fenêtres ouvertes et éléments construits en C# compris (ils utilisent les mêmes pinceaux).
 /// Les noms viennent des versions précédentes : « Blanc » est le texte, « Encre » et « Nuit » le fond des cartes, « Or » l'accent.

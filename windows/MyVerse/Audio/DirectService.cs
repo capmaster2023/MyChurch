@@ -6,9 +6,9 @@ namespace MyVerse.Ui.Audio;
 public enum EtatDirect { Arrete, Preparation, EnDirect, Reconnexion, Arret, Erreur }
 
 /// <summary>
-/// MyChurch 1.6.0 : le direct. L'image de MyStream (la même que Zoom) et le son de « Où va le son › YouTube » partent vers YouTube
-/// (ou un autre service) par ffmpeg, en RTMPS. Comme OBS : si Internet coupe, MyChurch se reconnecte tout seul ; avec le compte
-/// connecté, MyChurch crée le direct sur YouTube, le démarre, le suit (en direct, santé de l'image) et le termine.
+/// Siloé Stream 1.6.0 : le direct. L'image de MyStream (la même que Zoom) et le son de « Où va le son › YouTube » partent vers YouTube
+/// (ou un autre service) par ffmpeg, en RTMPS. Comme OBS : si Internet coupe, Siloé Stream se reconnecte tout seul ; avec le compte
+/// connecté, Siloé Stream crée le direct sur YouTube, le démarre, le suit (en direct, santé de l'image) et le termine.
 /// </summary>
 public sealed class DirectService : IDisposable
 {
@@ -55,7 +55,7 @@ public sealed class DirectService : IDisposable
     public bool EnDirect => Etat is EtatDirect.EnDirect or EtatDirect.Reconnexion;
     public TimeSpan Duree => Debut is { } d ? DateTime.Now - d : TimeSpan.Zero;
 
-    /// <summary>L'identifiant Google de MyChurch (donné à la compilation), ou celui des réglages avancés du direct.</summary>
+    /// <summary>L'identifiant Google de Siloé Stream (donné à la compilation), ou celui des réglages avancés du direct.</summary>
     public (string Id, string Secret) Identifiants()
     {
         var id = Coffre.Lire("google.id").Trim();
@@ -133,7 +133,7 @@ public sealed class DirectService : IDisposable
         finally { operation.Release(); }
     }
 
-    /// <summary>Démarre un direct déjà prévu sur YouTube (lié au flux de MyChurch) ; <paramref name="qualite"/> : null pour celle des réglages.</summary>
+    /// <summary>Démarre un direct déjà prévu sur YouTube (lié au flux de Siloé Stream) ; <paramref name="qualite"/> : null pour celle des réglages.</summary>
     public async Task DemarrerPrevuAsync(DirectPrevu d, string? qualite = null)
     {
         if (!await operation.WaitAsync(0)) return;
@@ -176,7 +176,7 @@ public sealed class DirectService : IDisposable
             Statut(EtatDirect.Preparation, "Préparation du direct…");
             if (!audio.Running) throw new IOException("le moteur du son n'est pas démarré (le direct a besoin du son).");
             if (!audio.TracksActive) throw new IOException("cet ordinateur ne peut pas mélanger le son pour le direct (pilote de la carte graphique).");
-            if (!File.Exists(audio.Ffmpeg)) throw new IOException("le programme d'envoi (dossier « ffmpeg » de MyChurch) est introuvable : réinstallez MyChurch.");
+            if (!File.Exists(audio.Ffmpeg)) throw new IOException("le programme d'envoi (dossier « ffmpeg » de Siloé Stream) est introuvable : réinstallez Siloé Stream.");
             var moteur = App.MyStream ?? throw new IOException("MyStream n'a pas démarré (voir Réglages › Journal).");
             var q = qualite ?? R.Qualite;
             var (l, h, kbps) = ReglagesDirect.TailleDe(q);
@@ -391,7 +391,7 @@ public sealed class DirectService : IDisposable
         return "libx264";
     }
 
-    /// <summary>Fermeture de MyChurch : le flux se termine proprement et le direct YouTube est terminé (15 s au plus).</summary>
+    /// <summary>Fermeture de Siloé Stream : le flux se termine proprement et le direct YouTube est terminé (15 s au plus).</summary>
     public void Dispose()
     {
         fin?.Cancel();

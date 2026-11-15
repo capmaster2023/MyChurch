@@ -4,8 +4,8 @@ using NAudio.Wave;
 namespace MyVerse.Ui.Audio;
 
 /// <summary>
-/// Capture ASIO (MyChurch 1.1), comme le plugin ASIO d'OBS : un pilote (Focusrite USB ASIO, UMC ASIO Driver…), un format
-/// (Mono ou Stéréo) et, pour chaque canal OBS, l'entrée du pilote qu'il reçoit (ou Muet). MyChurch ouvre le pilote une seule fois,
+/// Capture ASIO (Siloé Stream 1.1), comme le plugin ASIO d'OBS : un pilote (Focusrite USB ASIO, UMC ASIO Driver…), un format
+/// (Mono ou Stéréo) et, pour chaque canal OBS, l'entrée du pilote qu'il reçoit (ou Muet). Siloé Stream ouvre le pilote une seule fois,
 /// toutes entrées, et donne à chaque source ses canaux ; volume, filtres, écoute, vumètres et pistes restent ceux d'OBS.
 /// Windows ne charge qu'un pilote ASIO à la fois : toutes les sources ASIO doivent utiliser le même.
 /// </summary>
@@ -41,7 +41,7 @@ public sealed class CaptureAsio : IDisposable
     static List<string> cache = new();
     static long lu = long.MinValue / 2;
 
-    /// <summary>Le pilote ouvert par MyChurch (vide si aucun).</summary>
+    /// <summary>Le pilote ouvert par Siloé Stream (vide si aucun).</summary>
     public string PiloteOuvert { get { lock (verrou) return asio != null ? pilote : ""; } }
 
     /// <summary>Problème du pilote d'une source (vide si tout va bien).</summary>

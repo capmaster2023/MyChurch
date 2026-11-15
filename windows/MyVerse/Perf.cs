@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// MyChurch 1.5.0 : le temps des opérations de l'interface (mise à jour de l'écran, vignettes, recherche, caméra virtuelle).
+/// Siloé Stream 1.5.0 : le temps des opérations de l'interface (mise à jour de l'écran, vignettes, recherche, caméra virtuelle).
 /// Le test automatique en fait le résumé ; une opération de plus de 300 ms est notée dans le journal (une fois par minute au plus),
 /// pour retrouver une lenteur chez un utilisateur.
 /// </summary>

@@ -8,7 +8,7 @@ namespace MyVerse.Ui;
 /// <summary>
 /// Éditeur de chant : un chant collé (même en désordre) est rangé tout seul en diapositives de 3 à 5 lignes ;
 /// Entrée devant une ligne = nouvelle diapositive ; aperçu des diapositives à droite.
-/// MyChurch 1.5.1 : tout s'enregistre tout seul (à chaque pause de frappe, et tout de suite après Ranger ou un collage) ;
+/// Siloé Stream 1.5.1 : tout s'enregistre tout seul (à chaque pause de frappe, et tout de suite après Ranger ou un collage) ;
 /// « Retour en arrière » (ou Ctrl+Z) défait la dernière modification, plusieurs fois de suite ; « Fermer » ferme.
 /// </summary>
 public partial class EditeurWindow : FenetreDialogue

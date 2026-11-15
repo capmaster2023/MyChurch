@@ -5,7 +5,7 @@ using System.Windows.Media;
 
 namespace MyVerse.Ui;
 
-/// <summary>Fenêtre de dialogue de MyChurch : fond clair, Échap pour fermer.</summary>
+/// <summary>Fenêtre de dialogue de Siloé Stream : fond clair, Échap pour fermer.</summary>
 public class FenetreDialogue : Window
 {
     public FenetreDialogue()

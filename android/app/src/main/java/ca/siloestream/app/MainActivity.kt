@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.os.Bundle
 import android.view.KeyEvent
@@ -15,7 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 
 /**
- * MyChurch mobile : télécommande de la régie (Régie, Bible, Chants, Culte) et MyCam (le téléphone devient une caméra du PC).
+ * Siloé Stream mobile : télécommande de la régie (Régie, Bible, Chants, Culte) et MyCam (le téléphone devient une caméra du PC).
  */
 class MainActivity : ComponentActivity() {
     private lateinit var remote: Remote
@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
-        remote = MyChurch.remote(applicationContext)
+        remote = SiloeApp.remote(applicationContext)
         Ecoute.canaux(applicationContext)
         MyCam.attacher(this, remote)
         AppEtat.garderAllume.value = remote.store.keepScreenOn

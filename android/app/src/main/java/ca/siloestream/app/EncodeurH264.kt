@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.graphics.Rect
 import android.media.Image
@@ -14,7 +14,7 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * MyCam en H.264 (MyChurch 4.1) : l'encodeur vidéo matériel du téléphone (MediaCodec), comme DroidCam.
+ * MyCam en H.264 (Siloé Stream 4.1) : l'encodeur vidéo matériel du téléphone (MediaCodec), comme DroidCam.
  * Les images YUV de la caméra (recadrées au besoin) deviennent des unités d'accès H.264 (Annex B) ; les SPS/PPS précèdent
  * chaque image clé, pour que le PC prenne le flux en route. Environ 10 fois plus léger que le JPEG : le Wi-Fi suit à 30 i/s.
  * Profil Baseline (pas d'images B), priorité temps réel : chaque image sort dès qu'elle est encodée.
@@ -52,7 +52,7 @@ internal class EncodeurH264 private constructor(
     companion object {
         /**
          * Octets laissés libres devant chaque unité d'accès pour l'en-tête MyCam : « M », « C », version, drapeaux,
-         * puis (MyChurch 1.2) l'âge de l'image sur 4 octets.
+         * puis (Siloé Stream 1.2) l'âge de l'image sur 4 octets.
          */
         const val ENTETE = 8
 

@@ -1,12 +1,12 @@
-# MyChurch 1.0.0
+# Siloé Stream 1.0.0
 
 Logiciel Windows autonome de projection pour l'église, avec télécommande Android. Bible, chants et sources Display partent directement sur l'écran choisi dans **Projection**. Le son passe par le moteur audio d'OBS Studio (libobs), dans une page **Son** faite pour être comprise par tout le monde.
 
 ## Premier lancement
 
-MyChurch démarre **vide** : aucun chant, aucun micro (seulement le son des vidéos), aucun enregistrement. Seules deux Bibles libres de droits sont livrées : **Louis Segond 1910** (français) et **King James** (anglais). Les chants s'ajoutent avec **+ Importer chants ou recueil** ou **+ Nouveau chant**, les autres Bibles avec **+ Importer une Bible**.
+Siloé Stream démarre **vide** : aucun chant, aucun micro (seulement le son des vidéos), aucun enregistrement. Seules deux Bibles libres de droits sont livrées : **Louis Segond 1910** (français) et **King James** (anglais). Les chants s'ajoutent avec **+ Importer chants ou recueil** ou **+ Nouveau chant**, les autres Bibles avec **+ Importer une Bible**.
 
-MyChurch est un logiciel libre sous licence **GNU GPL version 2 ou ultérieure** (voir [Licence et code source](#licence-et-code-source)).
+Siloé Stream est un logiciel libre sous licence **GNU GPL version 2 ou ultérieure** (voir [Licence et code source](#licence-et-code-source)).
 
 ## Interface (3.2, design « Pupitre »)
 
@@ -42,15 +42,15 @@ Textes, versets, chants, images, caméras et fenêtres peuvent être épinglés.
 
 La fenêtre **Capture de fenêtre** ressemble à celle d'OBS : l'image de la fenêtre choisie **en direct** en haut, la liste **« [Zoom.exe] : Zoom Meeting »** (seulement les vraies fenêtres, rangées par programme), **Actualiser**, **Zone client seulement** (sans la barre de titre ni les bords, coché d'office) et le nom dans Display. Elle demande aussi **où va la fenêtre** :
 
-- **Dans l'église** : seulement sur l'écran de projection. MyVirtualCam (Zoom) montre **l'écran par défaut** à la place (le logo, une image, le fond seul…), OBS ne reçoit rien. C'est le choix pour **montrer Zoom dans l'église** : Zoom ne reçoit plus sa propre fenêtre, plus d'effet miroir à l'infini. MyChurch le propose d'office pour Zoom, Teams, Webex…
+- **Dans l'église** : seulement sur l'écran de projection. MyVirtualCam (Zoom) montre **l'écran par défaut** à la place (le logo, une image, le fond seul…), OBS ne reçoit rien. C'est le choix pour **montrer Zoom dans l'église** : Zoom ne reçoit plus sa propre fenêtre, plus d'effet miroir à l'infini. Siloé Stream le propose d'office pour Zoom, Teams, Webex…
 - **En streaming** : seulement vers MyVirtualCam et OBS. L'écran de projection garde l'écran par défaut (noir, fond seul ou écran principal).
 - **Les deux** : partout, comme les autres sources.
 
 La tuile de la grille l'indique (**FENÊTRE · ÉGLISE**, **FENÊTRE · STREAMING**), l'écran en direct aussi (**Église seulement**, **Streaming seulement**). Clic droit › **Où va cette fenêtre** change le choix en un clic, **Modifier…** rouvre la fenêtre de capture. Une fenêtre fermée puis rouverte (Zoom qui change de réunion) est reprise toute seule : même programme et même titre, sinon même type de fenêtre ; une fenêtre réduite revient dès qu'elle est restaurée. Les enregistrements gardent ce qui est en direct.
 
-## Son (MyChurch 1.3 : simple pour tous)
+## Son (Siloé Stream 1.3 : simple pour tous)
 
-Tout le son est dans la page **Son** (barre de gauche). On n'y voit jamais de piste, de monitoring ni de filtre : MyChurch les règle. Le moteur est **libobs**, la bibliothèque d'OBS Studio 33.0.1, livrée dans le dossier `obs` à côté de `MyChurch.exe` (48 kHz, stéréo).
+Tout le son est dans la page **Son** (barre de gauche). On n'y voit jamais de piste, de monitoring ni de filtre : Siloé Stream les règle. Le moteur est **libobs**, la bibliothèque d'OBS Studio 33.0.1, livrée dans le dossier `obs` à côté de `SiloeStream.exe` (48 kHz, stéréo).
 
 **Ce qu'on entend** : une carte par son, avec sa barre qui bouge, un mot simple (**Bon niveau**, **Un peu faible**, **Trop fort !**, **Coupé**, **Débranché**), son **volume en %** (100 % = normal, double-clic pour y revenir), **Couper** (rouge : le son est coupé partout) et **Régler**.
 
@@ -63,23 +63,23 @@ Tout le son est dans la page **Son** (barre de gauche). On n'y voit jamais de pi
 **Où va le son** :
 
 - **Dans l'église** : les haut-parleurs de l'ordinateur, et les sons qu'on y entend (les micros, qui passent par la table de mixage, demandent une confirmation : risque de larsen).
-- **Enregistrer** : **Enregistrer le culte** d'un clic (le son en MP3, prêt à partager, dans Vidéos › MyChurch). D'autres enregistrements au choix (5 au plus, en même temps) : le son seul (MP3, ou WAV qualité studio) ou **la vidéo et le son** (MKV : ce qui est à l'écran, des caméras, MyCam…, la synchro est automatique). FFmpeg 8.0.1 est inclus (dossier `ffmpeg`).
+- **Enregistrer** : **Enregistrer le culte** d'un clic (le son en MP3, prêt à partager, dans Vidéos › Siloé Stream). D'autres enregistrements au choix (5 au plus, en même temps) : le son seul (MP3, ou WAV qualité studio) ou **la vidéo et le son** (MKV : ce qui est à l'écran, des caméras, MyCam…, la synchro est automatique). FFmpeg 8.0.1 est inclus (dossier `ffmpeg`).
 - **Zoom et en ligne** : **Envoyer le son à Zoom** d'un clic ; dans Zoom, OBS ou Teams, choisir le micro « CABLE Output ». Le câble audio virtuel (VB-CABLE, VB-Audio Software, www.vb-cable.com, donationware) n'est pas inclus : **Installer le câble** le télécharge depuis le site officiel, seulement sur clic. 4 envois au plus.
 - **Casque** : écouter tout le son, comme il part à Zoom et dans l'enregistrement (sa sortie doit être différente de celle de l'église).
-- Chaque destination reçoit **tout le son**, ou seulement les sons choisis. MyChurch donne les pistes d'OBS tout seul et ne renvoie jamais le son de l'ordinateur vers la sortie d'où il vient. Une protection anti-saturation garde l'enregistrement, Zoom et le casque propres.
+- Chaque destination reçoit **tout le son**, ou seulement les sons choisis. Siloé Stream donne les pistes d'OBS tout seul et ne renvoie jamais le son de l'ordinateur vers la sortie d'où il vient. Une protection anti-saturation garde l'enregistrement, Zoom et le casque propres.
 - **Réglages › Son** : le moteur du son (**Réparer** s'il manque : réinstallation, données gardées), les haut-parleurs de l'église, le câble pour Zoom, le dossier des enregistrements.
 - Les réglages des versions précédentes sont repris : les sources deviennent des sons, les sorties MyVirtualSound des envois, le monitoring « Dans l'église ».
 
 ## Projection et caméra virtuelle
 
-Le bouton **Projection** (en bas à droite) propose les moniteurs détectés, leurs dimensions et une sortie en fenêtre. MyChurch projette directement : aucun logiciel externe ni connexion WebSocket n'est nécessaire.
+Le bouton **Projection** (en bas à droite) propose les moniteurs détectés, leurs dimensions et une sortie en fenêtre. Siloé Stream projette directement : aucun logiciel externe ni connexion WebSocket n'est nécessaire.
 
 - **Pas de veille** : tant que la projection est ouverte, Windows n'éteint ni l'écran ni le PC (`SetThreadExecutionState`) et l'économiseur d'écran ne démarre pas. Pendant un enregistrement, le PC reste éveillé.
 - **Projecteur débranché** : la projection se ferme tout de suite (elle ne recouvre pas l'écran de la régie) et l'état **Projecteur débranché** s'affiche. **Rebranché** : elle se rouvre toute seule dessus, même sur une autre prise ou dans une autre résolution. Le projecteur est reconnu par son nom (« EPSON PJ »), sinon par sa sortie ; un autre écran (écran de scène) n'est jamais pris pour lui.
 - **Au démarrage**, la projection laissée ouverte se rouvre sur le dernier écran, jamais en plein écran sur l'écran de la régie. **Arrêter la projection** : elle ne se rouvre plus toute seule.
 - **Échap** retire ce qui est à l'écran, sauf dans un champ de saisie : dans une recherche (Bible, chants, numéro, Ctrl K), Échap annule la recherche sans toucher au direct, et un 2e Échap quitte le champ.
 
-**MyVirtualCam** reçoit automatiquement la sortie en 720p30 : tout ce que montre l'écran de l'église, Duo et écran par défaut compris (1.3.2), sauf une capture de fenêtre « Dans l'église », remplacée par l'écran par défaut. Elle s'enregistre une fois avec l'autorisation Windows et reste disponible, avec une image noire, quand MyChurch est fermé. Elle vise les applications compatibles DirectShow et ne transporte pas d'audio.
+**MyVirtualCam** reçoit automatiquement la sortie en 720p30 : tout ce que montre l'écran de l'église, Duo et écran par défaut compris (1.3.2), sauf une capture de fenêtre « Dans l'église », remplacée par l'écran par défaut. Elle s'enregistre une fois avec l'autorisation Windows et reste disponible, avec une image noire, quand Siloé Stream est fermé. Elle vise les applications compatibles DirectShow et ne transporte pas d'audio.
 
 La capture de fenêtre nécessite une fenêtre ouverte et non réduite (elle attend qu'on la rouvre ou la restaure). Certains contenus protégés ne permettent pas la capture. Les périphériques vidéo physiques nécessitent les pilotes et permissions Windows appropriés.
 
@@ -87,11 +87,11 @@ La capture de fenêtre nécessite une fenêtre ouverte et non réduite (elle att
 
 [Téléchargements de la 1.0.0](https://github.com/capmaster2023/MyChurch/releases/tag/v1.0.0) :
 
-- `MyChurch-Setup-1.0.0.exe` : installateur Windows.
-- `MyChurch-1.0.0-Windows.zip` : version portable.
-- `MyChurch.apk` : télécommande Android.
+- `SiloeStream-Setup-1.0.0.exe` : installateur Windows.
+- `SiloeStream-1.0.0-Windows.zip` : version portable.
+- `SiloeStream.apk` : télécommande Android.
 
-MyChurch 1.0 continue MyChurch 4.x, publié jusque-là dans le dépôt [Verselight](https://github.com/capmaster2023/Verselight) (historique et anciennes versions). Un PC ou un téléphone en 4.x ne voit pas la 1.0 dans ses mises à jour : installez-la une fois à la main, par-dessus ; les données sont gardées. Les mises à jour suivantes se font de nouveau depuis MyChurch.
+Siloé Stream 1.0 continue Siloé Stream 4.x, publié jusque-là dans le dépôt [Verselight](https://github.com/capmaster2023/Verselight) (historique et anciennes versions). Un PC ou un téléphone en 4.x ne voit pas la 1.0 dans ses mises à jour : installez-la une fois à la main, par-dessus ; les données sont gardées. Les mises à jour suivantes se font de nouveau depuis Siloé Stream.
 
 Aucun jeton GitHub n'est intégré dans l'application.
 
@@ -101,13 +101,13 @@ Sur le téléphone, installez l'APK par-dessus l'application existante. Le packa
 
 ## Licence et code source
 
-MyChurch est un logiciel libre : vous pouvez le redistribuer et le modifier selon les termes de la **GNU General Public License, version 2 ou (à votre choix) toute version ultérieure**, publiée par la Free Software Foundation. Cette licence s'applique parce que MyChurch utilise libobs (OBS Studio), elle-même sous GPL v2 ou ultérieure. Le texte complet est dans [`COPYING`](COPYING), installé avec MyChurch sous le nom `COPYING.txt` (**Réglages › Licences › Lire la licence GNU GPL**).
+Siloé Stream est un logiciel libre : vous pouvez le redistribuer et le modifier selon les termes de la **GNU General Public License, version 2 ou (à votre choix) toute version ultérieure**, publiée par la Free Software Foundation. Cette licence s'applique parce que Siloé Stream utilise libobs (OBS Studio), elle-même sous GPL v2 ou ultérieure. Le texte complet est dans [`COPYING`](COPYING), installé avec Siloé Stream sous le nom `COPYING.txt` (**Réglages › Licences › Lire la licence GNU GPL**).
 
-- Code source de MyChurch : https://github.com/capmaster2023/MyChurch
+- Code source de Siloé Stream : https://github.com/capmaster2023/MyChurch
 - Code source d'OBS Studio 33.0.1 (libobs) : https://github.com/obsproject/obs-studio/tree/33.0.1
 - FFmpeg 8.0.1 (`ffmpeg.exe`, build « essentials » de gyan.dev) : programme séparé sous **GNU GPL version 3**, licence dans `ffmpeg\LICENSE.txt`, sources sur https://ffmpeg.org/releases/
 
-Le dossier `obs` livré avec MyChurch contient les bibliothèques du paquet officiel OBS Studio 33.0.1 pour Windows (sans l'interface d'OBS), avec le runtime Microsoft Visual C++ dont elles ont besoin. Les polices de l'interface (Inter, Space Grotesk, Literata, Atkinson Hyperlegible Next, Unbounded) sont sous licence SIL Open Font License 1.1.
+Le dossier `obs` livré avec Siloé Stream contient les bibliothèques du paquet officiel OBS Studio 33.0.1 pour Windows (sans l'interface d'OBS), avec le runtime Microsoft Visual C++ dont elles ont besoin. Les polices de l'interface (Inter, Space Grotesk, Literata, Atkinson Hyperlegible Next, Unbounded) sont sous licence SIL Open Font License 1.1.
 
 ## Développement et validation
 
@@ -120,4 +120,4 @@ Le dossier `obs` livré avec MyChurch contient les bibliothèques du paquet offi
 
 Tests locaux : `dotnet run --project windows/MyVerse.Tests -c Release -- windows/MyVerse/Ressources [groupe]`. Les essais de libobs utilisent le dossier OBS donné par la variable `MYCHURCH_OBS` sous Windows, ou le paquet `obs-studio` sous Linux (avec `xvfb`). Les essais FLAC et MKV (dont la synchro son/image mesurée) utilisent le `ffmpeg` donné par `MYCHURCH_FFMPEG`.
 
-GitHub Actions **Build MyChurch** télécharge le paquet officiel d'OBS 33.0.1 et FFmpeg 8.0.1 (SHA-256 vérifiés), ne garde d'OBS que libobs et trois modules (win-wasapi, obs-filters, obs-ffmpeg), vérifie leurs dépendances, enregistre de vrais fichiers WAV, FLAC et MKV, compile et teste WPF sur Windows, vérifie les images de projection, les pixels de MyVirtualCam, l'export navigateur local et l'installation, puis construit les APK. La branche `dev` sert à valider. Une avance de `main` publie la version. Les comptes rendus et captures sont copiés dans `ci-logs`.
+GitHub Actions **Build Siloé Stream** télécharge le paquet officiel d'OBS 33.0.1 et FFmpeg 8.0.1 (SHA-256 vérifiés), ne garde d'OBS que libobs et trois modules (win-wasapi, obs-filters, obs-ffmpeg), vérifie leurs dépendances, enregistre de vrais fichiers WAV, FLAC et MKV, compile et teste WPF sur Windows, vérifie les images de projection, les pixels de MyVirtualCam, l'export navigateur local et l'installation, puis construit les APK. La branche `dev` sert à valider. Une avance de `main` publie la version. Les comptes rendus et captures sont copiés dans `ci-logs`.

@@ -7,8 +7,8 @@ namespace MyVerse.Ui.Audio;
 public sealed record EtatSon(VerdictNiveau Verdict, string Texte, string Couleur, bool Actif);
 
 /// <summary>
-/// Le son de MyChurch (1.3). Garde les réglages (les sons, et où va le son), prépare le plan du moteur et le donne à OBS (libobs,
-/// livrée dans le dossier « obs » à côté de MyChurch.exe). Suit aussi les niveaux (« Bon niveau », « Trop fort ! »), les appareils
+/// Le son de Siloé Stream (1.3). Garde les réglages (les sons, et où va le son), prépare le plan du moteur et le donne à OBS (libobs,
+/// livrée dans le dossier « obs » à côté de SiloeStream.exe). Suit aussi les niveaux (« Bon niveau », « Trop fort ! »), les appareils
 /// branchés et débranchés, les musiques (Lire, Pause), les envois vers Zoom ou OBS et le casque de la régie.
 /// L'utilisateur ne voit jamais de piste, de monitoring ni de filtre : <see cref="AudioConfiguration.Planifier"/> les décide.
 /// </summary>
@@ -35,9 +35,9 @@ public sealed class ChurchAudioService : IDisposable
     /// <summary>Le dernier plan donné au moteur (pistes des destinations, sources d'OBS).</summary>
     public PlanAudio Plan { get; private set; } = new();
     public string Diagnostic { get; private set; } = "Le moteur du son démarre…";
-    /// <summary>Le dossier « obs » manque ou est incomplet : la page Son propose de réparer (réinstaller MyChurch).</summary>
+    /// <summary>Le dossier « obs » manque ou est incomplet : la page Son propose de réparer (réinstaller Siloé Stream).</summary>
     public bool ObsAbsent { get; private set; }
-    /// <summary>ffmpeg (MP3 et vidéo MKV), livré avec MyChurch.</summary>
+    /// <summary>ffmpeg (MP3 et vidéo MKV), livré avec Siloé Stream.</summary>
     public string Ffmpeg => FfmpegInclus;
     public static string FfmpegInclus => Path.Combine(AppContext.BaseDirectory, "ffmpeg", "ffmpeg.exe");
     public static string DossierObs => Path.Combine(AppContext.BaseDirectory, "obs");
@@ -69,7 +69,7 @@ public sealed class ChurchAudioService : IDisposable
         };
     }
 
-    /// <summary>Démarre le moteur puis recrée les sons enregistrés. Sans le moteur, le reste de MyChurch fonctionne normalement.</summary>
+    /// <summary>Démarre le moteur puis recrée les sons enregistrés. Sans le moteur, le reste de Siloé Stream fonctionne normalement.</summary>
     public void Start()
     {
         if (mixer.Running) return;
@@ -78,13 +78,13 @@ public sealed class ChurchAudioService : IDisposable
             Relever();
             releve.Start();
         }
-        // MyChurch n'est jamais baissé par Windows pendant un appel (Zoom, Teams) : le son envoyé à Zoom reste au même niveau
+        // Siloé Stream n'est jamais baissé par Windows pendant un appel (Zoom, Teams) : le son envoyé à Zoom reste au même niveau
         if (!AttenuationWindows.Desactiver(true)) Journal.Info("son : atténuation de Windows non désactivée (aucune sortie audio ?)");
         var chemins = ObsPaths.Windows(DossierObs);
         if (!chemins.Present)
         {
             ObsAbsent = true;
-            Diagnostic = "Le moteur du son est absent (dossier « obs » de MyChurch manquant ou incomplet). « Réparer » réinstalle MyChurch : vos chants et réglages sont gardés.";
+            Diagnostic = "Le moteur du son est absent (dossier « obs » de Siloé Stream manquant ou incomplet). « Réparer » réinstalle Siloé Stream : vos chants et réglages sont gardés.";
             Journal.Info("son : fichier absent " + chemins.Library);
             Changed?.Invoke();
             return;
@@ -101,7 +101,7 @@ public sealed class ChurchAudioService : IDisposable
         catch (Exception e)
         {
             Diagnostic = "Le moteur du son ne démarre pas : " + (e is DllNotFoundException || e.Message.Contains("0x8007007E")
-                ? "un fichier du dossier « obs » ne se charge pas (manquant ou bloqué par l'antivirus). « Réparer » réinstalle MyChurch."
+                ? "un fichier du dossier « obs » ne se charge pas (manquant ou bloqué par l'antivirus). « Réparer » réinstalle Siloé Stream."
                 : e.Message);
             ObsAbsent = e is DllNotFoundException or BadImageFormatException;
             Journal.Erreur("moteur du son (OBS)", e);
@@ -132,10 +132,10 @@ public sealed class ChurchAudioService : IDisposable
         try { mixer.Apply(Plan.Moteur, Config.Eglise.Appareil, Config.Eglise.NomAppareil); }
         catch (Exception e) { Diagnostic = "Moteur du son : " + e.Message; Journal.Erreur("réglages du son (OBS)", e); }
         Sorties.Apply(Config, Plan);
-        // une entrée seule d'une carte son : MyChurch écoute la carte et donne à chaque son son entrée
+        // une entrée seule d'une carte son : Siloé Stream écoute la carte et donne à chaque son son entrée
         try { entrees.Apply(mixer.EntreesSeparees ? Plan.Moteur : Enumerable.Empty<AudioSource>()); }
         catch (Exception e) { Journal.Erreur("entrées séparées", e); }
-        // carte son professionnelle (ASIO) : MyChurch ouvre le pilote et donne à chaque son ses entrées
+        // carte son professionnelle (ASIO) : Siloé Stream ouvre le pilote et donne à chaque son ses entrées
         try { asio.Apply(mixer.EntreesSeparees ? Plan.Moteur : Enumerable.Empty<AudioSource>()); }
         catch (Exception e) { Journal.Erreur("ASIO", e); }
         Recorder.SuivrePistes();
@@ -279,7 +279,7 @@ public sealed class ChurchAudioService : IDisposable
     public bool InputReady(string id) => mixer.Has(id);
     /// <summary>Une entrée seule d'une carte son est possible (moteur démarré, type « entrée » accepté par OBS).</summary>
     public bool EntreesSeparees => mixer.EntreesSeparees;
-    /// <summary>Ce son écoute une entrée seule (son poussé par MyChurch) : test automatique.</summary>
+    /// <summary>Ce son écoute une entrée seule (son poussé par Siloé Stream) : test automatique.</summary>
     public bool EstEntree(string id) => mixer.EstEntree(id);
     /// <summary>Nombre d'entrées d'un micro ou d'une carte son (0 s'il est absent).</summary>
     public static int Entrees(string deviceId) => CaptureEntrees.Entrees(deviceId);

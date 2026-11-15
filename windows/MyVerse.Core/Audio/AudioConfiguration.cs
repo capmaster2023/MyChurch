@@ -4,16 +4,16 @@ using System.Text.Json.Serialization;
 namespace MyVerse.Audio;
 
 // ======================================================================================================================
-// MyChurch 1.3 : le son, simple comme une voiture automatique.
+// Siloé Stream 1.3 : le son, simple comme une voiture automatique.
 // Ce que l'utilisateur voit et règle : des SONS (un micro, un instrument, la table de mixage, l'ordinateur, les vidéos,
 // une musique) et les endroits OÙ VA LE SON (l'église, l'enregistrement, Zoom ou OBS, le casque).
-// Tout le reste (pistes d'OBS, monitoring, filtres, mono) est décidé par MyChurch : voir AudioConfiguration.Planifier.
+// Tout le reste (pistes d'OBS, monitoring, filtres, mono) est décidé par Siloé Stream : voir AudioConfiguration.Planifier.
 // ======================================================================================================================
 
 /// <summary>Comment le moteur capte un son (caché à l'utilisateur). Les numéros sont ceux des réglages enregistrés depuis la 3.0.</summary>
 public enum AudioInputKind { Microphone, Sortie, Media, Asio }
 public enum AudioFilterKind { NoiseSuppression, NoiseGate, Compressor, Limiter }
-/// <summary>Le monitoring d'OBS : MyChurch s'en sert pour faire entendre un son dans l'église (haut-parleurs de l'ordinateur).</summary>
+/// <summary>Le monitoring d'OBS : Siloé Stream s'en sert pour faire entendre un son dans l'église (haut-parleurs de l'ordinateur).</summary>
 public enum AudioMonitoring { Off, Only, AndOutput }
 
 /// <summary>Ce qu'est un son. Il décide des réglages faits tout seuls : voix nettoyée et régulière, mono, son dans l'église.</summary>
@@ -76,7 +76,7 @@ public sealed class CasqueReglages
     [JsonPropertyName("nomAppareil")] public string NomAppareil { get; set; } = "";
 }
 
-/// <summary>Un filtre d'OBS posé sur une source du moteur. Choisis par MyChurch d'après « Enlever le bruit » et « Volume régulier ».</summary>
+/// <summary>Un filtre d'OBS posé sur une source du moteur. Choisis par Siloé Stream d'après « Enlever le bruit » et « Volume régulier ».</summary>
 public sealed class AudioFilter
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -137,7 +137,7 @@ public interface IDestinationAudio
     string Name { get; }
     /// <summary>Les sons reçus ; null = tout le son.</summary>
     List<string>? ChoixSons { get; set; }
-    /// <summary>La piste d'OBS qui le nourrit (1 à 6), donnée par MyChurch à chaque <see cref="AudioConfiguration.Planifier"/>.</summary>
+    /// <summary>La piste d'OBS qui le nourrit (1 à 6), donnée par Siloé Stream à chaque <see cref="AudioConfiguration.Planifier"/>.</summary>
     int Track { get; set; }
 }
 
@@ -261,7 +261,7 @@ public sealed class SonDirect : IDestinationAudio
     [JsonIgnore] public int Track { get; set; } = 1;
 }
 
-/// <summary>Ce que MyChurch demande au moteur, recalculé à chaque changement : les sources d'OBS et la piste de chaque destination.</summary>
+/// <summary>Ce que Siloé Stream demande au moteur, recalculé à chaque changement : les sources d'OBS et la piste de chaque destination.</summary>
 public sealed class PlanAudio
 {
     public List<AudioSource> Moteur { get; } = new();
@@ -276,7 +276,7 @@ public sealed class PlanAudio
 
 public sealed class AudioConfiguration
 {
-    /// <summary>7 : MyChurch 1.3, le son simple (sons, « où va le son », pistes attribuées par MyChurch).
+    /// <summary>7 : Siloé Stream 1.3, le son simple (sons, « où va le son », pistes attribuées par Siloé Stream).
     /// 6 : 1.0 à 1.2 (comme OBS : chaque source coche ses pistes). 5 : réglages d'OBS 32. 4 : enregistrements choisis par l'utilisateur.</summary>
     public const int Actuelle = 7;
     public const int Pistes = 6;
@@ -425,14 +425,14 @@ public sealed class AudioConfiguration
         };
     }
 
-    /// <summary>Dossier des enregistrements par défaut : Vidéos\MyChurch.</summary>
+    /// <summary>Dossier des enregistrements par défaut : Vidéos\Siloé Stream.</summary>
     public static string DossierEnregistrements
     {
         get
         {
             string v = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
             if (string.IsNullOrEmpty(v)) v = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Videos");
-            return Path.Combine(v, "MyChurch");
+            return Path.Combine(v, "Siloé Stream");
         }
     }
 
@@ -444,7 +444,7 @@ public sealed class AudioConfiguration
     static bool MemeAppareil(string a, string b) => string.Equals(string.IsNullOrEmpty(a) ? "default" : a, string.IsNullOrEmpty(b) ? "default" : b, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Ce que MyChurch demande à OBS. Personne ne choisit de piste : la piste 1 reçoit tout le son, et chaque destination
+    /// Ce que Siloé Stream demande à OBS. Personne ne choisit de piste : la piste 1 reçoit tout le son, et chaque destination
     /// qui veut d'autres sons reçoit sa piste (2 à 6), partagée avec celles qui veulent les mêmes. Les pistes ne bougent pas
     /// quand un enregistrement démarre ou s'arrête (OBS garde jusqu'à une seconde de son en réserve : une piste réattribuée
     /// ferait entendre l'ancien mélange au début du fichier) ; seulement s'il y a plus de mélanges que de pistes, les

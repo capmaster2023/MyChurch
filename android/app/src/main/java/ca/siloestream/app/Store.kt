@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
@@ -20,14 +20,14 @@ data class Pairing(
     val port: Int,
     val lastHost: String?,
     val lastPort: Int,
-    /** MyChurch 1.7.0 : le relais par Internet (« 2-25-216-99.sslip.io »), appris du code QR ou du PC sur le Wi-Fi. */
+    /** Siloé Stream 1.7.0 : le relais par Internet (« 2-25-216-99.sslip.io »), appris du code QR ou du PC sur le Wi-Fi. */
     val relay: String? = null,
     /** La dernière connexion est passée par le relais (on le réessaie d'abord). */
     val viaRelay: Boolean = false,
 )
 
 class Store(context: Context) {
-    private val prefs = context.getSharedPreferences("verselight", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences("siloe", Context.MODE_PRIVATE)
 
     val deviceId: String
         get() = prefs.getString("deviceId", null) ?: UUID.randomUUID().toString().also {
@@ -38,7 +38,7 @@ class Store(context: Context) {
         get() = prefs.getBoolean("volumeKeys", true)
         set(v) = prefs.edit().putBoolean("volumeKeys", v).apply()
 
-    /** MyChurch 1.7.1 : le dernier rôle donné par le PC (les onglets s'ouvrent comme il faut avant la connexion). */
+    /** Siloé Stream 1.7.1 : le dernier rôle donné par le PC (les onglets s'ouvrent comme il faut avant la connexion). */
     var role: String
         get() = prefs.getString("role", "admin") ?: "admin"
         set(v) = prefs.edit().putString("role", v).apply()
@@ -53,7 +53,7 @@ class Store(context: Context) {
         set(v) = prefs.edit().putBoolean("couperBip", v).apply()
 
     // ------------------------------------------------------------ MyCam (le téléphone devient une caméra du PC)
-    /** Nom de la source dans MyChurch (vide : le nom du téléphone). */
+    /** Nom de la source dans Siloé Stream (vide : le nom du téléphone). */
     var camNom: String
         get() = prefs.getString("camNom", "") ?: ""
         set(v) = prefs.edit().putString("camNom", v.trim().take(40)).apply()
@@ -180,6 +180,6 @@ class Store(context: Context) {
     }
 
     private companion object {
-        const val ALIAS = "verselight-pairing"
+        const val ALIAS = "siloe-pairing"
     }
 }

@@ -5,7 +5,7 @@ using System.Windows.Media;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// MyChurch 3.3 :
+/// Siloé Stream 3.3 :
 /// - la carte « Écran par défaut » de la colonne de contrôle : noir (l'écran se vide, comme avant), fond seul, ou un écran principal
 ///   du déroulé ; Retirer de l'écran (Échap) revient direct sur celui qui est choisi ;
 /// - l'écran en direct en grand sur la page Culte (1.5.0 : Précédent, Suivant, Noir, Effacer sont dans la barre du bas) ;

@@ -4,7 +4,7 @@ using NAudio.Wave;
 namespace MyVerse.Ui.Audio;
 
 /// <summary>
-/// L'écoute de l'assistant « Ajouter un son » : MyChurch écoute chaque micro et chaque carte son (en partage, comme Windows),
+/// L'écoute de l'assistant « Ajouter un son » : Siloé Stream écoute chaque micro et chaque carte son (en partage, comme Windows),
 /// et mesure chaque entrée à part. « Parlez dans le micro : la barre qui bouge, c'est le bon. » Rien n'est enregistré ni envoyé.
 /// </summary>
 public sealed class EcouteApercu : IDisposable

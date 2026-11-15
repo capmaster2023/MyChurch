@@ -9,7 +9,7 @@ namespace MyVerse.Ui.Audio;
 /// « Ajouter un son », en trois questions simples :
 /// 1. Qu'est-ce que c'est ? (un micro, un instrument, la table de mixage, le son de l'ordinateur, une musique)
 /// 2. Où est-il branché ? (on parle dans le micro, et on clique la barre qui bouge) — ou quel fichier ?
-/// 3. Comment s'appelle-t-il ? Puis MyChurch règle tout le reste (bruit enlevé, volume régulier pour une voix).
+/// 3. Comment s'appelle-t-il ? Puis Siloé Stream règle tout le reste (bruit enlevé, volume régulier pour une voix).
 /// </summary>
 public sealed class AjoutSonWindow : FenetreDialogue
 {
@@ -239,11 +239,11 @@ public sealed class AjoutSonWindow : FenetreDialogue
             puces.Children.Add(b);
         }
         p.Children.Add(puces);
-        // ce que MyChurch va faire tout seul
+        // ce que Siloé Stream va faire tout seul
         string fait = genre switch
         {
-            GenreSon.Voix => "MyChurch va enlever le bruit de fond et garder un volume régulier. Il ne le met pas dans les haut-parleurs de l'église (il y passe déjà par la table de mixage, et cela pourrait siffler).",
-            GenreSon.Instrument or GenreSon.Table => "MyChurch le garde tel quel, en stéréo : la musique n'est pas « nettoyée ». Il ne le remet pas dans les haut-parleurs de l'église.",
+            GenreSon.Voix => "Siloé Stream va enlever le bruit de fond et garder un volume régulier. Il ne le met pas dans les haut-parleurs de l'église (il y passe déjà par la table de mixage, et cela pourrait siffler).",
+            GenreSon.Instrument or GenreSon.Table => "Siloé Stream le garde tel quel, en stéréo : la musique n'est pas « nettoyée ». Il ne le remet pas dans les haut-parleurs de l'église.",
             GenreSon.Ordinateur => "Il part dans les enregistrements et vers Zoom. Il s'entend déjà dans l'église par l'ordinateur.",
             _ => "Elle s'entendra dans l'église et partira dans les enregistrements. Elle attend que vous cliquiez Lire.",
         };

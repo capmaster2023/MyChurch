@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -38,10 +38,10 @@ import javax.crypto.spec.SecretKeySpec
 
 enum class Link { NOT_PAIRED, PAIRING, CONNECTING, CONNECTED, OFFLINE }
 
-/** MyChurch 1.7.0 : le relais MyChurch (VPS de l'église) quand le PC ne l'a pas encore donné. */
+/** Siloé Stream 1.7.0 : le relais MyChurch (VPS de l'église) quand le PC ne l'a pas encore donné. */
 const val RELAIS_DEFAUT = "2-25-216-99.sslip.io"
 
-/** Connexion au bridge VerseLight : jumelage, authentification HMAC, reconnexion automatique. */
+/** Connexion à Siloé Stream sur le PC : jumelage, authentification HMAC, reconnexion automatique. */
 class Remote(private val context: Context, val store: Store) {
     val link = MutableStateFlow(if (store.pairing() == null) Link.NOT_PAIRED else Link.OFFLINE)
     val info = MutableStateFlow("")                    // message affiché (erreur de jumelage, révocation…)
@@ -50,11 +50,11 @@ class Remote(private val context: Context, val store: Store) {
     val pcName = MutableStateFlow(store.pairing()?.pcName ?: "")
     val update = MutableStateFlow<Pair<String, String>?>(null) // nouvelle version : (numéro, lien de l'APK)
     val journal = MutableStateFlow<List<String>>(emptyList())  // journal d'erreurs (Réglages › Journal)
-    /** Protocole du PC : 1 = MyChurch 3.3 et avant, 2 = 4.0 (déroulé, écran par défaut, noir, MyCam). */
+    /** Protocole du PC : 1 = Siloé Stream 3.3 et avant, 2 = 4.0 (déroulé, écran par défaut, noir, MyCam). */
     val proto = MutableStateFlow(1)
-    /** Formats d'image MyCam que le PC sait afficher (« h264 » depuis MyChurch 4.1, toujours « jpeg »). */
+    /** Formats d'image MyCam que le PC sait afficher (« h264 » depuis Siloé Stream 4.1, toujours « jpeg »). */
     val codecsPc = MutableStateFlow(setOf("jpeg"))
-    /** Le PC (MyChurch 1.2) lit l'âge de chaque image MyCam : il cale l'image sur le son des enregistrements. */
+    /** Le PC (Siloé Stream 1.2) lit l'âge de chaque image MyCam : il cale l'image sur le son des enregistrements. */
     @Volatile var horlogePc = false
         private set
     /** Le déroulé du culte (réponse « agenda » du PC). */
@@ -66,13 +66,13 @@ class Remote(private val context: Context, val store: Store) {
     /** MyCam : messages de la régie au caméraman (les plus récents en dernier). */
     val messagesCam = MutableStateFlow<List<JSONObject>>(emptyList())
     /**
-     * MyChurch 1.7.0 : par Internet, MyChurch peut être fermé sur le PC (l'agent répond) : « ferme », « demarrage »,
-     * « fermeture » ; vide quand MyChurch lui-même est relié.
+     * Siloé Stream 1.7.0 : par Internet, Siloé Stream peut être fermé sur le PC (l'agent répond) : « ferme », « demarrage »,
+     * « fermeture » ; vide quand Siloé Stream lui-même est relié.
      */
     val appPc = MutableStateFlow("")
     /** Par où passe la connexion : « wifi » (réseau de l'église) ou « internet » (relais MyChurch). */
     val route = MutableStateFlow("")
-    /** MyChurch 1.7.1 : le rôle de ce téléphone, donné par le PC (« admin », « bible », « chants », « camera »). */
+    /** Siloé Stream 1.7.1 : le rôle de ce téléphone, donné par le PC (« admin », « bible », « chants », « camera »). */
     val role = MutableStateFlow(store.role)
     private var agendaVu = -1
     private val clock = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.FRANCE)
@@ -98,7 +98,7 @@ class Remote(private val context: Context, val store: Store) {
             "?"
         }
         val head = listOf(
-            "MyChurch (Android) $version · Android ${Build.VERSION.RELEASE} · ${Build.MANUFACTURER} ${Build.MODEL}",
+            "Siloé Stream (Android) $version · Android ${Build.VERSION.RELEASE} · ${Build.MANUFACTURER} ${Build.MODEL}",
             "Téléphone : $ips",
             "PC jumelé : " + (p?.let { "${it.pcName} · IP du code QR : ${it.ips.joinToString(", ")} · port ${it.port} · dernière IP : ${it.lastHost ?: "aucune"}" } ?: "aucun"),
             "État : ${link.value}",
@@ -181,7 +181,7 @@ class Remote(private val context: Context, val store: Store) {
         link.value = Link.NOT_PAIRED
     }
 
-    /** Le téléphone est relié à MyChurch sur le PC. */
+    /** Le téléphone est relié à Siloé Stream sur le PC. */
     fun pret(): Boolean = socket != null
 
     /** MyCam par câble USB : relâche (ou reprend) le passage forcé par le Wi-Fi, puis reconnecte. */
@@ -266,7 +266,7 @@ class Remote(private val context: Context, val store: Store) {
     }
 
     /**
-     * Dernière IP connue, puis découverte UDP (même pcId), puis les IP du code QR ; enfin (MyChurch 1.7.0) le relais par
+     * Dernière IP connue, puis découverte UDP (même pcId), puis les IP du code QR ; enfin (Siloé Stream 1.7.0) le relais par
      * Internet. Si la dernière connexion est passée par le relais (à la maison), il est essayé dès que le Wi-Fi ne répond pas.
      */
     private suspend fun tryAll(p: Pairing, pairing: ByteArray?): Result {
@@ -295,11 +295,11 @@ class Remote(private val context: Context, val store: Store) {
         return Result.FAILED
     }
 
-    /** MyChurch 1.7.0 : démarrer MyChurch sur le PC de l'église (l'agent le lance). */
-    fun demarrerMyChurch(): Boolean = send("app.start")
+    /** Siloé Stream 1.7.0 : démarrer Siloé Stream sur le PC de l'église (l'agent le lance). */
+    fun demarrerSiloe(): Boolean = send("app.start")
 
-    /** MyChurch 1.7.0 : fermer MyChurch sur le PC de l'église (refusé pendant un direct ou un enregistrement). */
-    fun fermerMyChurch(): Boolean = send("app.quit")
+    /** Siloé Stream 1.7.0 : fermer Siloé Stream sur le PC de l'église (refusé pendant un direct ou un enregistrement). */
+    fun fermerSiloe(): Boolean = send("app.quit")
 
     private suspend fun session(host: String, port: Int, p: Pairing, pair: Boolean, viaRelais: Boolean = false): Result {
         val inbox = Channel<String>(Channel.UNLIMITED)
@@ -312,7 +312,7 @@ class Remote(private val context: Context, val store: Store) {
         val ws = client.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) { inbox.trySend("{\"t\":\"_open\"}") }
             override fun onMessage(webSocket: WebSocket, text: String) {
-                // MyCam (MyChurch 1.2) : le PC mesure l'aller-retour pour dater les images ; réponse immédiate, hors de la file des messages
+                // MyCam (Siloé Stream 1.2) : le PC mesure l'aller-retour pour dater les images ; réponse immédiate, hors de la file des messages
                 if (text.startsWith("{\"t\":\"cam.ping\"")) {
                     try {
                         webSocket.send(JSONObject().put("t", "cam.pong").put("n", JSONObject(text).optLong("n")).toString())
@@ -323,7 +323,7 @@ class Remote(private val context: Context, val store: Store) {
                 inbox.trySend(text)
             }
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                // le PC (ou l'agent : « MyChurch ouvert ») ferme : on répond tout de suite et on se reconnecte
+                // le PC (ou l'agent : « Siloé Stream ouvert ») ferme : on répond tout de suite et on se reconnecte
                 webSocket.close(1000, null)
                 inbox.trySend(JSONObject().put("t", "_closed").put("err", "fermée par le PC ($code${if (reason.isNotEmpty()) " · $reason" else ""})").toString())
             }
@@ -339,12 +339,12 @@ class Remote(private val context: Context, val store: Store) {
         try {
             val first = next(4000)
             if (first?.optString("t") != "_open") {
-                log("$ou : " + (first?.optString("err")?.ifEmpty { null } ?: if (viaRelais) "pas de réponse en 4 s (pas d'Internet, ou relais éteint)" else "pas de réponse en 4 s (pare-feu du PC, mauvais Wi-Fi ou MyChurch fermé)"))
+                log("$ou : " + (first?.optString("err")?.ifEmpty { null } ?: if (viaRelais) "pas de réponse en 4 s (pas d'Internet, ou relais éteint)" else "pas de réponse en 4 s (pare-feu du PC, mauvais Wi-Fi ou Siloé Stream fermé)"))
                 return Result.FAILED
             }
             val cnonce = b64(ByteArray(16).also { random.nextBytes(it) })
             ws.send(
-                JSONObject().put("t", "hello").put("v", 1).put("pcId", p.pcId).put("deviceId", store.deviceId)
+                JSONObject().put("t", "hello").put("v", 2).put("pcId", p.pcId).put("deviceId", store.deviceId)
                     .put("deviceName", deviceName()).put("pair", pair).put("cnonce", cnonce).toString()
             )
             val ch = next(5000) ?: return Result.FAILED
@@ -355,7 +355,7 @@ class Remote(private val context: Context, val store: Store) {
             }
             val nonce = ch.getString("nonce")
             // le PC prouve qu'il connaît la clé avant qu'on réponde
-            val proof = hmac(p.key, "verselight-srv|$cnonce|$nonce")
+            val proof = hmac(p.key, "siloe-srv|$cnonce|$nonce")
             if (!MessageDigest.isEqual(proof.toByteArray(), ch.optString("proof").toByteArray())) {
                 log("$ou : ce PC n'a pas la bonne clé (autre PC ou jumelage refait ailleurs)")
                 return Result.FAILED
@@ -371,7 +371,7 @@ class Remote(private val context: Context, val store: Store) {
             // connecté
             val name = w.optString("pcName", p.pcName)
             val agent = w.optBoolean("agent", false)
-            log("connecté à « $name » ($ou)" + (if (pair) " · jumelage réussi" else "") + (if (agent) " · MyChurch fermé sur le PC" else ""))
+            log("connecté à « $name » ($ou)" + (if (pair) " · jumelage réussi" else "") + (if (agent) " · Siloé Stream fermé sur le PC" else ""))
             // 1.7.0 : le PC donne son relais (contrôle à distance actif) : ce téléphone le joindra aussi par Internet
             val relaisPc = w.optString("relay", "").ifBlank { null }
             store.save(
@@ -431,12 +431,12 @@ class Remote(private val context: Context, val store: Store) {
                             events.tryEmit(m)
                         }
                         "auth.fail" -> throw Rejected(m.optString("code"), m.optString("message"))
-                        // 1.7.0 : MyChurch démarre, s'ouvre ou se ferme sur le PC (demandé de ce téléphone)
+                        // 1.7.0 : Siloé Stream démarre, s'ouvre ou se ferme sur le PC (demandé de ce téléphone)
                         "app.etat" -> {
                             appPc.value = m.optString("app")
                             when (m.optString("app")) {
-                                "ouvert" -> Bulles.dire("MyChurch est ouvert sur le PC : connexion…")
-                                "fermeture" -> Bulles.dire("MyChurch se ferme sur le PC.")
+                                "ouvert" -> Bulles.dire("Siloé Stream est ouvert sur le PC : connexion…")
+                                "fermeture" -> Bulles.dire("Siloé Stream se ferme sur le PC.")
                             }
                         }
                         "obs" -> {} // ancien relais des réglages OBS : ignoré
@@ -485,17 +485,17 @@ class Remote(private val context: Context, val store: Store) {
 
     // ---------------------------------------------------------------- jumelage (QR)
 
-    /** verselight://pair?pcId=…&name=…&ips=…&port=…&secret=… */
+    /** siloe://pair? (et l'ancien verselight://pair?) pcId=…&name=…&ips=…&port=…&secret=… */
     fun pair(qr: String): Boolean {
         val u = Uri.parse(qr)
-        if (u.scheme != "verselight" || u.host != "pair") return false
+        if ((u.scheme != "siloe" && u.scheme != "verselight") || u.host != "pair") return false
         val pcId = u.getQueryParameter("pcId") ?: return false
         val secret = try {
             Base64.decode(u.getQueryParameter("secret") ?: return false, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
         } catch (e: IllegalArgumentException) {
             return false
         }
-        val key = hmacRaw(secret, "verselight-pair|$pcId|${store.deviceId}")
+        val key = hmacRaw(secret, "siloe-pair|$pcId|${store.deviceId}")
         val p = Pairing(
             pcId = pcId,
             pcName = u.getQueryParameter("name") ?: "PC",
@@ -522,8 +522,8 @@ class Remote(private val context: Context, val store: Store) {
                 else -> {
                     if (info.value.isEmpty()) {
                         val ip = sortBySubnet(p.ips).firstOrNull()
-                        info.value = "PC introuvable. Vérifiez que MyChurch est ouvert sur le PC et que le téléphone est sur le même Wi-Fi." +
-                            (if (ip != null) " Test : ouvrez http://$ip:${p.port} dans Chrome sur ce téléphone. Si la page « MyChurch ✓ » ne s'affiche pas, c'est le Wi-Fi ou le pare-feu du PC (MyChurch › Téléphone › Autoriser dans le pare-feu)." else "")
+                        info.value = "PC introuvable. Vérifiez que Siloé Stream est ouvert sur le PC et que le téléphone est sur le même Wi-Fi." +
+                            (if (ip != null) " Test : ouvrez http://$ip:${p.port} dans Chrome sur ce téléphone. Si la page « Siloé Stream ✓ » ne s'affiche pas, c'est le Wi-Fi ou le pare-feu du PC (Siloé Stream › Téléphone › Autoriser dans le pare-feu)." else "")
                     }
                     link.value = Link.NOT_PAIRED
                 }
@@ -540,7 +540,7 @@ class Remote(private val context: Context, val store: Store) {
             DatagramSocket().use { s ->
                 s.broadcast = true
                 s.soTimeout = 300
-                val data = "VERSELIGHT_DISCOVER $pcId".toByteArray()
+                val data = "SILOE_DISCOVER $pcId".toByteArray()
                 for (a in broadcastAddresses()) {
                     try {
                         s.send(DatagramPacket(data, data.size, a, 47901))
@@ -603,7 +603,7 @@ class Remote(private val context: Context, val store: Store) {
                 val current = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0"
                 val req = Request.Builder()
                     .url("https://api.github.com/repos/capmaster2023/MyChurch/releases" + if (current.contains("-")) "?per_page=20" else "/latest")
-                    .header("User-Agent", "MyChurch-Android")
+                    .header("User-Agent", "SiloeStream-Android")
                     .header("Accept", "application/vnd.github+json")
                     .build()
                 val http = client.newBuilder().readTimeout(15, TimeUnit.SECONDS).build()
@@ -624,7 +624,7 @@ class Remote(private val context: Context, val store: Store) {
                     val assets = o.optJSONArray("assets") ?: return@launch
                     for (i in 0 until assets.length()) {
                         val a = assets.getJSONObject(i)
-                        if (a.optString("name") == "MyChurch.apk" && newer(latest, current)) {
+                        if (a.optString("name") == "SiloeStream.apk" && newer(latest, current)) {
                             update.value = latest to a.optString("browser_download_url")
                         }
                     }

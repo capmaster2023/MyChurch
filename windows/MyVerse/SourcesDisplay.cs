@@ -84,7 +84,7 @@ public sealed class SourcesDisplay : IDisposable
                 else if (nouvelle.Type == "camera")
                 {
                     // 1.6.5 : la source dit ses images par seconde et sa taille ; chaque image est montrée dès qu'elle arrive.
-                    // 1.6.7 : une caméra occupée, débranchée ou qui hésite à l'ouverture n'arrête plus la source : MyChurch le dit et
+                    // 1.6.7 : une caméra occupée, débranchée ou qui hésite à l'ouverture n'arrête plus la source : Siloé Stream le dit et
                     // réessaie toutes les 2 secondes (MyStream restait noir pour toujours si sa première ouverture avait raté)
                     string attente = "";
                     while (!token.IsCancellationRequested)
@@ -111,7 +111,7 @@ public sealed class SourcesDisplay : IDisposable
                         }
                         catch (IOException ex)
                         {
-                            var message = ex.Message.TrimEnd('.') + " : MyChurch réessaie toutes les 2 secondes.";
+                            var message = ex.Message.TrimEnd('.') + " : Siloé Stream réessaie toutes les 2 secondes.";
                             // une tuile (1.7.0) n'écrit qu'une ligne au journal tant que la raison ne change pas (caméra débranchée des heures)
                             if (!Tuile || message != attente) Journal.Info($"caméra « {nouvelle.Peripherique} » : {ex.Message} (nouvel essai toutes les 2 s)");
                             attente = await Attendre(g, attente, message, false);
@@ -155,7 +155,7 @@ public sealed class SourcesDisplay : IDisposable
                             {
                                 attente = true;
                                 var info = cams.InfoDe(nouvelle.Peripherique);
-                                var texte = info == null ? "En attente de MyCam : sur le téléphone, MyChurch › MyCam › Diffuser."
+                                var texte = info == null ? "En attente de MyCam : sur le téléphone, Siloé Stream › MyCam › Diffuser."
                                     : !info.Diffuse ? $"« {info.Nom} » ne diffuse pas : touchez Diffuser dans MyCam sur le téléphone."
                                     : $"« {info.Nom} » : images interrompues (Wi-Fi ?). Reprise automatique.";
                                 await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -206,7 +206,7 @@ public sealed class SourcesDisplay : IDisposable
                             if (Retrouver(nouvelle) is { } f) { h = new IntPtr(f.Handle); pid = f.Processus; }
                             else
                             {
-                                attente = await Attendre(g, attente, "La fenêtre a été fermée. MyChurch la reprendra dès qu'elle sera rouverte ; sinon, choisissez-la de nouveau (clic droit › Modifier).", true);
+                                attente = await Attendre(g, attente, "La fenêtre a été fermée. Siloé Stream la reprendra dès qu'elle sera rouverte ; sinon, choisissez-la de nouveau (clic droit › Modifier).", true);
                                 await Task.Delay(1000, token.Token);
                                 continue;
                             }
@@ -248,7 +248,7 @@ public sealed class SourcesDisplay : IDisposable
     }
 
     /// <summary>
-    /// Image MyCam : les pixels H.264 décodés (MyChurch 4.1) ou le JPEG décodé, tournés d'un quart de tour au besoin
+    /// Image MyCam : les pixels H.264 décodés (Siloé Stream 4.1) ou le JPEG décodé, tournés d'un quart de tour au besoin
     /// (téléphone en hauteur ou à l'horizontale), en miroir au besoin ; réduits à <paramref name="largeur"/> pour les vignettes.
     /// </summary>
     public static BitmapSource? DecoderMyCam(MyCams.Cadre c, int largeur = 0)
@@ -439,7 +439,7 @@ public sealed class SourcesDisplay : IDisposable
     /// <summary>
     /// Les fenêtres qu'on peut capturer, comme la liste d'OBS (1.3.1) : visibles, avec un titre, ni fenêtre enfant, ni petite fenêtre
     /// d'outils, ni fenêtre cachée par Windows (autre bureau virtuel, application en veille), ni le bureau ou la barre des tâches,
-    /// ni MyChurch lui-même. Rangées par programme puis par titre. <paramref name="reduites"/> : aussi les fenêtres réduites.
+    /// ni Siloé Stream lui-même. Rangées par programme puis par titre. <paramref name="reduites"/> : aussi les fenêtres réduites.
     /// </summary>
     public static List<Fenetre> Fenetres(bool reduites = false)
     {

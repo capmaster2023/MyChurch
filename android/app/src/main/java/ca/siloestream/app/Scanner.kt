@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
@@ -22,7 +22,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Viseur + ML Kit : lit le code QR « verselight://pair?… » affiché par MyChurch sur le PC. Remplit son cadre. */
+/** Viseur + ML Kit : lit le code QR « siloe://pair?… » affiché par Siloé Stream sur le PC. Remplit son cadre. */
 @Composable
 fun QrScanner(onCode: (String) -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -71,7 +71,7 @@ private fun analyze(proxy: ImageProxy, scanner: BarcodeScanner, onCode: (String)
     val image = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
     scanner.process(image)
         .addOnSuccessListener { codes ->
-            codes.firstOrNull { it.rawValue?.startsWith("verselight://") == true }?.rawValue?.let(onCode)
+            codes.firstOrNull { it.rawValue?.let { v -> v.startsWith("siloe://") || v.startsWith("verselight://") } == true }?.rawValue?.let(onCode)
         }
         .addOnCompleteListener { proxy.close() }
 }

@@ -9,7 +9,7 @@ public sealed class ElementAgenda
 {
     [JsonPropertyName("source"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SourceDisplay? Source { get; set; }
     [JsonPropertyName("id")] public string Id { get; set; } = Chant.NouvelId();
-    [JsonPropertyName("type")] public string Type { get; set; } = "texte"; // chant, bible, texte, display, compte, principal (écran principal, MyChurch 3.3)
+    [JsonPropertyName("type")] public string Type { get; set; } = "texte"; // chant, bible, texte, display, compte, principal (écran principal, Siloé Stream 3.3)
     [JsonPropertyName("titre")] public string Titre { get; set; } = "";
     [JsonPropertyName("chant"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ChantId { get; set; }
     /// <summary>Livre, chapitre, premier et dernier verset (0, 0 : chapitre entier).</summary>
@@ -32,7 +32,7 @@ public sealed record SourceDisplay
     [JsonPropertyName("processus")] public int Processus { get; init; }
     /// <summary>
     /// Capture de fenêtre (1.3.1) : le programme (« Zoom.exe »), la classe et le titre de la fenêtre choisie. Fermée puis rouverte
-    /// (Zoom qui change de réunion, un programme relancé), MyChurch la retrouve : même programme et même titre, sinon même type de fenêtre.
+    /// (Zoom qui change de réunion, un programme relancé), Siloé Stream la retrouve : même programme et même titre, sinon même type de fenêtre.
     /// </summary>
     [JsonPropertyName("exe"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Exe { get; init; }
     [JsonPropertyName("classe"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Classe { get; init; }
@@ -47,7 +47,7 @@ public sealed record SourceDisplay
 
     /// <summary>
     /// Caméra USB ou carte de capture (1.6.5) : les images par seconde voulues (60, 40 ou 30 ; 0 = 60) et la taille (« 1080p », « 4k »,
-    /// « 720p » ; vide = 1080p). MyChurch demande le format compressé MJPG et mesure ce qui arrive vraiment.
+    /// « 720p » ; vide = 1080p). Siloé Stream demande le format compressé MJPG et mesure ce qui arrive vraiment.
     /// </summary>
     [JsonPropertyName("ips"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Ips { get; init; }
     [JsonPropertyName("taille"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Taille { get; init; }
@@ -101,7 +101,7 @@ public sealed record CibleTexte(string Element, int I) : Cible;
 public sealed record CibleCompte(string Element) : Cible;
 
 /// <summary>
-/// L'écran par défaut est à l'écran (MyChurch 3.3) : un écran principal du déroulé (Id = l'élément) ou le fond seul (Id = « fond »).
+/// L'écran par défaut est à l'écran (Siloé Stream 3.3) : un écran principal du déroulé (Id = l'élément) ou le fond seul (Id = « fond »).
 /// </summary>
 public sealed record CibleDefaut(string Id) : Cible;
 

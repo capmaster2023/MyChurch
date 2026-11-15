@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,7 +51,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.Locale
 
-/** Couleurs de MyChurch mobile : ivoire, bleu nuit et or (télécommande) ; sombre pour MyCam. */
+/** Couleurs de Siloé Stream mobile : ivoire, bleu nuit et or (télécommande) ; sombre pour MyCam. */
 object C {
     val Page = Color(0xFFFAF8F4)
     val Carte = Color(0xFFFFFFFF)

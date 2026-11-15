@@ -67,7 +67,7 @@ public static class ObsTests
         return (blocs, g, d);
     }
 
-    /// <summary>Ce que le moteur sait encore faire (balance, décalage de synchronisation), même si MyChurch 1.3 ne les montre plus.</summary>
+    /// <summary>Ce que le moteur sait encore faire (balance, décalage de synchronisation), même si Siloé Stream 1.3 ne les montre plus.</summary>
     static void ReglagesAvances(ObsMixer m, List<AudioSource> c, AudioSource s, Action<bool, string, string?> ok)
     {
         s.Muted = false; s.VolumeDb = 0; s.Filters.Clear(); s.Monitoring = AudioMonitoring.Off; s.Tracks = 1;
@@ -90,10 +90,10 @@ public static class ObsTests
         s.SyncOffsetMs = 0; m.Apply(c);
     }
 
-    /// <summary>MyChurch 3.1 : chaque entrée d'une carte son est sa propre bande (type de source « entrée » de MyChurch, son poussé).</summary>
+    /// <summary>Siloé Stream 3.1 : chaque entrée d'une carte son est sa propre bande (type de source « entrée » de Siloé Stream, son poussé).</summary>
     static void EntreesSeparees(ObsMixer m, List<AudioSource> c, Action<bool, string, string?> ok)
     {
-        ok(m.EntreesSeparees, "OBS accepte le type de source « entrée séparée » de MyChurch", null);
+        ok(m.EntreesSeparees, "OBS accepte le type de source « entrée séparée » de Siloé Stream", null);
         if (!m.EntreesSeparees) return;
         var e1 = new AudioSource { Name = "Pasteur", Kind = AudioInputKind.Microphone, DeviceId = "default", Channel = 1, Tracks = 1 };
         var e2 = new AudioSource { Name = "Chorale", Kind = AudioInputKind.Microphone, DeviceId = "default", Channel = 2, Tracks = 1 };
@@ -118,7 +118,7 @@ public static class ObsTests
         ok(!m.Has(e1.Id) && !m.Has(e2.Id) && !m.Pousser(e2.Id, new float[480], 480, 48000), "entrées retirées : plus rien n'est poussé vers OBS", null);
     }
 
-    /// <summary>MyChurch 1.3 : une musique (fichier) attend « Lire » ; Lire, Pause, Arrêter, comme un lecteur.</summary>
+    /// <summary>Siloé Stream 1.3 : une musique (fichier) attend « Lire » ; Lire, Pause, Arrêter, comme un lecteur.</summary>
     static void Musique(ObsMixer m, string sinus, Action<bool, string, string?> ok)
     {
         var f = new AudioSource { Name = "Attente", Kind = AudioInputKind.Media, MediaPath = sinus, Loop = true, Tracks = 1, DemarrerArrete = true };
@@ -153,7 +153,7 @@ public static class ObsTests
         c.Clear(); m.Apply(c);
     }
 
-    /// <summary>MyChurch 1.3 de bout en bout : des sons, ce que MyChurch en fait (pistes, aides, église), et ce qu'OBS fait entendre.</summary>
+    /// <summary>Siloé Stream 1.3 de bout en bout : des sons, ce que Siloé Stream en fait (pistes, aides, église), et ce qu'OBS fait entendre.</summary>
     static void PlanComplet(ObsMixer m, string sinus, Action<bool, string, string?> ok)
     {
         var cfg = new AudioConfiguration();
@@ -166,7 +166,7 @@ public static class ObsTests
         cfg.Normalize();
         var plan = cfg.Planifier();
         m.Apply(plan.Moteur, cfg.Eglise.Appareil, cfg.Eglise.NomAppareil);
-        ok(plan.Moteur.All(x => m.Has(x.Id)), "plan de MyChurch : chaque son est une source d'OBS (musique, micro, vidéos)", string.Join(", ", plan.Moteur.Select(x => x.Name)));
+        ok(plan.Moteur.All(x => m.Has(x.Id)), "plan de Siloé Stream : chaque son est une source d'OBS (musique, micro, vidéos)", string.Join(", ", plan.Moteur.Select(x => x.Name)));
         ok(!journalRefus(), "les aides de la voix (bruit, volume régulier) acceptées par OBS", null);
         m.Jouer(musique.Id);
         float v = Attendre(m, () => m.Level(musique.Id).L, x => x > -8);
@@ -194,7 +194,7 @@ public static class ObsTests
         var journal = new List<string>();
         ObsMixer.Log += (niveau, texte) => { lock (journal) journal.Add(niveau + " " + texte); };
         journalRefus = () => { lock (journal) return journal.Any(l => l.Contains("refusé")); };
-        string dossier = Path.Combine(Path.GetTempPath(), "mychurch-obs-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dossier);
+        string dossier = Path.Combine(Path.GetTempPath(), "siloestream-obs-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(dossier);
         var m = new ObsMixer();
         try
         {
@@ -264,7 +264,7 @@ public static class ObsTests
                 m.AddTrackConsumer(0, abonne); m.AddTrackConsumer(0, abonne2);
                 Thread.Sleep(700);
                 m.RemoveTrackConsumer(0, abonne); m.RemoveTrackConsumer(0, abonne2);
-                // MyChurch 1.2 : chaque bloc porte l'instant de sa capture (horloge d'OBS ramenée à celle de MyChurch), de 10 ms en 10 ms
+                // Siloé Stream 1.2 : chaque bloc porte l'instant de sa capture (horloge d'OBS ramenée à celle de Siloé Stream), de 10 ms en 10 ms
                 List<(long Bloc, long Recu)> vus;
                 lock (instants) vus = instants.ToList();
                 bool suite = vus.Count > 10 && vus.Zip(vus.Skip(1)).All(x => Math.Abs(x.Second.Bloc - x.First.Bloc - 10 * Horloge.Milliseconde) < Horloge.Milliseconde / 2);

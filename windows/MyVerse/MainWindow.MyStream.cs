@@ -7,7 +7,7 @@ using MyVerse.Ui.Audio;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// MyChurch 1.6.0 : les deux écrans de la colonne de droite. L'église (ce que montre le projecteur) et MyStream (ce qui part sur Zoom
+/// Siloé Stream 1.6.0 : les deux écrans de la colonne de droite. L'église (ce que montre le projecteur) et MyStream (ce qui part sur Zoom
 /// et sur YouTube). 1.6.4 : MyStream montre sa source principale (choisie avec « Source »), quoi que montre l'église ;
 /// « Envoyer dans le stream » (touche S, sous l'église) : MyStream montre aussi ce que montre l'église et le suit ;
 /// « Source principale » (touche M) le ramène sur sa source principale. En haut, la pastille YouTube ouvre le direct.
@@ -38,7 +38,7 @@ public partial class MainWindow
         };
         App.Direct.Change += () => { MajDirect(); MajVeille(); };
         minuterieHorloge.Tick += (_, _) => { if (App.Direct.EnDirect) MajDirect(); };
-        // 1.6.4 : les directs automatiques le disent dans MyChurch (deux minutes avant, au démarrage, à la fin)
+        // 1.6.4 : les directs automatiques le disent dans Siloé Stream (deux minutes avant, au démarrage, à la fin)
         App.Planificateur.Annonce += Toast;
         App.Planificateur.Change += () => { MajDirect(); MajVeille(); };
         MajDirect();

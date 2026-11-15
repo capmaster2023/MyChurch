@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.Manifest
 import android.content.ActivityNotFoundException
@@ -78,7 +78,7 @@ fun executerCommande(remote: Remote, texte: String) {
             AppEtat.chercherChant.value = t.replace(Regex("^(?i)(chants?|cantiques?|hymnes?)\\s*"), "")
             AppEtat.onglet.value = 2
         }
-        else -> if (!remote.send("bible.show", "ref" to t)) Bulles.dire("MyChurch n’est pas relié au PC.")
+        else -> if (!remote.send("bible.show", "ref" to t)) Bulles.dire("Siloé Stream n’est pas relié au PC.")
     }
 }
 
@@ -259,7 +259,7 @@ private fun CarteDirect(s: JSONObject?, link: Link, proto: Int) {
                 T(titreLive(s, link), taille = 18.sp, poids = FontWeight.ExtraBold, interligne = 22.sp, lignes = 2)
                 val sous = s?.optString("sous").orEmpty()
                 if (sous.isNotBlank()) T(sous, taille = 12.5.sp, couleur = C.Encre2, lignes = 2)
-                else if (pret && proto < 2) T("Mettez MyChurch à jour sur le PC (4.0)", taille = 12.5.sp, couleur = C.Encre2, lignes = 2)
+                else if (pret && proto < 2) T("Mettez Siloé Stream à jour sur le PC (4.0)", taille = 12.5.sp, couleur = C.Encre2, lignes = 2)
             }
             Column(Modifier.width(112.dp)) {
                 Surtitre("Ensuite", C.AmbreTexte, Modifier.padding(bottom = 4.dp))
@@ -362,7 +362,7 @@ fun DetecteurCarte(remote: Remote, pret: Boolean) {
                     onClick = {
                         haptique.performHapticFeedback(HapticFeedbackType.LongPress)
                         if (remote.send("bible.show", "ref" to sug.label)) Detection.retirer(sug.id)
-                        else Bulles.dire("MyChurch n’est pas relié au PC.")
+                        else Bulles.dire("Siloé Stream n’est pas relié au PC.")
                     },
                     fond = C.Marine, rayon = 12.dp, actif = pret,
                 ) { T("Afficher", couleur = Color.White, poids = FontWeight.ExtraBold) }

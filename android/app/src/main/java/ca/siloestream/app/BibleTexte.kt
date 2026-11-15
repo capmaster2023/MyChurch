@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import java.io.BufferedReader
 import java.io.Writer

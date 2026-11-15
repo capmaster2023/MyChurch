@@ -209,7 +209,7 @@ public sealed partial class Regie
 
     // ------------------------------------------------------------ retirer, suivant, précédent
     /// <summary>
-    /// « Retirer de l'écran » (Échap) : l'écran principal revient direct sur l'écran par défaut (MyChurch 3.3), choisi dans la colonne
+    /// « Retirer de l'écran » (Échap) : l'écran principal revient direct sur l'écran par défaut (Siloé Stream 3.3), choisi dans la colonne
     /// de l'écran en direct : un écran principal du déroulé, le fond seul, ou noir (l'écran se vide, comme avant).
     /// Sur l'écran par défaut, Suivant reprend après ce qui a été retiré et Précédent le remet.
     /// Le contenu épinglé (Duo) reste : « Retirer le duo » l'enlève.

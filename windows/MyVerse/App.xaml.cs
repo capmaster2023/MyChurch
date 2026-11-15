@@ -57,7 +57,7 @@ public partial class App : Application
     public static Audio.PlanificateurDirect Planificateur { get; private set; } = null!;
     public static Audio.ChurchAudioService Audio { get; private set; } = null!;
     public static Telephone Telephone { get; private set; } = null!;
-    /// <summary>Dossier du test automatique (« MyChurch.exe --autotest dossier »), sinon null.</summary>
+    /// <summary>Dossier du test automatique (« SiloeStream.exe --autotest dossier »), sinon null.</summary>
     public static string? AutoTest { get; private set; }
     /// <summary>Résultat du contrôle du pare-feu : « ok », « missing », « refused », « error », « demande » ou vide (en cours).</summary>
     public static string Parefeu_
@@ -114,7 +114,7 @@ public partial class App : Application
         var dossier = Donnees.DossierParDefaut();
         try { Directory.CreateDirectory(dossier); } catch (Exception) { }
         Journal.Ouvrir(dossier);
-        Journal.Info($"— démarrage de MyChurch {Version} (Windows) —");
+        Journal.Info($"— démarrage de Siloé Stream {Version} (Windows) —");
         DispatcherUnhandledException += (_, ev) =>
         {
             Journal.Erreur("erreur", ev.Exception);
@@ -143,13 +143,13 @@ public partial class App : Application
         {
             Journal.Erreur("démarrage", x);
             Journal.Sauver();
-            MessageBox.Show("MyChurch n'a pas pu démarrer : " + x.Message + "\n\nJournal : " + Path.Combine(dossier, "journal-myverse.txt"), "MyVerse", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show("Siloé Stream n'a pas pu démarrer : " + x.Message + "\n\nJournal : " + Path.Combine(dossier, "journal-myverse.txt"), "MyVerse", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
             return;
         }
         // thème de l'interface (clair par défaut), avant la première fenêtre
         Palette.Actuelle.Appliquer(Donnees.Reglages.Apparence);
-        SortieObs = new SortieObs(Path.Combine(Ressources, "obs"), AutoTest != null ? Path.Combine(dossier, "VerseLight-OBS") : null);
+        SortieObs = new SortieObs(Path.Combine(Ressources, "obs"), AutoTest != null ? Path.Combine(dossier, "SiloeStream-OBS") : null);
         Telephone = new Telephone(dossier, Regie, f => Dispatcher.InvokeAsync(f).Task.Unwrap());
         try { Telephone.Demarrer(); }
         catch (Exception x) { Journal.Erreur("téléphone : démarrage", x); }
@@ -183,12 +183,12 @@ public partial class App : Application
         var w = new MainWindow();
         MainWindow = w;
         w.Show();
-        // 1.7.0 : « Fermer MyChurch » depuis le téléphone (par Internet) ; jamais pendant un direct
+        // 1.7.0 : « Fermer Siloé Stream » depuis le téléphone (par Internet) ; jamais pendant un direct
         Telephone.FermerDemande = () =>
         {
             if (Direct.EnDirect) return "Un direct YouTube est en cours : arrêtez-le d'abord.";
             if (Audio.Recorder.AnyBusy) return "Un enregistrement est en cours : arrêtez-le d'abord.";
-            Journal.Info("à distance : fermeture de MyChurch demandée par un téléphone");
+            Journal.Info("à distance : fermeture de Siloé Stream demandée par un téléphone");
             _ = Dispatcher.InvokeAsync(async () =>
             {
                 await Task.Delay(1000);
@@ -197,6 +197,7 @@ public partial class App : Application
             return null;
         };
         MajAgent();
+        if (AutoTest == null) Natif.MigrerDemarrage();
         // 1.5.1 : de quoi comprendre une lenteur chez l'utilisateur (Réglages › Journal) ; sans carte graphique, l'aperçu en grand se fait léger
         try
         {
@@ -207,19 +208,19 @@ public partial class App : Application
         }
         catch (Exception x) { Journal.Erreur("diagnostic de l'affichage", x); }
         // le moteur audio d'OBS démarre une fois la fenêtre affichée (quelques dixièmes de seconde) ;
-        // sans le dossier « obs », MyChurch fonctionne normalement et le panneau Audio l'indique
+        // sans le dossier « obs », Siloé Stream fonctionne normalement et le panneau Audio l'indique
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => Audio.Start()));
-        if (Donnees.Migration.Length > 0) w.Toast("Données de MyChurch 3 reprises : " + Donnees.Migration + ".");
+        if (Donnees.Migration.Length > 0) w.Toast("Données de Siloé Stream 3 reprises : " + Donnees.Migration + ".");
         if (AutoTest != null) Ui.AutoTest.Lancer(w, AutoTest);
     }
 
     static Mutex? agentUnique;
     static AgentDistance? agent;
-    const string NomAgent = @"Local\MyChurch-agent-distance";
+    const string NomAgent = @"Local\SiloeStream-agent-distance";
 
     /// <summary>
     /// 1.7.0 : l'agent « à distance ». Il tourne sans fenêtre dès l'ouverture de session Windows, garde le lien avec le relais
-    /// MyChurch (VPS) et peut démarrer MyChurch quand un téléphone le demande de l'extérieur. Il s'arrête tout seul quand le
+    /// Siloé Stream (VPS) et peut démarrer Siloé Stream quand un téléphone le demande de l'extérieur. Il s'arrête tout seul quand le
     /// contrôle à distance est coupé dans les Réglages.
     /// </summary>
     void DemarrerAgent()
@@ -234,8 +235,8 @@ public partial class App : Application
         var dossier = Donnees.DossierParDefaut();
         try { Directory.CreateDirectory(dossier); } catch (Exception) { }
         Journal.Ouvrir(dossier, "journal-agent.txt");
-        Journal.Info($"— agent à distance de MyChurch {Version} —");
-        agent = new AgentDistance(dossier, DemarrerMyChurch);
+        Journal.Info($"— agent à distance de Siloé Stream {Version} —");
+        agent = new AgentDistance(dossier, DemarrerSiloe);
         _ = Task.Run(async () =>
         {
             try { await agent.Executer(); }
@@ -245,15 +246,15 @@ public partial class App : Application
         });
     }
 
-    /// <summary>L'agent lance MyChurch (demandé par un téléphone, de l'extérieur).</summary>
-    static bool DemarrerMyChurch()
+    /// <summary>L'agent lance Siloé Stream (demandé par un téléphone, de l'extérieur).</summary>
+    static bool DemarrerSiloe()
     {
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, WorkingDirectory = AppContext.BaseDirectory });
             return true;
         }
-        catch (Exception e) { Journal.Erreur("à distance : démarrage de MyChurch", e); return false; }
+        catch (Exception e) { Journal.Erreur("à distance : démarrage de Siloé Stream", e); return false; }
     }
 
     /// <summary>L'agent tourne-t-il en ce moment (sur cette session Windows) ?</summary>
@@ -287,8 +288,8 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Une seule copie de MyChurch : un 2e lancement ramène la fenêtre déjà ouverte.
-    /// <paramref name="attendre"/> : redémarrage demandé par MyChurch (Réglages › Audio) ; on attend que l'ancienne copie se ferme.
+    /// Une seule copie de Siloé Stream : un 2e lancement ramène la fenêtre déjà ouverte.
+    /// <paramref name="attendre"/> : redémarrage demandé par Siloé Stream (Réglages › Audio) ; on attend que l'ancienne copie se ferme.
     /// </summary>
     static bool UneSeuleCopie(bool attendre = false)
     {
@@ -316,11 +317,11 @@ public partial class App : Application
         return true;
     }
 
-    /// <summary>Redémarre MyChurch (réglages audio qui, comme dans OBS, ne s'appliquent qu'au démarrage).</summary>
+    /// <summary>Redémarre Siloé Stream (réglages audio qui, comme dans OBS, ne s'appliquent qu'au démarrage).</summary>
     public static void Redemarrer()
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--redemarrage") { UseShellExecute = false }); }
-        catch (Exception e) { Journal.Erreur("redémarrage de MyChurch", e); return; }
+        catch (Exception e) { Journal.Erreur("redémarrage de Siloé Stream", e); return; }
         Journal.Info("redémarrage demandé (réglages audio)");
         Current.Shutdown();
     }

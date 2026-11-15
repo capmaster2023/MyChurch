@@ -11,12 +11,12 @@ using MyVerse.Ui.Audio;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// MyChurch 1.6.0 : « Le direct sur YouTube », comme la fenêtre d'OBS, en plus simple.
-/// Comment : le compte YouTube (conseillé : MyChurch crée le direct), la clé de stream de YouTube Studio, ou un autre service.
+/// Siloé Stream 1.6.0 : « Le direct sur YouTube », comme la fenêtre d'OBS, en plus simple.
+/// Comment : le compte YouTube (conseillé : Siloé Stream crée le direct), la clé de stream de YouTube Studio, ou un autre service.
 /// Le direct : titre, description, confidentialité, catégorie, « pour les enfants ? », miniature, latence, DVR, 360°, programmer ;
 /// ou un direct déjà prévu sur la chaîne. En direct : la durée, l'état chez YouTube, « Voir sur YouTube », « Arrêter le direct ».
 /// 1.6.4 : les directs automatiques (chaque dimanche à 10:00…), dans DirectsAutomatiquesUi.cs.
-/// La fenêtre peut rester ouverte pendant le culte (elle ne bloque pas MyChurch).
+/// La fenêtre peut rester ouverte pendant le culte (elle ne bloque pas Siloé Stream).
 /// </summary>
 public sealed partial class DirectWindow : FenetreDialogue
 {
@@ -81,7 +81,7 @@ public sealed partial class DirectWindow : FenetreDialogue
         tete.Children.Add(ligneTitre);
         tete.Children.Add(new TextBlock
         {
-            Text = "MyStream (l'écran de droite, la même image que Zoom) et le son partent en direct. Si Internet coupe, MyChurch se reconnecte tout seul.",
+            Text = "MyStream (l'écran de droite, la même image que Zoom) et le son partent en direct. Si Internet coupe, Siloé Stream se reconnecte tout seul.",
             Style = Style_("Muet"), FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 10), LineHeight = 21,
         });
         // la carte du direct en cours
@@ -142,7 +142,7 @@ public sealed partial class DirectWindow : FenetreDialogue
 
         // ------------------------------------------------------------ comment
         corps.Children.Add(Libelle("Comment", 4));
-        modeCompte = Option("Mon compte YouTube (conseillé)", "MyChurch crée le direct sur la chaîne : titre, description, miniature… comme OBS.", R.Mode == ReglagesDirect.Compte, "mode");
+        modeCompte = Option("Mon compte YouTube (conseillé)", "Siloé Stream crée le direct sur la chaîne : titre, description, miniature… comme OBS.", R.Mode == ReglagesDirect.Compte, "mode");
         modeCle = Option("Clé de stream", "La clé de YouTube Studio › Créer › Passer au direct. Le titre se règle dans YouTube Studio.", R.Mode == ReglagesDirect.Cle, "mode");
         modeAutre = Option("Autre service", "Facebook, Vimeo… : une adresse rtmp:// ou rtmps:// et une clé.", R.Mode == ReglagesDirect.Autre, "mode");
         corps.Children.Add(modeCompte);
@@ -160,7 +160,7 @@ public sealed partial class DirectWindow : FenetreDialogue
         pileCompte.Children.Add(connecter);
         ligneCompte.Children.Add(pileCompte);
         blocCompte.Children.Add(ligneCompte);
-        // identifiant Google (avancé) : pour une copie de MyChurch compilée sans
+        // identifiant Google (avancé) : pour une copie de Siloé Stream compilée sans
         googleId = new TextBox { Style = Style_("Champ"), FontSize = 13, Text = D.Coffre.Lire("google.id") };
         googleSecret = new TextBox { Style = Style_("Champ"), FontSize = 13, Text = D.Coffre.Lire("google.secret") };
         avance.Margin = new Thickness(30, 0, 0, 12);
@@ -297,7 +297,7 @@ public sealed partial class DirectWindow : FenetreDialogue
         // ------------------------------------------------------------ image et son
         var (image, pileImage) = Tiroir("Image et son du direct", "IconeEcran");
         image.Margin = new Thickness(0, 18, 0, 0);
-        pileImage.Children.Add(Note("L'image : MyStream, à droite dans MyChurch (sa source principale, ou ce que montre l'église après « Envoyer dans le stream »). La même que Zoom.", 0));
+        pileImage.Children.Add(Note("L'image : MyStream, à droite dans Siloé Stream (sa source principale, ou ce que montre l'église après « Envoyer dans le stream »). La même que Zoom.", 0));
         pileImage.Children.Add(Petit("Qualité"));
         q720 = new RadioButton { Content = "720p, 4,5 Mb/s (conseillé)", GroupName = "qualite", IsChecked = R.Qualite is not ("1080p" or "2160p"), FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
         q1080 = new RadioButton { Content = "1080p, 6 Mb/s (Internet rapide : 10 Mb/s d'envoi au moins)", GroupName = "qualite", IsChecked = R.Qualite == "1080p", FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
@@ -397,7 +397,7 @@ public sealed partial class DirectWindow : FenetreDialogue
     void MajCompte()
     {
         bool dispo = D.Compte.Disponible, connecte = D.Compte.Connecte;
-        compteTexte.Text = connecte ? $"Connecté : {(R.Chaine.Length > 0 ? R.Chaine : "la chaîne YouTube")}" : dispo ? "" : "Pour connecter un compte, MyChurch a besoin d'un identifiant Google (voir les notes de la 1.6.0). En attendant, la clé de stream marche tout de suite.";
+        compteTexte.Text = connecte ? $"Connecté : {(R.Chaine.Length > 0 ? R.Chaine : "la chaîne YouTube")}" : dispo ? "" : "Pour connecter un compte, Siloé Stream a besoin d'un identifiant Google (voir les notes de la 1.6.0). En attendant, la clé de stream marche tout de suite.";
         compteTexte.FontWeight = connecte ? FontWeights.SemiBold : FontWeights.Normal;
         compteTexte.Foreground = Pinceau(connecte ? "Vert" : "Brume");
         compteTexte.Visibility = compteTexte.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -472,7 +472,7 @@ public sealed partial class DirectWindow : FenetreDialogue
         connexion?.Cancel();
         connexion = new CancellationTokenSource();
         connecter.IsEnabled = false;
-        Dire("Une page de Google s'ouvre dans le navigateur : choisissez le compte de la chaîne de l'église, puis « Autoriser ». (Si Google dit que l'application n'est pas validée : « Paramètres avancés », puis « Accéder à MyChurch ».)");
+        Dire("Une page de Google s'ouvre dans le navigateur : choisissez le compte de la chaîne de l'église, puis « Autoriser ». (Si Google dit que l'application n'est pas validée : « Paramètres avancés », puis « Accéder à Siloé Stream ».)");
         try
         {
             var chaine = await D.Compte.ConnecterAsync(Ouvrir, connexion.Token);

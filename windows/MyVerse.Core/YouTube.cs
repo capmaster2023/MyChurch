@@ -12,8 +12,8 @@ using System.Text.Json.Serialization;
 namespace MyVerse;
 
 // ======================================================================================================================
-// MyChurch 1.6.0 : le direct sur YouTube, depuis MyChurch, comme dans OBS.
-// - « Connecter le compte » (conseillé) : MyChurch crée le direct (titre, description, confidentialité, catégorie, miniature,
+// Siloé Stream 1.6.0 : le direct sur YouTube, depuis Siloé Stream, comme dans OBS.
+// - « Connecter le compte » (conseillé) : Siloé Stream crée le direct (titre, description, confidentialité, catégorie, miniature,
 //   latence, DVR, 360°, programmation), le lie à sa clé de stream et le démarre ; « Arrêter le direct » le termine.
 // - « Clé de stream » : la clé de YouTube Studio, rien d'autre à faire (le direct se règle dans YouTube Studio).
 // - « Autre service » : une adresse RTMP(S) et une clé (Facebook, Vimeo…).
@@ -34,7 +34,7 @@ public sealed class ReglagesDirect
     [JsonPropertyName("chaine")] public string Chaine { get; set; } = "";
     /// <summary>Le flux réutilisable créé sur la chaîne (sa clé ne change pas d'un direct à l'autre).</summary>
     [JsonPropertyName("flux")] public string Flux { get; set; } = "";
-    /// <summary>Le direct en cours ou le dernier démarré (pour l'arrêter après un redémarrage de MyChurch).</summary>
+    /// <summary>Le direct en cours ou le dernier démarré (pour l'arrêter après un redémarrage de Siloé Stream).</summary>
     [JsonPropertyName("dernierDirect")] public string DernierDirect { get; set; } = "";
     /// <summary>« Retenir ces réglages » : le prochain direct reprend titre, description, confidentialité…</summary>
     [JsonPropertyName("retenir")] public bool Retenir { get; set; } = true;
@@ -164,7 +164,7 @@ public sealed class Coffre
             const int SansInterface = 1;
             Blob sortie;
             bool ok = chiffrer
-                ? CryptProtectData(ref e, "MyChurch", ref s, IntPtr.Zero, IntPtr.Zero, SansInterface, out sortie)
+                ? CryptProtectData(ref e, "Siloé Stream", ref s, IntPtr.Zero, IntPtr.Zero, SansInterface, out sortie)
                 : CryptUnprotectData(ref e, IntPtr.Zero, ref s, IntPtr.Zero, IntPtr.Zero, SansInterface, out sortie);
             if (!ok) throw new CryptographicException(Marshal.GetLastWin32Error());
             try
@@ -195,7 +195,7 @@ public sealed record FluxYouTube(string Id, string Adresse, string Cle);
 
 /// <summary>
 /// Le compte YouTube de l'église (OAuth 2.0 de Google pour un programme installé : le navigateur s'ouvre, l'église choisit son compte,
-/// Google renvoie un code à MyChurch par une adresse locale 127.0.0.1). MyChurch garde le jeton de rafraîchissement dans le
+/// Google renvoie un code à Siloé Stream par une adresse locale 127.0.0.1). Siloé Stream garde le jeton de rafraîchissement dans le
 /// <see cref="Coffre"/> ; le jeton d'accès (1 h) est refait tout seul.
 /// </summary>
 public sealed class YouTubeCompte
@@ -215,7 +215,7 @@ public sealed class YouTubeCompte
     DateTimeOffset expiration;
     readonly SemaphoreSlim verrouJeton = new(1, 1);
 
-    /// <param name="identifiants">L'identifiant client de Google (programme installé) et son secret : ceux de MyChurch, ou ceux donnés dans les réglages.</param>
+    /// <param name="identifiants">L'identifiant client de Google (programme installé) et son secret : ceux de Siloé Stream, ou ceux donnés dans les réglages.</param>
     public YouTubeCompte(Coffre coffre, Func<(string Id, string Secret)> identifiants, HttpClient? http = null)
     {
         this.coffre = coffre; this.identifiants = identifiants;
@@ -225,7 +225,7 @@ public sealed class YouTubeCompte
     public const string CleJeton = "youtube.refresh";
     /// <summary>Un compte est connecté (jeton de rafraîchissement gardé).</summary>
     public bool Connecte => coffre.Lire(CleJeton).Length > 0;
-    /// <summary>MyChurch a un identifiant Google pour « Connecter le compte ».</summary>
+    /// <summary>Siloé Stream a un identifiant Google pour « Connecter le compte ».</summary>
     public bool Disponible => identifiants().Id.Length > 0;
 
     // ------------------------------------------------------------ connexion
@@ -236,7 +236,7 @@ public sealed class YouTubeCompte
     public async Task<ChaineYouTube> ConnecterAsync(Action<string> ouvrir, CancellationToken annuler = default)
     {
         var (id, secret) = identifiants();
-        if (id.Length == 0) throw new ErreurYouTube("MyChurch n'a pas d'identifiant Google pour se connecter à YouTube : utilisez la clé de stream (voir les notes de la 1.6.0).");
+        if (id.Length == 0) throw new ErreurYouTube("Siloé Stream n'a pas d'identifiant Google pour se connecter à YouTube : utilisez la clé de stream (voir les notes de la 1.6.0).");
         var ecoute = new TcpListener(IPAddress.Loopback, 0);
         ecoute.Start();
         try
@@ -304,11 +304,11 @@ public sealed class YouTubeCompte
             var p = LireRequete(chemin[(q + 1)..]);
             if (p.TryGetValue("error", out var erreur))
             {
-                await RepondreAsync(flux, 200, "La connexion à YouTube a été annulée. Vous pouvez fermer cet onglet et revenir à MyChurch.");
+                await RepondreAsync(flux, 200, "La connexion à YouTube a été annulée. Vous pouvez fermer cet onglet et revenir à Siloé Stream.");
                 throw new ErreurYouTube(erreur == "access_denied" ? "Connexion refusée dans la page de Google." : "Google a refusé la connexion : " + erreur, erreur);
             }
             if (!p.TryGetValue("code", out var code) || !p.TryGetValue("state", out var s) || s != etat) { await RepondreAsync(flux, 400, "Réponse inattendue."); continue; }
-            await RepondreAsync(flux, 200, "MyChurch est connecté à YouTube. Vous pouvez fermer cet onglet et revenir à MyChurch.");
+            await RepondreAsync(flux, 200, "Siloé Stream est connecté à YouTube. Vous pouvez fermer cet onglet et revenir à Siloé Stream.");
             return code;
         }
     }
@@ -316,7 +316,7 @@ public sealed class YouTubeCompte
     static async Task RepondreAsync(Stream flux, int statut, string message)
     {
         string page = message.Length == 0 ? "" :
-            "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>MyChurch</title></head>" +
+            "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Siloé Stream</title></head>" +
             "<body style=\"font-family:Segoe UI,sans-serif;background:#FAF7F7;color:#1E1818;display:grid;place-items:center;height:100vh;margin:0\">" +
             "<div style=\"text-align:center;max-width:520px\"><div style=\"width:56px;height:56px;border-radius:16px;background:#930000;margin:0 auto 18px\"></div>" +
             $"<h1 style=\"font-size:22px\">{message.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")}</h1></div></body></html>";
@@ -382,7 +382,7 @@ public sealed class YouTubeCompte
         {
             var raison = n?["error"] is JsonValue v ? v.GetValue<string>() : "";
             var detail = n?["error_description"]?.GetValue<string>() ?? texte;
-            throw new ErreurYouTube(raison == "invalid_client" ? "L'identifiant Google de MyChurch est refusé (identifiant client ou secret)." : "Google : " + Court(detail), raison, (int)r.StatusCode);
+            throw new ErreurYouTube(raison == "invalid_client" ? "L'identifiant Google de Siloé Stream est refusé (identifiant client ou secret)." : "Google : " + Court(detail), raison, (int)r.StatusCode);
         }
         return n ?? throw new ErreurYouTube("Réponse de Google illisible.");
     }
@@ -454,7 +454,7 @@ public sealed class YouTubeCompte
             ["status"] = new JsonObject { ["privacyStatus"] = m.Confidentialite, ["selfDeclaredMadeForKids"] = m.Enfants == true },
             ["contentDetails"] = new JsonObject
             {
-                // le direct commence quand l'image arrive ; MyChurch le termine (« Arrêter le direct ») : une coupure d'Internet ne l'arrête pas
+                // le direct commence quand l'image arrive ; Siloé Stream le termine (« Arrêter le direct ») : une coupure d'Internet ne l'arrête pas
                 ["enableAutoStart"] = true, ["enableAutoStop"] = false,
                 ["enableDvr"] = m.Dvr && !tresFaible, ["latencyPreference"] = m.Latence,
                 ["projection"] = m.Video360 && !tresFaible ? "360" : "rectangular",
@@ -501,7 +501,7 @@ public sealed class YouTubeCompte
         }
         var corps = new JsonObject
         {
-            ["snippet"] = new JsonObject { ["title"] = "MyChurch" },
+            ["snippet"] = new JsonObject { ["title"] = "Siloé Stream" },
             ["cdn"] = new JsonObject { ["ingestionType"] = "rtmp", ["resolution"] = "variable", ["frameRate"] = "variable" },
             ["contentDetails"] = new JsonObject { ["isReusable"] = true },
         };

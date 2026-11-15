@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "VerseLightRemote"
+rootProject.name = "SiloeStream"
 include(":app")

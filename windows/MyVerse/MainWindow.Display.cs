@@ -150,7 +150,7 @@ public partial class MainWindow
     /// <summary>
     /// 1.6.8 : MyVirtualCam comme média : l'image de MyStream (ce que voient Zoom et YouTube), à montrer dans l'église. Une seule fois
     /// dans les médias ; « Dans l'église seulement » (jamais sur MyStream) ; 720p à 30 images/s (son format). Pas encore installée :
-    /// MyChurch l'installe (Windows demande l'autorisation), puis l'ajoute.
+    /// Siloé Stream l'installe (Windows demande l'autorisation), puis l'ajoute.
     /// </summary>
     async void AjouterMyVirtualCam(SourcesDisplay.Peripherique? device)
     {
@@ -170,7 +170,7 @@ public partial class MainWindow
                 if (!await MyVirtualCam.InstallerEtAttendre(this)) { Toast("MyVirtualCam n'est pas installée."); return; }
                 for (int i = 0; i < 10 && (device = TrouverMyVirtualCam()) == null; i++) await Task.Delay(300);
             }
-            if (device == null) { Toast("MyVirtualCam est installée, mais Windows ne la montre pas encore : fermez puis rouvrez MyChurch, et réessayez."); return; }
+            if (device == null) { Toast("MyVirtualCam est installée, mais Windows ne la montre pas encore : fermez puis rouvrez Siloé Stream, et réessayez."); return; }
             var a = R.NouveauDisplay("MyVirtualCam (MyStream)", new SourceDisplay { Type = "camera", Peripherique = device.Id, Diffusion = SourceDisplay.Eglise, Ips = 30, Taille = "720p" });
             R.GrilleAnnonce(a.Id, true);
             ChoisirDisplay(a);
@@ -187,7 +187,7 @@ public partial class MainWindow
         var liste = App.Telephone.Cameras.Liste();
         if (liste.Count == 0)
         {
-            Dialogue.Informer(this, "Aucun téléphone MyCam pour l'instant.\n\nSur le téléphone jumelé : MyChurch › onglet MyCam › Diffuser (même Wi-Fi que ce PC, ou câble USB avec le partage de connexion). Il apparaîtra ici tout seul.");
+            Dialogue.Informer(this, "Aucun téléphone MyCam pour l'instant.\n\nSur le téléphone jumelé : Siloé Stream › onglet MyCam › Diffuser (même Wi-Fi que ce PC, ou câble USB avec le partage de connexion). Il apparaîtra ici tout seul.");
             return;
         }
         if (ChoisirSource("Téléphone MyCam", "Les téléphones jumelés qui ont ouvert MyCam. Sur le téléphone, touchez Diffuser pour voir l'image ici.", liste,
@@ -226,7 +226,7 @@ public partial class MainWindow
         if (a.Source is not { Type: "mycam" } s) return;
         Toast(App.Telephone.EnvoyerMessageCam(s.Peripherique, texte)
             ? $"Message envoyé à « {a.Titre} » : « {texte} »"
-            : $"« {a.Titre} » n'est pas connecté : ouvrez MyChurch sur le téléphone.");
+            : $"« {a.Titre} » n'est pas connecté : ouvrez Siloé Stream sur le téléphone.");
     }
 
     readonly HashSet<string> myCamsAnnoncees = new();

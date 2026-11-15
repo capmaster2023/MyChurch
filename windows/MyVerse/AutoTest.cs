@@ -7,9 +7,9 @@ using Son = MyVerse.Audio.Son;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// Test automatique (« MyChurch.exe --autotest dossier », lancé par la compilation sur GitHub) :
+/// Test automatique (« SiloeStream.exe --autotest dossier », lancé par la compilation sur GitHub) :
 /// ouvre la régie, affiche des versets et des chants, ouvre la projection et chaque fenêtre,
-/// enregistre des captures d'écran et un compte rendu (autotest.txt), puis ferme MyChurch (code 0 = tout va bien).
+/// enregistre des captures d'écran et un compte rendu (autotest.txt), puis ferme Siloé Stream (code 0 = tout va bien).
 /// </summary>
 public static class AutoTest
 {
@@ -77,7 +77,7 @@ public static class AutoTest
     }
 
     /// <summary>
-    /// MyChurch 1.0 : Échap dans une recherche n'efface plus l'écran ; pas de veille pendant la projection ; projecteur débranché
+    /// Siloé Stream 1.0 : Échap dans une recherche n'efface plus l'écran ; pas de veille pendant la projection ; projecteur débranché
     /// puis rebranché (écrans simulés : la machine du CI n'a qu'un écran) ; la projection se rouvre au démarrage sur le dernier écran.
     /// </summary>
     static async Task TestEchapEtProjecteur(MainWindow w)
@@ -114,7 +114,7 @@ public static class AutoTest
             "projection sur le projecteur (simulé), retenue pour le prochain démarrage");
         w.VerifierEcrans(new() { principal });
         await Attendre(300);
-        Ok(w.Ecran == null && w.AttenteProjecteur && App.Donnees.Reglages.Ecran?.Ouvert == true, "projecteur débranché : la projection se ferme (elle ne recouvre pas la régie) et MyChurch l'attend");
+        Ok(w.Ecran == null && w.AttenteProjecteur && App.Donnees.Reglages.Ecran?.Ouvert == true, "projecteur débranché : la projection se ferme (elle ne recouvre pas la régie) et Siloé Stream l'attend");
         Ok(w.TestStatutProjection.Contains("débranché"), "état affiché : " + w.TestStatutProjection);
         Ok(!w.TestVeille.StartsWith("écran"), "projection fermée : Windows peut de nouveau éteindre l'écran (" + w.TestVeille + ")");
         Capture(w, "50-projecteur-debranche.png");
@@ -149,7 +149,7 @@ public static class AutoTest
         Ok(App.Donnees.Reglages.Ecran?.Ouvert == false && !w.AttenteProjecteur, "fermée par l'opérateur (croix, Alt+F4) : elle ne se rouvrira pas au démarrage");
         App.Donnees.Reglages.Ecran = Projecteur.Choix(pj, true);
         w.RouvrirProjection(new() { principal });
-        Ok(w.Ecran == null && w.AttenteProjecteur, "démarrage sans le projecteur : MyChurch l'attend");
+        Ok(w.Ecran == null && w.AttenteProjecteur, "démarrage sans le projecteur : Siloé Stream l'attend");
         w.VerifierEcrans(new() { principal, pj });
         await Attendre(300);
         Ok(w.Ecran?.Moniteur == pj, "projecteur branché après le démarrage : la projection s'ouvre toute seule");
@@ -168,8 +168,8 @@ public static class AutoTest
     }
 
     /// <summary>
-    /// MyChurch 1.3 : le son simple, sur le vrai moteur d'OBS (dossier « obs » à côté de MyChurch.exe). Au départ, seulement le son
-    /// des vidéos ; des sons créés comme par « Ajouter un son » (réglés tout seuls) ; personne ne choisit de piste (MyChurch les donne,
+    /// Siloé Stream 1.3 : le son simple, sur le vrai moteur d'OBS (dossier « obs » à côté de SiloeStream.exe). Au départ, seulement le son
+    /// des vidéos ; des sons créés comme par « Ajouter un son » (réglés tout seuls) ; personne ne choisit de piste (Siloé Stream les donne,
     /// sans jamais renvoyer le son de l'ordinateur vers sa propre sortie) ; une musique qui attend « Lire » ; le volume en % ;
     /// deux enregistrements en même temps (la vidéo en MKV, la prédication en MP3) ; « Enregistrer le culte » d'un clic ;
     /// un son débranché puis rebranché ; les fenêtres Ajouter un son, Régler, Enregistrement, Envoi ; Réglages › Son.
@@ -179,16 +179,16 @@ public static class AutoTest
         var A = App.Audio;
         var cfg = A.Config;
         var avant = MyVerse.Audio.AudioConfiguration.Copy(cfg);
-        string dossierTest = Path.Combine(Path.GetTempPath(), "mychurch-autotest-" + Guid.NewGuid().ToString("N")[..8]);
+        string dossierTest = Path.Combine(Path.GetTempPath(), "siloestream-autotest-" + Guid.NewGuid().ToString("N")[..8]);
         string? fichierUnClic = null;
         Son? musique = null;
         try
         {
             for (int i = 0; i < 40 && !A.Running && !A.ObsAbsent && !A.Diagnostic.Contains("ne démarre pas"); i++) await Attendre(250);
             Note("son : " + A.Diagnostic);
-            Ok(A.Running, "moteur du son (OBS) démarré dans MyChurch (" + A.Diagnostic + ")");
+            Ok(A.Running, "moteur du son (OBS) démarré dans Siloé Stream (" + A.Diagnostic + ")");
             Ok(A.EntreesSeparees, "OBS accepte les entrées séparées d'une carte son");
-            Ok(File.Exists(Audio.ChurchAudioService.FfmpegInclus), "ffmpeg livré avec MyChurch (" + Audio.ChurchAudioService.FfmpegInclus + ")");
+            Ok(File.Exists(Audio.ChurchAudioService.FfmpegInclus), "ffmpeg livré avec Siloé Stream (" + Audio.ChurchAudioService.FfmpegInclus + ")");
 
             // 1. au départ : seulement le son des vidéos de Display, et « Ajouter un son »
             cfg.Sons.RemoveAll(s => s.Genre != GenreSon.Video);
@@ -245,7 +245,7 @@ public static class AutoTest
             A.Apply();
             Ok(!culte.AudioOnly && culte.Format == "mkv" && predication.AudioOnly && predication.Format == "mp3", "le culte en vidéo (MKV), la prédication en son seul (MP3)");
             int pZoom = A.PisteDe(zoom.Id), pCulte = A.PisteDe(culte.Id), pSalle = A.PisteDe(salle.Id), pPred = A.PisteDe(predication.Id);
-            Ok(pZoom == 1 && pCulte == 1 && pSalle == 2 && pPred == 3, $"pistes données par MyChurch : tout le son sur la 1 (Zoom {pZoom}, Culte {pCulte}), la salle sur la {pSalle}, le pasteur seul sur la {pPred}");
+            Ok(pZoom == 1 && pCulte == 1 && pSalle == 2 && pPred == 3, $"pistes données par Siloé Stream : tout le son sur la 1 (Zoom {pZoom}, Culte {pCulte}), la salle sur la {pSalle}, le pasteur seul sur la {pPred}");
             Ok(A.Plan.SonsDesPistes.TryGetValue(pSalle, out var sonsSalle) && !sonsSalle.Contains(ordi.Id) && sonsSalle.Contains(pasteur.Id),
                 "pas de larsen : le son de l'ordinateur ne repart jamais vers la sortie d'où il vient");
             Ok(cfg.Recoit(predication) == "Pasteur seulement" && cfg.Recoit(culte) == "Tout le son", "ce que chacun reçoit, en mots : « " + cfg.Recoit(predication) + " », « " + cfg.Recoit(culte) + " »");
@@ -532,7 +532,7 @@ public static class AutoTest
     }
 
     /// <summary>
-    /// MyChurch 1.6.4 : MyStream (l'écran de Zoom et de YouTube) montre sa source principale, quoi que montre l'église ;
+    /// Siloé Stream 1.6.4 : MyStream (l'écran de Zoom et de YouTube) montre sa source principale, quoi que montre l'église ;
     /// « Envoyer dans le stream » (S) : il montre ce que montre l'église et la suit ; « Source principale » (M) l'y ramène.
     /// Le direct part vraiment (vers un serveur RTMP local : ffmpeg en écoute, comme YouTube), à la main, puis tout seul
     /// (direct automatique, à l'heure dite, arrêté après sa durée).
@@ -716,7 +716,7 @@ public static class AutoTest
     }
 
     /// <summary>
-    /// MyChurch 1.6.5 : une caméra USB (ici MyVirtualCam elle-même, une vraie caméra DirectShow quand elle est installée) : MyChurch
+    /// Siloé Stream 1.6.5 : une caméra USB (ici MyVirtualCam elle-même, une vraie caméra DirectShow quand elle est installée) : Siloé Stream
     /// essaie MJPG puis le format non compressé, aux images par seconde voulues, mesure, garde le meilleur ; les images arrivent.
     /// </summary>
     /// <summary>
@@ -728,7 +728,7 @@ public static class AutoTest
         var R = App.Regie;
         var h = new System.Windows.Interop.WindowInteropHelper(w).Handle;
         int lecteursAvant = w.TestLecteursTuiles, vivantesAvant = w.TestTuilesVivantes;
-        var fen = R.NouveauDisplay("Régie MyChurch", new SourceDisplay { Type = "fenetre", Fenetre = h.ToInt64(), Processus = Environment.ProcessId, Titre = w.Title });
+        var fen = R.NouveauDisplay("Régie Siloé Stream", new SourceDisplay { Type = "fenetre", Fenetre = h.ToInt64(), Processus = Environment.ProcessId, Titre = w.Title });
         R.GrilleAnnonce(fen.Id, true);
         R.Effacer();
         w.TestOngletAnnonces();
@@ -835,8 +835,8 @@ public static class AutoTest
         var R = App.Regie;
         try
         {
-            Note($"MyChurch {App.Version} · données : {App.Donnees.Dossier} · {App.Donnees.Chants.Count} chants");
-            // 4.2 : au premier lancement, MyChurch est vide ; seules les Bibles libres de droits LSG 1910 et King James sont livrées
+            Note($"Siloé Stream {App.Version} · données : {App.Donnees.Dossier} · {App.Donnees.Chants.Count} chants");
+            // 4.2 : au premier lancement, Siloé Stream est vide ; seules les Bibles libres de droits LSG 1910 et King James sont livrées
             Ok(App.Donnees.Chants.Count == 0 && App.Audio.Config.Sons.Count == 1 && App.Audio.Config.Sons[0].Genre == GenreSon.Video && App.Donnees.Annonces.Count == 0,
                 $"4.2 : premier lancement vide ({App.Donnees.Chants.Count} chants, {App.Audio.Config.Sons.Count} son : le son des vidéos)");
             Ok(App.Bibles.Toutes().Select(b => b.Id).SequenceEqual(new[] { "lsg", "kjv" }), "4.2 : Bibles livrées : " + string.Join(", ", App.Bibles.Toutes().Select(b => b.Nom)));
@@ -1093,7 +1093,7 @@ public static class AutoTest
                 await Attendre(500);
                 Ok(App.Sources.Image is { PixelWidth: 360, PixelHeight: 640 }, "MyCam en hauteur : image tournée d'un quart de tour (" + App.Sources.Image?.PixelWidth + " × " + App.Sources.Image?.PixelHeight + ")");
                 if (w.Ecran != null) Capture(w.Ecran, "21f-mycam-en-hauteur.png");
-                // 4.1 : MyCam en H.264, comme DroidCam : le FFmpeg d'OBS livré avec MyChurch (obs\bin\64bit\avcodec-*.dll) décode la vidéo du téléphone
+                // 4.1 : MyCam en H.264, comme DroidCam : le FFmpeg d'OBS livré avec Siloé Stream (obs\bin\64bit\avcodec-*.dll) décode la vidéo du téléphone
                 Ok(MyCams.H264, "MyCam H.264 : décodeur prêt (" + DecodeurH264.Etat + ")");
                 if (MyCams.H264)
                 {
@@ -1123,7 +1123,7 @@ public static class AutoTest
                 // 1.2 : un enregistrement vidéo de MyCam garde ses 30 images par seconde (la composition ne passe plus par l'interface)
                 if (App.Audio.Running && App.Audio.TracksActive)
                 {
-                    // 12 gris en JPEG, envoyés à 30 i/s avec leur âge (100 ms), comme un téléphone en MyChurch 1.2
+                    // 12 gris en JPEG, envoyés à 30 i/s avec leur âge (100 ms), comme un téléphone en Siloé Stream 1.2
                     var gris = new List<byte[]>();
                     for (int k = 0; k < 12; k++)
                     {
@@ -1145,7 +1145,7 @@ public static class AutoTest
                         gris.Add(image);
                     }
                     var cfgCam = App.Audio.Config;
-                    var profilCam = new MyVerse.Audio.RecordingProfile { Name = "MyCam (test)", Track = 1, DisplayIds = { cam.Id }, Directory = Path.Combine(Path.GetTempPath(), "mychurch-autotest-mycam") };
+                    var profilCam = new MyVerse.Audio.RecordingProfile { Name = "MyCam (test)", Track = 1, DisplayIds = { cam.Id }, Directory = Path.Combine(Path.GetTempPath(), "siloestream-autotest-mycam") };
                     cfgCam.Profiles.Add(profilCam);
                     App.Audio.Apply();
                     using var envoi = new CancellationTokenSource();
@@ -1219,7 +1219,7 @@ public static class AutoTest
             R.AfficherAnnonce(an);
             await Attendre(300);
             Ok(R.Etat.Lignes.FirstOrDefault() == "Repas fraternel après le culte", "display à l'écran : " + string.Join(" / ", R.Etat.Lignes));
-            // MyChurch 6: the same double-click handler sends the selected title live.
+            // Siloé Stream 6: the same double-click handler sends the selected title live.
             R.Effacer();
             w.TestDisplayDoubleClick(an);
             await Attendre(300);
@@ -1580,7 +1580,7 @@ public static class AutoTest
             {
                 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
                 var page = await http.GetStringAsync($"http://127.0.0.1:{App.Telephone.Port}/");
-                Ok(page.Contains("MyChurch ✓"), $"serveur des téléphones (port {App.Telephone.Port})");
+                Ok(page.Contains("Siloé Stream ✓"), $"serveur des téléphones (port {App.Telephone.Port})");
             }
             catch (Exception x) { Echec("serveur des téléphones : " + x.Message); }
             Ok(File.Exists(Path.Combine(App.SortieObs.Dossier, "etat.json")), "sortie OBS (etat.json)");

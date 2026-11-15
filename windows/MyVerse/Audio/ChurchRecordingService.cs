@@ -7,7 +7,7 @@ public enum ChurchRecordingState { Ready, Preparing, Recording, Finalizing, Erro
 
 /// <summary>
 /// Les enregistrements (5 au plus), qui peuvent tourner en même temps. Chacun garde « tout le son » ou les sons choisis
-/// (MyChurch lui donne la piste d'OBS qui porte ce mélange), en MP3 ou en WAV, ou en vidéo MKV avec des sources Display.
+/// (Siloé Stream lui donne la piste d'OBS qui porte ce mélange), en MP3 ou en WAV, ou en vidéo MKV avec des sources Display.
 /// Une protection anti-saturation empêche le fichier de « craquer » quand plusieurs sons forts s'additionnent.
 /// </summary>
 public sealed class ChurchRecordingService : IDisposable
@@ -49,7 +49,7 @@ public sealed class ChurchRecordingService : IDisposable
     public IReadOnlyCollection<string> Reserves { get { lock (runs) return runs.Where(r => r.Value.Reserve).Select(r => r.Key).ToList(); } }
     public bool Active(string id) => Get(id).Session != null;
     public bool AnyActive { get { lock (runs) return runs.Values.Any(r => r.Session != null); } }
-    /// <summary>Un enregistrement tourne, démarre ou se finalise (à attendre avant de fermer MyChurch).</summary>
+    /// <summary>Un enregistrement tourne, démarre ou se finalise (à attendre avant de fermer Siloé Stream).</summary>
     public bool AnyBusy { get { lock (runs) return runs.Values.Any(r => r.Session != null || r.State is ChurchRecordingState.Preparing or ChurchRecordingState.Finalizing); } }
     public bool Busy(string id) => Get(id).State is ChurchRecordingState.Preparing or ChurchRecordingState.Finalizing;
     public ChurchRecordingState State(string id) => Get(id).State;
@@ -81,7 +81,7 @@ public sealed class ChurchRecordingService : IDisposable
             if (!selected.AudioOnly) selected.Visuals = selected.VisuelsDisplay();
             RecordingFiles.Validate(selected);
             Directory.CreateDirectory(selected.Directory);
-            var probe = Path.Combine(selected.Directory, ".mychurch-write-" + Guid.NewGuid().ToString("N"));
+            var probe = Path.Combine(selected.Directory, ".siloestream-write-" + Guid.NewGuid().ToString("N"));
             using (File.Create(probe)) { }
             File.Delete(probe);
             if (RecordingFiles.FreeSpace(selected.Directory) < RecordingFiles.ReserveBytes) throw new IOException("le disque est presque plein : il faut au moins 512 Mo libres.");
@@ -131,7 +131,7 @@ public sealed class ChurchRecordingService : IDisposable
         finally { run.Operation.Release(); }
     }
 
-    /// <summary>Après chaque changement : un enregistrement en cours suit la piste que MyChurch donne à ses sons (s'ils ont changé dans « Régler »).</summary>
+    /// <summary>Après chaque changement : un enregistrement en cours suit la piste que Siloé Stream donne à ses sons (s'ils ont changé dans « Régler »).</summary>
     public void SuivrePistes()
     {
         List<(string Id, Run Run)> actifs;
@@ -149,7 +149,7 @@ public sealed class ChurchRecordingService : IDisposable
 
     static async Task<string> ProbeEncoderAsync(string executable, RecordingProfile profile)
     {
-        if (!File.Exists(executable)) throw new IOException("le programme d'enregistrement (dossier « ffmpeg » de MyChurch) est introuvable : réinstallez MyChurch.");
+        if (!File.Exists(executable)) throw new IOException("le programme d'enregistrement (dossier « ffmpeg » de Siloé Stream) est introuvable : réinstallez Siloé Stream.");
         if (profile.AudioOnly)
         {
             Task Essai(string codec) => TestAsync(executable, new[] { "-hide_banner", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "0.1", "-c:a", codec, "-f", "null", "-" });
@@ -232,7 +232,7 @@ public sealed class ChurchRecordingService : IDisposable
         try { await StopCore(run); } finally { run.Operation.Release(); }
     }
 
-    /// <summary>Arrête tous les enregistrements (fermeture de MyChurch) : chaque fichier est finalisé.</summary>
+    /// <summary>Arrête tous les enregistrements (fermeture de Siloé Stream) : chaque fichier est finalisé.</summary>
     public async Task StopAllAsync()
     {
         List<string> ids;

@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.Manifest
 import android.content.Context
@@ -50,8 +50,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * MyCam : le téléphone devient une caméra de MyChurch, comme DroidCam.
- * CameraX → vidéo H.264 de l'encodeur matériel (MyChurch 4.1 sur le PC), sinon images JPEG (en-tête « MC »)
+ * MyCam : le téléphone devient une caméra de Siloé Stream, comme DroidCam.
+ * CameraX → vidéo H.264 de l'encodeur matériel (Siloé Stream 4.1 sur le PC), sinon images JPEG (en-tête « MC »)
  * → la connexion WebSocket déjà authentifiée avec le PC. La caméra est tenue à la cadence choisie, même dans la pénombre.
  * Le PC renvoie le témoin (rouge : à l'écran, orange : ensuite) et les messages de la régie.
  */
@@ -114,7 +114,7 @@ object MyCam {
     /** Octets en attente d'envoi au-delà desquels une image est sautée : au plus ~1 image d'avance, pour un retard minimal. */
     private const val SEUIL_FILE = 150_000L
 
-    // H.264 (MyChurch 4.1)
+    // H.264 (Siloé Stream 4.1)
     private const val H264_ENVOYE = 0
     private const val H264_SAUTE = 1
     private const val H264_IMPOSSIBLE = 2
@@ -128,7 +128,7 @@ object MyCam {
     @Volatile private var cleDemandee = false
     @Volatile private var rotationEnvoi = 0
     /**
-     * Horloge des horodatages de la caméra (MyChurch 1.2) : 0 = SystemClock.elapsedRealtimeNanos, 1 = System.nanoTime,
+     * Horloge des horodatages de la caméra (Siloé Stream 1.2) : 0 = SystemClock.elapsedRealtimeNanos, 1 = System.nanoTime,
      * -1 = pas encore reconnue, -2 = inconnue (l'âge des images n'est alors pas envoyé).
      */
     @Volatile private var horlogeCamera = -1
@@ -213,7 +213,7 @@ object MyCam {
     fun demarrerDiffusion() {
         val r = remote ?: return
         if (r.proto.value < 2) {
-            Bulles.dire("MyCam demande MyChurch 4.0 ou plus sur le PC.")
+            Bulles.dire("MyCam demande Siloé Stream 4.0 ou plus sur le PC.")
             return
         }
         diffuse.value = true
@@ -245,7 +245,7 @@ object MyCam {
         cleDemandee = true
     }
 
-    /** Le PC (MyChurch 4.1) attend une image clé : son décodeur démarre, reprend, ou a perdu le fil. */
+    /** Le PC (Siloé Stream 4.1) attend une image clé : son décodeur démarre, reprend, ou a perdu le fil. */
     fun demanderCle() {
         cleDemandee = true
     }
@@ -502,7 +502,7 @@ object MyCam {
         }
     }
 
-    /** Images JPEG une à une (PC en MyChurch 4.0, ou H.264 indisponible). */
+    /** Images JPEG une à une (PC en Siloé Stream 4.0, ou H.264 indisponible). */
     private fun jpeg(r: Remote, img: ImageProxy, zone: Rect, rotation: Int, maintenant: Long) {
         val w = img.width
         val h = img.height
@@ -520,7 +520,7 @@ object MyCam {
         }
         val yuv = versNv21(img)
         tampon.reset()
-        // MyChurch 1.2 : avec un PC qui le lit, l'âge de l'image (prise de vue → envoi) suit l'en-tête
+        // Siloé Stream 1.2 : avec un PC qui le lit, l'âge de l'image (prise de vue → envoi) suit l'en-tête
         val avecAge = r.horlogePc && horlogeCamera >= 0
         tampon.write(byteArrayOf('M'.code.toByte(), 'C'.code.toByte(), 1, (rotation or (if (avecAge) 0x10 else 0)).toByte()))
         if (avecAge) tampon.write(byteArrayOf(0, 0, 0, 0))
@@ -544,7 +544,7 @@ object MyCam {
         if (taille.value != t) taille.value = t
     }
 
-    /** Le PC décode le H.264 (MyChurch 4.1), le réglage le demande, et l'encodeur de ce téléphone n'a pas lâché. */
+    /** Le PC décode le H.264 (Siloé Stream 4.1), le réglage le demande, et l'encodeur de ce téléphone n'a pas lâché. */
     private fun veutH264(r: Remote) = r.store.camFormat != "jpeg" && !h264Refuse && "h264" in r.codecsPc.value
 
     /** Une image vers l'encodeur H.264 (fil de la caméra) : envoyée, sautée (Wi-Fi ou encodeur en retard), ou impossible (JPEG). */
@@ -607,7 +607,7 @@ object MyCam {
 
     /**
      * Une unité d'accès H.264 sortie de l'encodeur (son fil) : en-tête MyCam version 2, puis vers le PC.
-     * MyChurch 1.2 : avec un PC qui le lit, l'âge de l'image (prise de vue → sortie de l'encodeur) suit l'en-tête,
+     * Siloé Stream 1.2 : avec un PC qui le lit, l'âge de l'image (prise de vue → sortie de l'encodeur) suit l'en-tête,
      * pour que le PC cale l'image sur le son des enregistrements.
      */
     private fun sortieH264(donnees: ByteArray, n: Int, cle: Boolean, ptsUs: Long) {
@@ -663,7 +663,7 @@ object MyCam {
             val wm = activite?.applicationContext?.getSystemService(WifiManager::class.java) ?: return
             @Suppress("DEPRECATION")
             val mode = if (Build.VERSION.SDK_INT >= 29) WifiManager.WIFI_MODE_FULL_LOW_LATENCY else WifiManager.WIFI_MODE_FULL_HIGH_PERF
-            wifi = wm.createWifiLock(mode, "MyChurch:MyCam").apply {
+            wifi = wm.createWifiLock(mode, "Siloé Stream:MyCam").apply {
                 setReferenceCounted(false)
                 acquire()
             }
@@ -776,7 +776,7 @@ object MyCam {
         }
     }
 
-    /** Nom de la source dans MyChurch. */
+    /** Nom de la source dans Siloé Stream. */
     fun nom(): String = remote?.store?.camNom?.takeIf { it.isNotBlank() } ?: "MyCam · ${Build.MODEL}"
 
     private fun envoyerInfo() {

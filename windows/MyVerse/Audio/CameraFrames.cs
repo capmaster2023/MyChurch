@@ -11,7 +11,7 @@ namespace MyVerse.Ui.Audio;
 /// une seule ouverture par appareil, rendue quand plus personne ne s'en sert.
 /// <para>
 /// 1.6.5 : fluide. Les cartes de capture USB 2.0 (« USB Video ») ne donnent que 5 images par seconde en 1080p non compressé :
-/// MyChurch demande le format compressé MJPG, aux images par seconde voulues (60 par défaut, ou 40, ou 30 : réglage de la source),
+/// Siloé Stream demande le format compressé MJPG, aux images par seconde voulues (60 par défaut, ou 40, ou 30 : réglage de la source),
 /// et mesure ce qui arrive vraiment. Si l'appareil n'y arrive pas en 1080p, il essaie 720p (les images par seconde d'abord),
 /// sinon il garde le meilleur essai. Ce qui a marché est retenu pour la prochaine ouverture. Les images partent dès qu'elles arrivent.
 /// </para>
@@ -26,7 +26,7 @@ public static class CameraFrames
     static readonly Dictionary<string, Capture> captures = new();
     /// <summary>Le réglage qui a marché, par appareil et par demande (images par seconde, taille).</summary>
     static readonly Dictionary<string, Reglage> trouves = new();
-    /// <summary>Les appareils dont on a déjà dit qu'ils donnent moins d'images que demandé (une fois par ouverture de MyChurch).</summary>
+    /// <summary>Les appareils dont on a déjà dit qu'ils donnent moins d'images que demandé (une fois par ouverture de Siloé Stream).</summary>
     static readonly HashSet<string> dits = new();
     /// <summary>Combien de temps un appareil reste ouvert, prêt, après sa dernière utilisation.</summary>
     const long Garde = 10 * 60 * 1000;

@@ -7,8 +7,8 @@ using MyVerse.Ui.Audio;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// MyChurch 1.6.4 : « Directs automatiques », dans la fenêtre du direct. La liste (chaque dimanche à 10:00, chaque vendredi à 17:40…),
-/// chacun activé ou non, « Modifier », « × » ; « + Programmer un direct automatique » ; « Ouvrir MyChurch au démarrage de Windows ».
+/// Siloé Stream 1.6.4 : « Directs automatiques », dans la fenêtre du direct. La liste (chaque dimanche à 10:00, chaque vendredi à 17:40…),
+/// chacun activé ou non, « Modifier », « × » ; « + Programmer un direct automatique » ; « Ouvrir Siloé Stream au démarrage de Windows ».
 /// </summary>
 public sealed partial class DirectWindow
 {
@@ -21,7 +21,7 @@ public sealed partial class DirectWindow
         var bloc = new StackPanel();
         bloc.Children.Add(Libelle("Directs automatiques"));
         bloc.Children.Add(Note("Chaque semaine, à l'heure dite, le direct démarre tout seul avec ses réglages, et s'arrête après la durée choisie. "
-            + "MyChurch doit être ouvert sur cet ordinateur : il le garde éveillé avant le direct, et le réveille s'il est en veille.", 0));
+            + "Siloé Stream doit être ouvert sur cet ordinateur : il le garde éveillé avant le direct, et le réveille s'il est en veille.", 0));
         noteAuto.FontSize = 12.5; noteAuto.TextWrapping = TextWrapping.Wrap; noteAuto.Foreground = Pinceau("OrVif"); noteAuto.Margin = new Thickness(0, 6, 0, 0);
         bloc.Children.Add(noteAuto);
         listeAuto.Margin = new Thickness(0, 10, 0, 0);
@@ -31,7 +31,7 @@ public sealed partial class DirectWindow
         bloc.Children.Add(ajouter);
         demarrageWindows = new CheckBox
         {
-            Content = "Ouvrir MyChurch au démarrage de Windows (pour ne pas manquer un direct automatique)", IsChecked = App.AutoTest == null && Natif.DemarrageWindows,
+            Content = "Ouvrir Siloé Stream au démarrage de Windows (pour ne pas manquer un direct automatique)", IsChecked = App.AutoTest == null && Natif.DemarrageWindows,
             FontSize = 14, Margin = new Thickness(0, 12, 0, 0),
         };
         demarrageWindows.Click += (_, _) =>
@@ -54,8 +54,8 @@ public sealed partial class DirectWindow
         var maintenant = DateTime.Now;
         noteAuto.Text = R.Programmes.Count == 0 ? "" : R.Mode switch
         {
-            ReglagesDirect.Cle => "Avec la clé de stream, MyChurch démarre seulement l'envoi : le titre et les réglages se font dans YouTube Studio.",
-            ReglagesDirect.Autre => "Avec « Autre service », MyChurch démarre seulement l'envoi vers l'adresse choisie (le titre et les réglages ne servent pas).",
+            ReglagesDirect.Cle => "Avec la clé de stream, Siloé Stream démarre seulement l'envoi : le titre et les réglages se font dans YouTube Studio.",
+            ReglagesDirect.Autre => "Avec « Autre service », Siloé Stream démarre seulement l'envoi vers l'adresse choisie (le titre et les réglages ne servent pas).",
             _ => D.Compte.Connecte ? "" : "Connectez le compte YouTube : sans lui, le direct automatique ne peut pas démarrer.",
         };
         noteAuto.Visibility = noteAuto.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -142,11 +142,11 @@ public sealed partial class DirectWindow
         App.Donnees.SauverReglages();
         App.Planificateur.Modifie();
         string message = r.Actif && r.Prochain(DateTime.Now) is { } q ? $"Direct automatique enregistré : {r.Quand.ToLower(CultureInfo.GetCultureInfo("fr-CA"))}. Prochain : {DirectProgramme.Moment(q, DateTime.Now)}." : "Direct automatique enregistré.";
-        // le premier direct automatique : MyChurch s'ouvrira au démarrage de Windows (décochable)
+        // le premier direct automatique : Siloé Stream s'ouvrira au démarrage de Windows (décochable)
         if (premier && App.AutoTest == null && !Natif.DemarrageWindows && Natif.ChangerDemarrageWindows(true))
         {
             if (demarrageWindows != null) demarrageWindows.IsChecked = true;
-            message += " MyChurch s'ouvrira aussi au démarrage de Windows (décochez plus bas si vous ne voulez pas).";
+            message += " Siloé Stream s'ouvrira aussi au démarrage de Windows (décochez plus bas si vous ne voulez pas).";
         }
         Dire(message);
     }
@@ -159,7 +159,7 @@ public sealed partial class DirectWindow
 }
 
 /// <summary>
-/// MyChurch 1.6.4 : un direct automatique : les jours, l'heure, quand l'arrêter, ce que montre MyStream, la qualité, et les réglages
+/// Siloé Stream 1.6.4 : un direct automatique : les jours, l'heure, quand l'arrêter, ce que montre MyStream, la qualité, et les réglages
 /// du direct YouTube (titre avec « {date} », description, confidentialité, catégorie, « pour les enfants ? », latence, DVR, miniature).
 /// </summary>
 public sealed class ProgrammeDirectWindow : FenetreDialogue
@@ -189,7 +189,7 @@ public sealed class ProgrammeDirectWindow : FenetreDialogue
         tete.Children.Add(new TextBlock { Text = Title, Style = Style_("Titre2") });
         tete.Children.Add(new TextBlock
         {
-            Text = "Chaque semaine, les jours choisis à l'heure dite, MyChurch démarre ce direct tout seul, avec ces réglages.",
+            Text = "Chaque semaine, les jours choisis à l'heure dite, Siloé Stream démarre ce direct tout seul, avec ces réglages.",
             Style = Style_("Muet"), FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 4),
         });
         DockPanel.SetDock(tete, Dock.Top);

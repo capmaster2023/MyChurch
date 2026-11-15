@@ -5,7 +5,7 @@ namespace MyVerse.Audio;
 
 /// <summary>
 /// Appels directs à libobs, la bibliothèque d'OBS Studio (obs.dll, licence GNU GPL v2 ou ultérieure).
-/// MyChurch n'a aucun mélange audio à lui : sources, filtres, écoute, pistes et vumètres sont ceux d'OBS.
+/// Siloé Stream n'a aucun mélange audio à lui : sources, filtres, écoute, pistes et vumètres sont ceux d'OBS.
 /// Signatures relevées dans libobs 33.0.1 (obs.h, obs-audio-controls.h, media-io/audio-io.h).
 /// </summary>
 public static class LibObs
@@ -181,7 +181,7 @@ public static class LibObs
     [DllImport(Lib, EntryPoint = "audio_output_connect")] [return: MarshalAs(UnmanagedType.U1)]
     public static extern bool audio_output_connect_converti(IntPtr audio, UIntPtr mixIndex, ref AudioConvertInfo conversion, AudioOutputCallback callback, IntPtr param);
 
-    // ---------------------------------------------------------------- type de source de MyChurch : son poussé par MyChurch (entrées séparées)
+    // ---------------------------------------------------------------- type de source de Siloé Stream : son poussé par Siloé Stream (entrées séparées)
     public const int SourceTypeInput = 0;               // OBS_SOURCE_TYPE_INPUT
     public const uint SourceAudio = 1 << 1;             // OBS_SOURCE_AUDIO
     public const uint SourceDoNotDuplicate = 1 << 7;    // OBS_SOURCE_DO_NOT_DUPLICATE

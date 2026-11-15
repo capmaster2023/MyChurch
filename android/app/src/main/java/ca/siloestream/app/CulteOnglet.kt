@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,7 +75,7 @@ fun CulteOnglet(remote: Remote) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (vue == 0) {
                 if (proto >= 2) Deroule(remote)
-                else Info("Mettez MyChurch à jour sur le PC (4.0 ou plus) pour suivre le déroulé ici. Les sources Display marchent déjà.")
+                else Info("Mettez Siloé Stream à jour sur le PC (4.0 ou plus) pour suivre le déroulé ici. Les sources Display marchent déjà.")
             } else Sources(remote)
         }
         BarreLive(remote)
@@ -97,7 +97,7 @@ private fun Deroule(remote: Remote) {
     val a = agenda?.optJSONArray("elements")
     val elements = if (a == null) emptyList() else (0 until a.length()).map { a.getJSONObject(it) }
     if (elements.isEmpty()) {
-        Info(if (!pret) "En attente du PC…" else if (agenda == null) "Chargement du déroulé…" else "Le déroulé est vide. Ajoutez des chants et des lectures depuis Bible et Chants (bouton « au culte »), ou dans MyChurch sur le PC.")
+        Info(if (!pret) "En attente du PC…" else if (agenda == null) "Chargement du déroulé…" else "Le déroulé est vide. Ajoutez des chants et des lectures depuis Bible et Chants (bouton « au culte »), ou dans Siloé Stream sur le PC.")
         return
     }
     val courantId = s?.optString("element").orEmpty()

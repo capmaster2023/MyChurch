@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -25,7 +25,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** Une seule connexion au PC pour toute l'app (écran, détecteur de versets, notifications). */
-object MyChurch {
+object SiloeApp {
     @Volatile private var r: Remote? = null
     fun remote(ctx: Context): Remote = r ?: synchronized(this) {
         r ?: Remote(ctx.applicationContext, Store(ctx.applicationContext)).also { r = it }
@@ -78,7 +78,7 @@ class Ecoute : Service() {
         val app = applicationContext
         Thread {
             try {
-                val store = MyChurch.remote(app).store
+                val store = SiloeApp.remote(app).store
                 bible = Donnees.principale(app, store)
                 noms = Detecteur.nomsDepuis(Donnees.pourRecherche(app, store))
             } catch (e: Exception) {
@@ -110,7 +110,7 @@ class Ecoute : Service() {
             actif = true
             Detection.actif.value = true
             Detection.statut.value = "Démarrage de l'écoute…"
-            MyChurch.remote(this).start() // la connexion reste ouverte pour pouvoir afficher depuis la notification
+            SiloeApp.remote(this).start() // la connexion reste ouverte pour pouvoir afficher depuis la notification
             ecouter()
         }
         // pas de redémarrage automatique en arrière-plan (Android 14 l'interdit pour le micro) : on relance depuis l'app
@@ -126,7 +126,7 @@ class Ecoute : Service() {
         Detection.actif.value = false
         Detection.statut.value = ""
         Detection.entendu.value = ""
-        if (!Detection.premierPlan) MyChurch.remote(this).stop()
+        if (!Detection.premierPlan) SiloeApp.remote(this).stop()
         super.onDestroy()
     }
 
@@ -184,7 +184,7 @@ class Ecoute : Service() {
                 SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> relancer(120)
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> { try { sr?.cancel() } catch (e: Exception) {}; relancer(700) }
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
-                    Detection.statut.value = "Micro refusé : autorisez le micro pour MyChurch (Paramètres › Applis › MyChurch)."
+                    Detection.statut.value = "Micro refusé : autorisez le micro pour Siloé Stream (Paramètres › Applis › Siloé Stream)."
                     stopSelf()
                 }
                 SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_SERVER -> {
@@ -235,13 +235,13 @@ class Ecoute : Service() {
         val label = Books.name(r.b) + " " + r.c + if (f.avecVerset) ":" + r.v1 + (if (r.v2 > r.v1) "-" + r.v2 else "") else ""
         val texte = if (f.avecVerset) bi.texte(r.b, r.c, r.v1, r.v2) else bi.texte(r.b, r.c, 1, 1)
         val s = Detection.ajouter(label, texte)
-        MyChurch.remote(this).log("détecteur : $label proposé")
+        SiloeApp.remote(this).log("détecteur : $label proposé")
         if (!Detection.premierPlan) notifier(this, s)
     }
 
     /** Coupe le petit bip que certains téléphones jouent à chaque relance de l'écoute (son des médias). */
     private fun bip(remettre: Boolean) {
-        if (!MyChurch.remote(this).store.couperBip) return
+        if (!SiloeApp.remote(this).store.couperBip) return
         val am = getSystemService(AudioManager::class.java) ?: return
         try {
             if (!remettre) {
@@ -260,7 +260,7 @@ class Ecoute : Service() {
     private fun notifEcoute() = NotificationCompat.Builder(this, CANAL_ECOUTE)
         .setSmallIcon(R.drawable.ic_notif)
         .setContentTitle("Détecteur de versets actif")
-        .setContentText("MyChurch écoute le prédicateur et vous propose les versets cités.")
+        .setContentText("Siloé Stream écoute le prédicateur et vous propose les versets cités.")
         .setOngoing(true)
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .setContentIntent(ouvrirApp(this))
@@ -270,7 +270,7 @@ class Ecoute : Service() {
     companion object {
         const val CANAL_ECOUTE = "ecoute"
         const val CANAL_VERSETS = "versets"
-        const val ACTION_ARRET = "ca.mepc.verselight.remote.ARRET"
+        const val ACTION_ARRET = "ca.siloestream.app.ARRET"
         private const val NOTIF_ECOUTE = 1
 
         fun demarrer(ctx: Context) {
@@ -322,15 +322,15 @@ class Ecoute : Service() {
     }
 }
 
-/** Bouton « Afficher » de la notification : le verset part à l'écran (par MyChurch sur le PC). */
+/** Bouton « Afficher » de la notification : le verset part à l'écran (par Siloé Stream sur le PC). */
 class AfficherRecu : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val ref = intent.getStringExtra("ref") ?: return
         val id = intent.getIntExtra("id", 0)
         NotificationManagerCompat.from(ctx).cancel(1000 + id)
         Detection.retirer(id)
-        if (!MyChurch.remote(ctx).send("bible.show", "ref" to ref)) {
-            Toast.makeText(ctx, "MyChurch n'est pas connecté au PC : impossible d'afficher $ref", Toast.LENGTH_LONG).show()
+        if (!SiloeApp.remote(ctx).send("bible.show", "ref" to ref)) {
+            Toast.makeText(ctx, "Siloé Stream n'est pas connecté au PC : impossible d'afficher $ref", Toast.LENGTH_LONG).show()
         }
     }
 }

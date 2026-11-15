@@ -75,7 +75,7 @@ public sealed class PcmRecordingWriter : IDisposable
     {
         using (var f = File.OpenRead(original))
         {
-            var header = new byte[80]; if (f.Read(header) != 80 || Encoding.ASCII.GetString(header, 0, 4) != "RF64" || Encoding.ASCII.GetString(header, 72, 4) != "data") throw new InvalidDataException("Ce fichier n’est pas un WAV RF64 MyChurch.");
+            var header = new byte[80]; if (f.Read(header) != 80 || Encoding.ASCII.GetString(header, 0, 4) != "RF64" || Encoding.ASCII.GetString(header, 72, 4) != "data") throw new InvalidDataException("Ce fichier n’est pas un WAV RF64 Siloé Stream.");
         }
         using var source = File.OpenRead(original);
         using var copy = new FileStream(destination, FileMode.CreateNew, FileAccess.ReadWrite);

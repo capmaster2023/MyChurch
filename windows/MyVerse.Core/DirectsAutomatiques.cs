@@ -3,10 +3,10 @@ using System.Text.Json.Serialization;
 namespace MyVerse;
 
 /// <summary>
-/// MyChurch 1.6.4 : un direct automatique. Chaque semaine, les jours choisis à l'heure dite (chaque dimanche à 10:00, chaque vendredi
-/// à 17:40…), MyChurch démarre le direct tout seul, avec ses réglages (titre, description, confidentialité, catégorie, « pour les
+/// Siloé Stream 1.6.4 : un direct automatique. Chaque semaine, les jours choisis à l'heure dite (chaque dimanche à 10:00, chaque vendredi
+/// à 17:40…), Siloé Stream démarre le direct tout seul, avec ses réglages (titre, description, confidentialité, catégorie, « pour les
 /// enfants ? », latence, DVR, miniature, qualité, ce que montre MyStream), et l'arrête après la durée choisie.
-/// MyChurch doit être ouvert sur l'ordinateur : il le garde éveillé avant le direct et le réveille s'il dort (si Windows le permet).
+/// Siloé Stream doit être ouvert sur l'ordinateur : il le garde éveillé avant le direct et le réveille s'il dort (si Windows le permet).
 /// </summary>
 public sealed class DirectProgramme
 {
@@ -27,7 +27,7 @@ public sealed class DirectProgramme
     /// <summary>Le dernier début traité (démarré, passé parce qu'un direct tournait déjà, ou abandonné) : il ne repart pas.</summary>
     [JsonPropertyName("dernier")] public DateTime? Dernier { get; set; }
 
-    /// <summary>Un début se lance jusqu'à 15 minutes après l'heure (MyChurch ouvert en retard, ordinateur qui se réveille…).</summary>
+    /// <summary>Un début se lance jusqu'à 15 minutes après l'heure (Siloé Stream ouvert en retard, ordinateur qui se réveille…).</summary>
     public static readonly TimeSpan Marge = TimeSpan.FromMinutes(15);
 
     public static string NouvelId() => Guid.NewGuid().ToString("N")[..12];

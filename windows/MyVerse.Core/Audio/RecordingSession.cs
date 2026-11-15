@@ -19,7 +19,7 @@ public interface IRecordingFrameProvider
 /// <summary>
 /// Un enregistrement : le son d'une piste d'OBS (file bornée : le fil audio d'OBS ne fait que copier un bloc) et, en vidéo,
 /// les images de la composition, écrits pour ffmpeg par des fils à eux.
-/// MyChurch 1.2 : synchro automatique, comme OBS. Chaque bloc de son porte l'instant où OBS l'a capté ; la n-ième image
+/// Siloé Stream 1.2 : synchro automatique, comme OBS. Chaque bloc de son porte l'instant où OBS l'a capté ; la n-ième image
 /// du fichier est celle du monde à l'instant du son à la même place (origine du son + n / ips), prise quand elle est prête
 /// (après le retard de MyCam). Plus de réglage « Synchro du son » : ni le retard du mélange d'OBS ni celui de la caméra
 /// ne décalent la voix et l'image.
@@ -63,7 +63,7 @@ public sealed class RecordingSession : IDisposable
     /// <summary>Recalages de la vidéo sur le son (saut de l'horloge du son) : 0 normalement.</summary>
     public long Sauts => Interlocked.Read(ref sauts);
     public long Bytes => !Direct && File.Exists(Path) ? new FileInfo(Path).Length : 0;
-    /// <summary>MyChurch 1.6.0 : un direct (YouTube, un autre service) : <see cref="Path"/> est l'adresse RTMP(S), pas un fichier.</summary>
+    /// <summary>Siloé Stream 1.6.0 : un direct (YouTube, un autre service) : <see cref="Path"/> est l'adresse RTMP(S), pas un fichier.</summary>
     public bool Direct => profile.Format == RecordingProfile.FormatDirect;
     public string Path { get; }
     public string Encoder { get; }
@@ -81,7 +81,7 @@ public sealed class RecordingSession : IDisposable
     sealed record PipeName(string Value);
     static NamedPipeServerStream NamedPipe()
     {
-        string name = "mychurch-" + Guid.NewGuid().ToString("N");
+        string name = "siloestream-" + Guid.NewGuid().ToString("N");
         var pipe = new NamedPipeServerStream(name, PipeDirection.Out, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0, 65536); names.Add(pipe, new(name)); return pipe;
     }
     /// <summary>Le chemin que ffmpeg ouvre : un tube nommé sous Windows, la prise Unix de .NET ailleurs (essais sous Linux).</summary>
@@ -192,7 +192,7 @@ public sealed class RecordingSession : IDisposable
                 stderrWorker = Task.Run(async () => { string? line; while ((line = await ffmpeg.StandardError.ReadLineAsync()) != null) lock (stderr) { if (stderr.Length > 12000) stderr.Remove(0, 6000); stderr.AppendLine(line); } });
                 if (videoPipe != null)
                 {
-                    videoWorker = new Thread(EcrireVideo) { IsBackground = true, Name = "MyChurch vidéo", Priority = ThreadPriority.AboveNormal };
+                    videoWorker = new Thread(EcrireVideo) { IsBackground = true, Name = "Siloé Stream vidéo", Priority = ThreadPriority.AboveNormal };
                     videoWorker.Start();
                 }
                 await audioPipe.WaitForConnectionAsync(cancel.Token);
@@ -251,7 +251,7 @@ public sealed class RecordingSession : IDisposable
         try
         {
             videoPipe!.WaitForConnection();
-            ecrivain = new Thread(() => EcrireImages(size)) { IsBackground = true, Name = "MyChurch vidéo (ffmpeg)", Priority = ThreadPriority.AboveNormal };
+            ecrivain = new Thread(() => EcrireImages(size)) { IsBackground = true, Name = "Siloé Stream vidéo (ffmpeg)", Priority = ThreadPriority.AboveNormal };
             ecrivain.Start();
             // une première image tout de suite : ffmpeg ouvre alors le tube du son
             Composer(Horloge.Ns() - compositor!.Retard, size);

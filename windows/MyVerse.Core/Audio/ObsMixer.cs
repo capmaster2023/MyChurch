@@ -5,7 +5,7 @@ namespace MyVerse.Audio;
 
 public sealed record AudioDevice(string Id, string Name);
 
-/// <summary>Où se trouvent libobs et ses modules. Dans MyChurch : le dossier « obs » posé à côté de MyChurch.exe par l'installateur.</summary>
+/// <summary>Où se trouvent libobs et ses modules. Dans Siloé Stream : le dossier « obs » posé à côté de SiloeStream.exe par l'installateur.</summary>
 public sealed class ObsPaths
 {
     public string Library = "", DataPath = "", Graphics = "";
@@ -49,9 +49,9 @@ public sealed class ObsPaths
 public enum EtatLecture { Aucun, Lecture, Pause, Arret, Fin, Erreur }
 
 /// <summary>
-/// Le moteur de MyChurch : une couche mince au-dessus de libobs. Chaque son est une source OBS (micro ou sortie WASAPI,
-/// média FFmpeg, entrée poussée par MyChurch), ses aides sont des filtres d'obs-filters, « Dans l'église » est le monitoring d'OBS
-/// et les six pistes d'OBS sont les mélanges que MyChurch donne aux destinations (enregistrements, Zoom, casque).
+/// Le moteur de Siloé Stream : une couche mince au-dessus de libobs. Chaque son est une source OBS (micro ou sortie WASAPI,
+/// média FFmpeg, entrée poussée par Siloé Stream), ses aides sont des filtres d'obs-filters, « Dans l'église » est le monitoring d'OBS
+/// et les six pistes d'OBS sont les mélanges que Siloé Stream donne aux destinations (enregistrements, Zoom, casque).
 /// L'utilisateur ne voit rien de tout cela : <see cref="AudioConfiguration.Planifier"/> prépare les sources.
 /// </summary>
 public sealed class ObsMixer : IDisposable
@@ -63,7 +63,7 @@ public sealed class ObsMixer : IDisposable
         public uint Canal;
         public IntPtr Source, Volmeter;
         public AudioInputKind Kind;
-        /// <summary>Type de source OBS (wasapi_input_capture, ffmpeg_source, mychurch_entree…) : s'il change, la source est recréée.</summary>
+        /// <summary>Type de source OBS (wasapi_input_capture, ffmpeg_source, siloestream_entree…) : s'il change, la source est recréée.</summary>
         public string Type = "";
         public string Signature = "";
         public AudioMonitoring Monitor;
@@ -94,14 +94,14 @@ public sealed class ObsMixer : IDisposable
     static readonly LibObs.EnumSource lireFiltre = LireFiltre;
     static List<string>? filtresLus;
     static readonly object verrouFiltres = new();
-    const string PrefixeFiltre = "MyChurch filtre ";
+    const string PrefixeFiltre = "Siloé Stream filtre ";
 
-    // ------------------------------------------------------------ entrées séparées (MyChurch 3.1)
+    // ------------------------------------------------------------ entrées séparées (Siloé Stream 3.1)
     /// <summary>
-    /// Type de source OBS de MyChurch pour une entrée seule d'une carte son : MyChurch écoute le périphérique (WASAPI partagé),
+    /// Type de source OBS de Siloé Stream pour une entrée seule d'une carte son : Siloé Stream écoute le périphérique (WASAPI partagé),
     /// prend le canal de la bande et le pousse ici ; volume, filtres, écoute, vumètre et pistes restent ceux d'OBS.
     /// </summary>
-    public const string TypeEntree = "mychurch_entree";
+    public const string TypeEntree = "siloestream_entree";
     static readonly LibObs.SourceGetName nomEntree = _ => nomType;
     static readonly LibObs.SourceCreate creerEntree = (_, source) => source == IntPtr.Zero ? (IntPtr)1 : source;
     static readonly LibObs.SourceDestroy detruireEntree = _ => { };
@@ -118,7 +118,7 @@ public sealed class ObsMixer : IDisposable
     readonly Action<float[], long>?[] consommateurs = new Action<float[], long>?[LibObs.Mixes];
     /// <summary>Instant (horloge <see cref="Horloge"/>) de la première trame du bloc en cours de remplissage, par piste.</summary>
     readonly long[] debutBloc = new long[LibObs.Mixes];
-    /// <summary>Horloge d'OBS (os_gettime_ns) − horloge de MyChurch : mesuré au démarrage (le même compteur, deux origines possibles).</summary>
+    /// <summary>Horloge d'OBS (os_gettime_ns) − horloge de Siloé Stream : mesuré au démarrage (le même compteur, deux origines possibles).</summary>
     long ecartHorloges;
     /// <summary>Un bloc de 10 ms en cours de remplissage par piste (taille selon la fréquence du moteur, fixée au démarrage).</summary>
     float[][] blocs = Array.Empty<float[]>();
@@ -138,7 +138,7 @@ public sealed class ObsMixer : IDisposable
     public string Version { get; private set; } = "";
     public IReadOnlyList<string> Modules { get; private set; } = Array.Empty<string>();
     public string? LastError { get; private set; }
-    /// <summary>OBS a accepté le type de source « entrée » de MyChurch : une bande peut écouter une seule entrée d'une carte son.</summary>
+    /// <summary>OBS a accepté le type de source « entrée » de Siloé Stream : une bande peut écouter une seule entrée d'une carte son.</summary>
     public bool EntreesSeparees => Running && entreesPossibles;
     /// <summary>Messages d'OBS (niveau, texte) : erreurs, avertissements, informations.</summary>
     public static event Action<int, string>? Log;
@@ -259,23 +259,23 @@ public sealed class ObsMixer : IDisposable
             };
             int rc = LibObs.obs_reset_video(ref vi);
             TracksActive = rc == 0;
-            if (rc != 0) Log?.Invoke(200, $"MyChurch : obs_reset_video = {rc} ; vumètres, filtres et écoute fonctionnent, les pistes restent muettes.");
+            if (rc != 0) Log?.Invoke(200, $"Siloé Stream : obs_reset_video = {rc} ; vumètres, filtres et écoute fonctionnent, les pistes restent muettes.");
         }
-        catch (Exception e) { TracksActive = false; Log?.Invoke(200, "MyChurch : moteur de pistes indisponible : " + e.Message); }
+        catch (Exception e) { TracksActive = false; Log?.Invoke(200, "Siloé Stream : moteur de pistes indisponible : " + e.Message); }
         var charges = new List<string>();
         foreach (var (bin, data) in p.Modules)
         {
-            if (!File.Exists(bin)) { Log?.Invoke(200, "MyChurch : module OBS absent : " + bin); continue; }
+            if (!File.Exists(bin)) { Log?.Invoke(200, "Siloé Stream : module OBS absent : " + bin); continue; }
             try
             {
                 if (LibObs.obs_open_module(out var module, bin, data) == 0 && LibObs.obs_init_module(module)) charges.Add(Path.GetFileNameWithoutExtension(bin));
-                else Log?.Invoke(200, "MyChurch : module OBS refusé : " + bin);
+                else Log?.Invoke(200, "Siloé Stream : module OBS refusé : " + bin);
             }
-            catch (Exception e) { Log?.Invoke(100, "MyChurch : module OBS " + bin + " : " + e.Message); }
+            catch (Exception e) { Log?.Invoke(100, "Siloé Stream : module OBS " + bin + " : " + e.Message); }
         }
         Modules = charges;
         try { LibObs.obs_post_load_modules(); } catch (Exception) { }
-        // les deux horloges lues ensemble (au plus près) : les horodatages d'OBS passent sur l'horloge de MyChurch
+        // les deux horloges lues ensemble (au plus près) : les horodatages d'OBS passent sur l'horloge de Siloé Stream
         long ecart = long.MaxValue, avant, obs, apres;
         for (int k = 0; k < 5; k++)
         {
@@ -291,7 +291,7 @@ public sealed class ObsMixer : IDisposable
         Running = true;
     }
 
-    /// <summary>Déclare à OBS le type « entrée » de MyChurch (une source audio dont MyChurch fournit le son). À refaire après chaque obs_startup.</summary>
+    /// <summary>Déclare à OBS le type « entrée » de Siloé Stream (une source audio dont Siloé Stream fournit le son). À refaire après chaque obs_startup.</summary>
     static bool EnregistrerEntree()
     {
         try
@@ -300,7 +300,7 @@ public sealed class ObsMixer : IDisposable
             if (infoType == IntPtr.Zero)
             {
                 idType = Marshal.StringToCoTaskMemUTF8(TypeEntree);
-                nomType = Marshal.StringToCoTaskMemUTF8("Entrée MyChurch");
+                nomType = Marshal.StringToCoTaskMemUTF8("Entrée Siloé Stream");
                 var info = Marshal.AllocHGlobal(TailleInfo);
                 for (int i = 0; i < TailleInfo; i += 8) Marshal.WriteInt64(info, i, 0);
                 // struct obs_source_info : id, type, output_flags, get_name, create, destroy (les autres champs restent vides)
@@ -314,18 +314,18 @@ public sealed class ObsMixer : IDisposable
             }
             LibObs.obs_register_source_s(infoType, (UIntPtr)(IntPtr.Size * 4 + 8));
             bool ok = LibObs.obs_source_get_display_name(TypeEntree) != IntPtr.Zero;
-            Log?.Invoke(ok ? 300 : 200, ok ? "MyChurch : entrées séparées disponibles (une bande par entrée de carte son)" : "MyChurch : type de source « entrée » refusé par OBS");
+            Log?.Invoke(ok ? 300 : 200, ok ? "Siloé Stream : entrées séparées disponibles (une bande par entrée de carte son)" : "Siloé Stream : type de source « entrée » refusé par OBS");
             return ok;
         }
         catch (Exception e)
         {
-            Log?.Invoke(100, "MyChurch : type de source « entrée » indisponible : " + e.Message);
+            Log?.Invoke(100, "Siloé Stream : type de source « entrée » indisponible : " + e.Message);
             return false;
         }
     }
 
     /// <summary>
-    /// Le son d'une entrée séparée (mono, flottant, à la fréquence du périphérique), depuis le fil de capture de MyChurch.
+    /// Le son d'une entrée séparée (mono, flottant, à la fréquence du périphérique), depuis le fil de capture de Siloé Stream.
     /// OBS le reçoit comme une source stéréo (le canal sur les deux côtés) et applique volume, filtres, écoute et pistes.
     /// Faux si la bande n'est pas (ou plus) une entrée séparée.
     /// </summary>
@@ -358,7 +358,7 @@ public sealed class ObsMixer : IDisposable
             return true;
         }
     }
-    /// <summary>Cette bande est une entrée séparée (son fourni par MyChurch).</summary>
+    /// <summary>Cette bande est une entrée séparée (son fourni par Siloé Stream).</summary>
     public bool EstEntree(string id) { lock (verrouEntrees) return entrees.ContainsKey(id); }
 
     // ------------------------------------------------------------ périphériques
@@ -511,9 +511,9 @@ public sealed class ObsMixer : IDisposable
                 if (canal >= 64) continue;
                 bool charger = !(s.Kind == AudioInputKind.Media && s.DemarrerArrete);
                 IntPtr reglages = ReglagesSource(s, charger);
-                IntPtr source = LibObs.obs_source_create(type, "MyChurch " + s.Id, reglages, IntPtr.Zero);
+                IntPtr source = LibObs.obs_source_create(type, "Siloé Stream " + s.Id, reglages, IntPtr.Zero);
                 LibObs.obs_data_release(reglages);
-                if (source == IntPtr.Zero) { Log?.Invoke(100, "MyChurch : source OBS refusée (" + type + ")"); continue; }
+                if (source == IntPtr.Zero) { Log?.Invoke(100, "Siloé Stream : source OBS refusée (" + type + ")"); continue; }
                 b = new Bande { Id = s.Id, Canal = canal, Source = source, Kind = s.Kind, Type = type, Signature = signature, Arrete = s.DemarrerArrete, Charge = charger };
                 parCanal[canal] = b; bandes[s.Id] = b;
                 if (type == TypeEntree) lock (verrouEntrees) entrees[s.Id] = (source, IntPtr.Zero, 0);
@@ -556,7 +556,7 @@ public sealed class ObsMixer : IDisposable
                     IntPtr reglages = ReglagesFiltre(f);
                     IntPtr ptr = LibObs.obs_source_create(TypeFiltre(f.Kind), PrefixeFiltre + f.Id, reglages, IntPtr.Zero);
                     LibObs.obs_data_release(reglages);
-                    if (ptr == IntPtr.Zero) { Log?.Invoke(100, "MyChurch : filtre OBS refusé (" + TypeFiltre(f.Kind) + ")"); continue; }
+                    if (ptr == IntPtr.Zero) { Log?.Invoke(100, "Siloé Stream : filtre OBS refusé (" + TypeFiltre(f.Kind) + ")"); continue; }
                     LibObs.obs_source_filter_add(b.Source, ptr);
                     filtre = new Filtre { Ptr = ptr, Kind = f.Kind, Signature = sf };
                     b.Filtres[f.Id] = filtre; b.Ordre.Add(f.Id);
@@ -586,7 +586,7 @@ public sealed class ObsMixer : IDisposable
         string nom = LibObs.Str(LibObs.obs_source_get_name(filtre)) ?? "";
         filtresLus?.Add(nom.StartsWith(PrefixeFiltre, StringComparison.Ordinal) ? nom[PrefixeFiltre.Length..] : nom);
     }
-    /// <summary>Les filtres d'une source tels qu'OBS les applique (identifiants MyChurch, dans l'ordre).</summary>
+    /// <summary>Les filtres d'une source tels qu'OBS les applique (identifiants Siloé Stream, dans l'ordre).</summary>
     public List<string> FilterOrder(string id)
     {
         var liste = new List<string>();
@@ -617,7 +617,7 @@ public sealed class ObsMixer : IDisposable
             LibObs.obs_source_remove(b.Source);
             LibObs.obs_source_release(b.Source);
         }
-        catch (Exception e) { Log?.Invoke(100, "MyChurch : retrait d'une source OBS : " + e.Message); }
+        catch (Exception e) { Log?.Invoke(100, "Siloé Stream : retrait d'une source OBS : " + e.Message); }
     }
 
     // ------------------------------------------------------------ lecture des niveaux

@@ -6,7 +6,7 @@ using System.Windows.Shapes;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// La page Réglages (MyChurch 3.1) : un sommaire à gauche (Apparence, Son, Projection, Téléphone, Mise à jour, Transfert,
+/// La page Réglages (Siloé Stream 3.1) : un sommaire à gauche (Apparence, Son, Projection, Téléphone, Mise à jour, Transfert,
 /// Journal, Licences) et les sections en cartes à droite. Le sommaire suit le défilement.
 /// </summary>
 public sealed class ReglagesPage : Grid
@@ -44,8 +44,8 @@ public sealed class ReglagesPage : Grid
         var jumeler = new Button { Style = S("Btn"), Content = "Jumeler un téléphone (code QR)…", Height = 40, Padding = new Thickness(14, 0, 14, 0), FontSize = 14, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 0, 0) };
         jumeler.Click += (_, _) => { if (Principale is { } m) new TelephoneWindow { Owner = m }.ShowDialog(); };
         var telephone = Section("Téléphone", "La télécommande Android passe les diapositives et choisit les chants. Le PC et le téléphone doivent être sur le même réseau.", jumeler);
-        var aDistance = Section("À distance", "Contrôler MyChurch avec le téléphone de n'importe où, par Internet (passe par le relais MyChurch du VPS). "
-            + "Réglé une fois ici : ensuite, dès que ce PC est allumé, il est joignable, et le téléphone peut même démarrer ou fermer MyChurch.", distance);
+        var aDistance = Section("À distance", "Contrôler Siloé Stream avec le téléphone de n'importe où, par Internet (passe par le relais MyChurch du VPS). "
+            + "Réglé une fois ici : ensuite, dès que ce PC est allumé, il est joignable, et le téléphone peut même démarrer ou fermer Siloé Stream.", distance);
 
         // l'ordre de la page : Licences (dernière section du son) passe tout en bas
         son.Children.Remove(son.Licences);
@@ -211,7 +211,7 @@ public sealed class ReglagesPage : Grid
         catch (Exception x) { Journal.Erreur("liste des écrans", x); }
         if (m is { AttenteProjecteur: true } mw && actuel != null)
         {
-            // projecteur débranché : MyChurch l'attend (la projection se rouvrira toute seule)
+            // projecteur débranché : Siloé Stream l'attend (la projection se rouvrira toute seule)
             var attendre = new Button { Style = S("BtnPetit"), Content = "Ne plus attendre", Height = 34 };
             attendre.Click += (_, _) => { mw.ArreterProjection(); MajEcrans(); };
             ecrans.Children.Add(Ligne(false, $"{(actuel.Nom.Length > 0 ? actuel.Nom : "Projecteur")} · débranché", "la projection se rouvrira toute seule dès qu'il sera branché", attendre));
@@ -276,7 +276,7 @@ public sealed class ReglagesPage : Grid
         ligneAdresse.Children.Add(garder);
         ligneAdresse.Children.Add(adresse);
         var blocAdresse = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
-        blocAdresse.Children.Add(new TextBlock { Text = "Adresse du relais (le VPS MyChurch)", FontSize = 12.5, Foreground = P("Brume") });
+        blocAdresse.Children.Add(new TextBlock { Text = "Adresse du relais (le VPS Siloé Stream)", FontSize = 12.5, Foreground = P("Brume") });
         blocAdresse.Children.Add(ligneAdresse);
         distance.Children.Add(blocAdresse);
 
@@ -297,7 +297,7 @@ public sealed class ReglagesPage : Grid
         string sous = joignable switch
         {
             true => $"actif · joignable de l'extérieur par « {ReglagesDistance.Nettoyer(r.Relais)} »",
-            false => agent ? "actif · l'agent se relie au relais… (quelques secondes)" : "actif · l'agent ne tourne pas : fermez puis rouvrez MyChurch",
+            false => agent ? "actif · l'agent se relie au relais… (quelques secondes)" : "actif · l'agent ne tourne pas : fermez puis rouvrez Siloé Stream",
             null => $"actif · relais « {ReglagesDistance.Nettoyer(r.Relais)} » injoignable (VPS éteint, adresse fausse, ou pas d'Internet)",
         };
         int i = distance.Children.IndexOf(etat);

@@ -38,11 +38,11 @@ public sealed class EcranChoisi
     [JsonPropertyName("h")] public int H { get; set; }
     [JsonPropertyName("nom")] public string Nom { get; set; } = "";
     [JsonPropertyName("p")] public bool Principal { get; set; }
-    /// <summary>Sortie de la carte graphique (\\.\DISPLAY2) : retrouver le projecteur rebranché (MyChurch 1.0).</summary>
+    /// <summary>Sortie de la carte graphique (\\.\DISPLAY2) : retrouver le projecteur rebranché (Siloé Stream 1.0).</summary>
     [JsonPropertyName("periph")] public string Peripherique { get; set; } = "";
     /// <summary>
-    /// Projection ouverte quand MyChurch s'est fermé : elle se rouvre au démarrage. Faux : arrêtée par l'opérateur.
-    /// Absent (réglage de MyChurch 4) : elle se rouvre aussi.
+    /// Projection ouverte quand Siloé Stream s'est fermé : elle se rouvre au démarrage. Faux : arrêtée par l'opérateur.
+    /// Absent (réglage de Siloé Stream 4) : elle se rouvre aussi.
     /// </summary>
     [JsonPropertyName("ouvert")] public bool? Ouvert { get; set; }
 }
@@ -69,15 +69,15 @@ public sealed class Reglages
     [JsonPropertyName("obs")] public ReglagesObs Obs { get; set; } = new();
     [JsonPropertyName("ecran")] public EcranChoisi? Ecran { get; set; }
     [JsonPropertyName("lignesDiapo")] public int LignesDiapo { get; set; }
-    /// <summary>Avant la 4.2, les recueils de l'église étaient ajoutés au premier démarrage. Depuis, MyChurch démarre vide (seulement les Bibles LSG et KJV).</summary>
+    /// <summary>Avant la 4.2, les recueils de l'église étaient ajoutés au premier démarrage. Depuis, Siloé Stream démarre vide (seulement les Bibles LSG et KJV).</summary>
     [JsonPropertyName("inclus")] public bool Inclus { get; set; }
     [JsonPropertyName("fenetre")] public PositionFenetre? Fenetre { get; set; }
     [JsonPropertyName("recueil")] public string Recueil { get; set; } = "";
     [JsonPropertyName("agenda")] public string Agenda { get; set; } = "";
-    /// <summary>Thème de l'interface (MyChurch 3.1) : « clair » (par défaut) ou « sombre ». À ne pas confondre avec <see cref="Theme"/>, le fond de la projection.</summary>
+    /// <summary>Thème de l'interface (Siloé Stream 3.1) : « clair » (par défaut) ou « sombre ». À ne pas confondre avec <see cref="Theme"/>, le fond de la projection.</summary>
     [JsonPropertyName("apparence")] public string Apparence { get; set; } = "clair";
     /// <summary>
-    /// Écran par défaut (MyChurch 3.3) : ce qui revient à l'écran quand on retire les paroles. « noir » (l'écran se vide, comme avant),
+    /// Écran par défaut (Siloé Stream 3.3) : ce qui revient à l'écran quand on retire les paroles. « noir » (l'écran se vide, comme avant),
     /// « fond » (l'habillage sans texte) ou l'id d'un écran principal du déroulé.
     /// </summary>
     [JsonPropertyName("ecranDefaut")] public string EcranDefaut { get; set; } = "noir";
@@ -90,8 +90,8 @@ public sealed class Reglages
 }
 
 /// <summary>
-/// Données de MyVerse dans %APPDATA%\VerseLight : réglages, chants, versets découpés.
-/// Au premier démarrage : MyChurch est vide (aucun chant, aucune source), seules les Bibles libres de droits Louis Segond 1910 et King James
+/// Données de Siloé Stream dans %APPDATA%\SiloeStream (copiées une fois de l'ancien dossier) : réglages, chants, versets découpés.
+/// Au premier démarrage : Siloé Stream est vide (aucun chant, aucune source), seules les Bibles libres de droits Louis Segond 1910 et King James
 /// sont livrées. Les données de la 3.x (myverse-donnees.json) sont reprises s'il y en a.
 /// </summary>
 public sealed class Donnees
@@ -131,9 +131,32 @@ public sealed class Donnees
 
     public static string DossierParDefaut()
     {
-        var d = Environment.GetEnvironmentVariable("VERSELIGHT_DATA_DIR");
+        var d = Environment.GetEnvironmentVariable("SILOE_DATA_DIR") ?? Environment.GetEnvironmentVariable("VERSELIGHT_DATA_DIR");
         if (!string.IsNullOrWhiteSpace(d)) return d;
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VerseLight");
+        var appdata = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var nouveau = Path.Combine(appdata, "SiloeStream");
+        // 1.9.0 : Siloé Stream (anciennement MyChurch) : le dossier des données est copié une seule fois depuis l'ancien,
+        // qui reste en place comme sauvegarde (chants, Bibles, réglages, téléphones jumelés)
+        var ancien = Path.Combine(appdata, "VerseLight");
+        if (!Directory.Exists(nouveau) && Directory.Exists(ancien))
+        {
+            try
+            {
+                var temp = nouveau + ".copie-" + Environment.ProcessId;
+                if (Directory.Exists(temp)) Directory.Delete(temp, true);
+                Copier(ancien, temp);
+                Directory.Move(temp, nouveau);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return Directory.Exists(nouveau) ? nouveau : ancien; }
+        }
+        return nouveau;
+    }
+
+    static void Copier(string de, string vers)
+    {
+        Directory.CreateDirectory(vers);
+        foreach (var f in Directory.GetFiles(de)) File.Copy(f, Path.Combine(vers, Path.GetFileName(f)), true);
+        foreach (var r in Directory.GetDirectories(de)) Copier(r, Path.Combine(vers, Path.GetFileName(r)));
     }
 
     public static Donnees Charger(string dossier, string ressources)

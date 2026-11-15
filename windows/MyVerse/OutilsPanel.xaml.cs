@@ -75,13 +75,13 @@ public partial class OutilsPanel : UserControl
         var m = Application.Current.MainWindow as MainWindow;
         var lignes = new List<string>
         {
-            $"MyChurch {App.Version} (Windows) · {DateTime.Now:yyyy-MM-dd HH:mm:ss} · programme : {AppContext.BaseDirectory}",
+            $"Siloé Stream {App.Version} (Windows) · {DateTime.Now:yyyy-MM-dd HH:mm:ss} · programme : {AppContext.BaseDirectory}",
             $"Données : {App.Donnees.Dossier} · {App.Donnees.Chants.Count} chants · Bible : {App.Bibles.Etiquette()}",
             $"Téléphones : port {(t.Port > 0 ? t.Port.ToString() : "AUCUN")} · pare-feu : {(App.Parefeu_.Length > 0 ? App.Parefeu_ : "inconnu")} · connectés : {t.Connectes().Count} / jumelés : {t.Store.Liste().Count}",
             $"Écran de projection : {(m?.Ecran != null ? "ouvert" : "fermé")} · MyVirtualCam : {(App.CameraVirtuelle != null ? "active" : "indisponible")}",
             $"Windows : {Environment.OSVersion.VersionString} · .NET {Environment.Version}",
             "",
-            "===== MyChurch =====",
+            "===== Siloé Stream =====",
         };
         var j = Journal.Lignes();
         lignes.AddRange(j.Count > 0 ? j : new List<string> { "(vide)" });
@@ -106,7 +106,7 @@ public partial class OutilsPanel : UserControl
             else
             {
                 Installer.Visibility = Visibility.Collapsed;
-                MajEtat.Text = r.Erreur ?? $"MyChurch est à jour (version {App.Version}).";
+                MajEtat.Text = r.Erreur ?? $"Siloé Stream est à jour (version {App.Version}).";
             }
         }
         finally { Verifier.IsEnabled = true; }
@@ -117,12 +117,12 @@ public partial class OutilsPanel : UserControl
         if (maj == null) return;
         Installer.IsEnabled = false;
         Verifier.IsEnabled = false;
-        MajEtat.Text = $"Téléchargement de MyChurch {maj.Version}…";
+        MajEtat.Text = $"Téléchargement de Siloé Stream {maj.Version}…";
         try
         {
             var p = new Progress<int>(pct => MajEtat.Text = $"Téléchargement… {pct} %");
             await MiseAJour.Installer(maj.Url, p);
-            MajEtat.Text = "Installation… MyChurch va se fermer puis se rouvrir.";
+            MajEtat.Text = "Installation… Siloé Stream va se fermer puis se rouvrir.";
             Journal.Info($"mise à jour vers {maj.Version} : installation");
             await Task.Delay(800);
             Application.Current.Shutdown();
@@ -156,7 +156,7 @@ public partial class OutilsPanel : UserControl
         if ((!chants || nbChants == 0) && (!bibles || nbBibles == 0))
         {
             Dialogue.Informer(Fenetre, bibles && !chants
-                ? "Aucune Bible importée à exporter : LSG et KJV sont déjà dans chaque MyChurch."
+                ? "Aucune Bible importée à exporter : LSG et KJV sont déjà dans chaque Siloé Stream."
                 : "Aucun chant à exporter.");
             return;
         }
@@ -166,14 +166,14 @@ public partial class OutilsPanel : UserControl
             Title = "Exporter vers un autre ordinateur",
             FileName = $"MyVerse-{quoi}-{DateTime.Now:yyyy-MM-dd}{Transfert.Extension}",
             DefaultExt = Transfert.Extension,
-            Filter = $"Fichier MyChurch (*{Transfert.Extension})|*{Transfert.Extension}",
+            Filter = $"Fichier Siloé Stream (*{Transfert.Extension})|*{Transfert.Extension}",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
         };
         if ((Fenetre != null ? dlg.ShowDialog(Fenetre) : dlg.ShowDialog()) != true) return;
         try
         {
             var m = Patienter(() => Transfert.Exporter(dlg.FileName, App.Donnees, chants, bibles, App.Version));
-            Dialogue.Informer(Fenetre, $"Exporté : {Contenu(m)}.\n\nFichier : {dlg.FileName}\n\nSur l'autre ordinateur : Réglages › Transfert › Importer un fichier MyChurch.");
+            Dialogue.Informer(Fenetre, $"Exporté : {Contenu(m)}.\n\nFichier : {dlg.FileName}\n\nSur l'autre ordinateur : Réglages › Transfert › Importer un fichier Siloé Stream.");
         }
         catch (Exception x)
         {
@@ -187,7 +187,7 @@ public partial class OutilsPanel : UserControl
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
             Title = "Importer un fichier MyVerse",
-            Filter = $"Fichier MyChurch (*{Transfert.Extension};*.zip)|*{Transfert.Extension};*.zip",
+            Filter = $"Fichier Siloé Stream (*{Transfert.Extension};*.zip)|*{Transfert.Extension};*.zip",
         };
         if ((Fenetre != null ? dlg.ShowDialog(Fenetre) : dlg.ShowDialog()) != true) return;
         Transfert.Manifeste m;
@@ -195,11 +195,11 @@ public partial class OutilsPanel : UserControl
         catch (Exception x)
         {
             Journal.Erreur("import MyVerse", x);
-            Dialogue.Informer(Fenetre, "Ce fichier n'est pas un export MyChurch. Sur l'autre ordinateur : Réglages › Transfert › Exporter.");
+            Dialogue.Informer(Fenetre, "Ce fichier n'est pas un export Siloé Stream. Sur l'autre ordinateur : Réglages › Transfert › Exporter.");
             return;
         }
         var contenu = Contenu(m);
-        if (contenu.Length == 0) { Dialogue.Informer(Fenetre, "Ce fichier MyChurch est vide."); return; }
+        if (contenu.Length == 0) { Dialogue.Informer(Fenetre, "Ce fichier Siloé Stream est vide."); return; }
         if (!Dialogue.Confirmer(Fenetre, $"Importer {contenu} ?" +
                 (m.Chants > 0 ? "\n\nUn chant qui existe déjà (même recueil, même titre) est remplacé par celui du fichier ; rien n'est mis en double." : ""),
                 "Importer")) return;

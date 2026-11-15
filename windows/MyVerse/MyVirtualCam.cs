@@ -8,7 +8,7 @@ using Microsoft.Win32;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// La caméra virtuelle de Zoom (filtre DirectShow MyVirtualCam, installé une fois). MyChurch 1.6.0 : elle montre MyStream,
+/// La caméra virtuelle de Zoom (filtre DirectShow MyVirtualCam, installé une fois). Siloé Stream 1.6.0 : elle montre MyStream,
 /// la même image que le direct YouTube. L'image est composée par <see cref="MyStreamMoteur"/> (sur son propre fil) ; ici, elle est
 /// seulement mise à 1280 × 720, en BGR de bas en haut, et écrite dans la mémoire partagée que lit le filtre.
 /// Entre deux images, seule l'heure est rafraîchie (le filtre montre du noir si elle a plus de 2 secondes).

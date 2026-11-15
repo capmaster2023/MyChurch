@@ -54,7 +54,7 @@ public sealed partial class Regie
 
     /// <summary>
     /// Une diapositive (du déroulé, d'un chant, d'un verset, d'une source Display) telle qu'elle sortirait à l'écran, sans l'afficher :
-    /// vignettes de la page Culte et aperçu « Suivant » (MyChurch 3.2). <paramref name="e"/> : l'élément du déroulé, s'il est connu.
+    /// vignettes de la page Culte et aperçu « Suivant » (Siloé Stream 3.2). <paramref name="e"/> : l'élément du déroulé, s'il est connu.
     /// </summary>
     public EtatEcran? EtatCible(Cible? c, ElementAgenda? e = null)
     {

@@ -3,11 +3,11 @@ using System.Windows.Threading;
 namespace MyVerse.Ui.Audio;
 
 /// <summary>
-/// MyChurch 1.6.4 : les directs automatiques (<see cref="DirectProgramme"/>). Toutes les 15 secondes : un direct programmé dont l'heure
+/// Siloé Stream 1.6.4 : les directs automatiques (<see cref="DirectProgramme"/>). Toutes les 15 secondes : un direct programmé dont l'heure
 /// est arrivée (depuis moins de 15 minutes) démarre tout seul avec ses réglages, et s'arrête après sa durée. Deux minutes avant,
-/// MyChurch le dit. S'il ne démarre pas (Internet coupé…), MyChurch réessaie chaque minute pendant les 15 minutes.
+/// Siloé Stream le dit. S'il ne démarre pas (Internet coupé…), Siloé Stream réessaie chaque minute pendant les 15 minutes.
 /// Un direct déjà en cours (démarré à la main) continue : le direct automatique de ce jour-là est passé.
-/// MyChurch garde l'ordinateur éveillé pendant les 3 heures avant un direct automatique, et le réveille 5 minutes avant s'il dort.
+/// Siloé Stream garde l'ordinateur éveillé pendant les 3 heures avant un direct automatique, et le réveille 5 minutes avant s'il dort.
 /// </summary>
 public sealed class PlanificateurDirect : IDisposable
 {
@@ -140,7 +140,7 @@ public sealed class PlanificateurDirect : IDisposable
         Annonce?.Invoke($"Direct automatique « {titre} » terminé ({p.Fin}).");
     }
 
-    /// <summary>Deux minutes avant un direct automatique : un message dans MyChurch.</summary>
+    /// <summary>Deux minutes avant un direct automatique : un message dans Siloé Stream.</summary>
     void AnnoncerAvant(DateTime maintenant)
     {
         foreach (var p in R.Programmes)

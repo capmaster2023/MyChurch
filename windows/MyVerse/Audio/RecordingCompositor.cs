@@ -16,7 +16,7 @@ using Point = System.Windows.Point;
 namespace MyVerse.Ui.Audio;
 
 /// <summary>
-/// La composition vidéo d'un enregistrement (MyChurch 1.2), à cadence exacte et hors du fil de l'interface, comme le rendu d'OBS.
+/// La composition vidéo d'un enregistrement (Siloé Stream 1.2), à cadence exacte et hors du fil de l'interface, comme le rendu d'OBS.
 /// <para>
 /// WPF ne dessine plus chaque image : quelques fois par seconde (quand le contenu change), il rend la mise en page des sources Display
 /// (fond, texte, Duo) deux fois, les images vivantes remplacées par une clé noire puis blanche. La différence des deux rendus dit,
@@ -72,7 +72,7 @@ public sealed class RecordingCompositor : IRecordingFrameProvider, IDisposable
             get
             {
                 var info = cams.InfoDe(id);
-                return info == null ? "MyCam : le téléphone n'envoie pas d'image (MyChurch › MyCam › Diffuser)."
+                return info == null ? "MyCam : le téléphone n'envoie pas d'image (Siloé Stream › MyCam › Diffuser)."
                     : !info.Diffuse ? $"MyCam : « {info.Nom} » ne diffuse pas (touchez Diffuser sur le téléphone)."
                     : $"MyCam : « {info.Nom} » n'envoie plus d'image (Wi-Fi ?).";
             }

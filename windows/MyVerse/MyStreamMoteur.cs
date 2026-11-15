@@ -14,7 +14,7 @@ using Point = System.Windows.Point;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// MyStream (MyChurch 1.6.0) : l'image envoyée sur Internet, la même pour Zoom (MyVirtualCam) et pour YouTube (le direct).
+/// MyStream (Siloé Stream 1.6.0) : l'image envoyée sur Internet, la même pour Zoom (MyVirtualCam) et pour YouTube (le direct).
 /// <para>
 /// Tout se fait hors du fil de l'interface, sur le fil « MyStream » (le clic reste immédiat) :
 /// le dessin WPF (texte, fond, bandeau, Duo) n'est refait que quand le contenu change, deux fois : les images vivantes remplacées

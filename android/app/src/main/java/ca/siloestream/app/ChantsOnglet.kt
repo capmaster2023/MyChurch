@@ -1,4 +1,4 @@
-package ca.mepc.verselight.remote
+package ca.siloestream.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace MyVerse;
 
 /// <summary>
-/// Décodeur H.264 de MyCam (MyChurch 4.1), comme DroidCam : FFmpeg (libavcodec et libswscale) tel qu'OBS Studio le livre avec MyChurch
+/// Décodeur H.264 de MyCam (Siloé Stream 4.1), comme DroidCam : FFmpeg (libavcodec et libswscale) tel qu'OBS Studio le livre avec Siloé Stream
 /// (obs/bin/64bit : avcodec-62.dll, avutil-60.dll, swscale-9.dll), ou celui du système sous Linux (essais).
 /// Chargé à la demande et vérifié sur une mire avant d'être annoncé aux téléphones : sans lui, MyCam reste en JPEG.
 /// Une instance par téléphone, utilisée par un seul fil à la fois (l'appelant la verrouille).
@@ -99,7 +99,7 @@ public sealed class DecodeurH264 : IDisposable
 
     /// <summary>
     /// Les trios avcodec / avutil / swscale d'une même version de FFmpeg (avutil = avcodec − 2, swscale = avcodec − 53, de FFmpeg 4 à 8) :
-    /// d'abord ceux d'OBS livrés avec MyChurch, puis ceux du système (Linux).
+    /// d'abord ceux d'OBS livrés avec Siloé Stream, puis ceux du système (Linux).
     /// </summary>
     static IEnumerable<(string Codec, string Util, string Sws)> Candidats()
     {

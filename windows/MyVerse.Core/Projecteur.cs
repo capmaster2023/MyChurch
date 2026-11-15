@@ -6,12 +6,12 @@ namespace MyVerse;
 public sealed record Moniteur(string Nom, int X, int Y, int W, int H, bool Principal, string Peripherique);
 
 /// <summary>
-/// Retrouver le projecteur parmi les écrans branchés : au démarrage de MyChurch (la projection se rouvre sur le dernier écran)
+/// Retrouver le projecteur parmi les écrans branchés : au démarrage de Siloé Stream (la projection se rouvre sur le dernier écran)
 /// et quand Windows signale un changement d'écrans (projecteur débranché puis rebranché, résolution changée).
 /// </summary>
 public static class Projecteur
 {
-    /// <summary>Nom donné par MyChurch quand Windows ne donne pas le vrai nom de l'écran (« Écran principal », « Écran 2 »).</summary>
+    /// <summary>Nom donné par Siloé Stream quand Windows ne donne pas le vrai nom de l'écran (« Écran principal », « Écran 2 »).</summary>
     public static bool NomGenerique(string? nom) => string.IsNullOrWhiteSpace(nom) || nom == "Écran principal" || Regex.IsMatch(nom, @"^Écran \d+$");
 
     static bool MemeSortie(Moniteur e, string peripherique) =>
@@ -40,7 +40,7 @@ public static class Projecteur
 
     /// <summary>
     /// Au démarrage : rouvrir la projection laissée ouverte ? Plein écran : sur le projecteur (jamais sur l'écran principal) ;
-    /// fenêtre : sur l'écran principal. Réglage de MyChurch 4 (sans « ouvert ») : oui. Arrêtée par l'opérateur : non.
+    /// fenêtre : sur l'écran principal. Réglage de Siloé Stream 4 (sans « ouvert ») : oui. Arrêtée par l'opérateur : non.
     /// </summary>
     public static bool ARouvrir(EcranChoisi? choix) =>
         choix is { Mode: "plein" or "fenetre" } && choix.Ouvert != false && !(choix.Mode == "plein" && choix.Principal);

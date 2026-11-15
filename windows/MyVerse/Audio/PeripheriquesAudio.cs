@@ -5,7 +5,7 @@ using NAudio.CoreAudioApi;
 namespace MyVerse.Ui.Audio;
 
 /// <summary>
-/// Les périphériques audio de Windows (MyChurch 4.0) : relevés directement (WASAPI), sans attendre le moteur d'OBS,
+/// Les périphériques audio de Windows (Siloé Stream 4.0) : relevés directement (WASAPI), sans attendre le moteur d'OBS,
 /// pour voir tout de suite un micro ou une carte son qu'on branche ou qu'on débranche. Les identifiants sont ceux d'OBS.
 /// </summary>
 public static class PeripheriquesAudio
@@ -36,7 +36,7 @@ public static class PeripheriquesAudio
 
 /// <summary>
 /// « Désactiver l'atténuation audio de Windows » d'OBS : pendant un appel (Teams, Zoom…), Windows baisse le son des autres
-/// programmes. MyChurch se retire de cette atténuation comme OBS (IAudioSessionControl2::SetDuckingPreference de sa session).
+/// programmes. Siloé Stream se retire de cette atténuation comme OBS (IAudioSessionControl2::SetDuckingPreference de sa session).
 /// </summary>
 public static class AttenuationWindows
 {
@@ -72,7 +72,7 @@ public static class AttenuationWindows
         [PreserveSig] int SetDuckingPreference([MarshalAs(UnmanagedType.Bool)] bool sansAttenuation);
     }
 
-    /// <summary>Comme OBS : vrai si Windows a pris la préférence (MyChurch n'est plus baissé pendant les appels, ou l'est de nouveau).</summary>
+    /// <summary>Comme OBS : vrai si Windows a pris la préférence (Siloé Stream n'est plus baissé pendant les appels, ou l'est de nouveau).</summary>
     public static bool Desactiver(bool desactiver)
     {
         object? enumerateur = null, peripherique = null, gestionnaire = null, session = null;

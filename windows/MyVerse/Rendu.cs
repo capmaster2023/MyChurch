@@ -105,7 +105,7 @@ public sealed class Rendu : Grid
         MajFlou();
     }
 
-    // ------------------------------------------------------------ MyChurch 1.2 : les images vivantes, pour l'enregistrement
+    // ------------------------------------------------------------ Siloé Stream 1.2 : les images vivantes, pour l'enregistrement
     /// <summary>Une image vivante du dessin : l'élément, son contenu (celui du Duo ou le principal), net ou fond flou ; et le dessin qui la rogne.</summary>
     internal readonly record struct ImageVivante(Image Element, bool Duo, bool Flou, FrameworkElement Cadre);
 
@@ -142,7 +142,7 @@ public sealed class Rendu : Grid
 
     bool sansEffets;
     /// <summary>
-    /// Dessin pour l'enregistrement (MyChurch 1.2) : le fond flou est rendu sans son effet (l'enregistrement le floute lui-même à chaque image),
+    /// Dessin pour l'enregistrement (Siloé Stream 1.2) : le fond flou est rendu sans son effet (l'enregistrement le floute lui-même à chaque image),
     /// et les dessins du Duo aussi.
     /// </summary>
     internal bool SansEffets

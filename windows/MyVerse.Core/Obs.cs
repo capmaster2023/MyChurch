@@ -23,7 +23,10 @@ public sealed class SortieObs
     public SortieObs(string modele, string? dossier = null)
     {
         this.modele = modele;
-        Dossier = dossier ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VerseLight-OBS");
+        // 1.9.0 : « SiloeStream-OBS » ; une source OBS déjà réglée sur l'ancien dossier continue de marcher (il reste utilisé s'il existe)
+        var appdata = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var ancien = Path.Combine(appdata, "VerseLight-OBS");
+        Dossier = dossier ?? (Directory.Exists(ancien) ? ancien : Path.Combine(appdata, "SiloeStream-OBS"));
     }
 
     /// <summary>Copie la page et ses polices dans le dossier OBS (si elles ont changé).</summary>
