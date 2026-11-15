@@ -30,6 +30,11 @@
 - Sans carte graphique, le grand aperçu du culte se fait léger aussi. Le journal (Réglages › Journal) dit au démarrage
   comment l'écran est dessiné, et note toute action de plus de 300 ms.
 
+## Correction
+
+- MyVirtualCam (Zoom) : en passant des paroles à une image ou une caméra, Zoom pouvait garder la diapositive d'avant.
+  L'image la plus récente gagne toujours.
+
 ## Licence et code source
 
 - MyChurch : GNU GPL version 2 ou ultérieure — https://github.com/capmaster2023/MyChurch
