@@ -41,8 +41,14 @@ public sealed class MyVirtualCam : IDisposable
     int seq;
     long dernierEntete, dernierDessin;
     EtatEcran? etat;
+    /// <summary>
+    /// 1.5.1 : chaque changement a un numéro ; une image plus ancienne n'écrase jamais une plus récente (un dessin de paroles lent
+    /// qui finit après l'image d'une caméra ne la remplace plus : Zoom gardait parfois la diapositive d'avant).
+    /// </summary>
+    long versionDemandee, versionFil, derniereEcrite = -1;
+    sealed record Trame(BitmapSource Image, long Version, int Essais = 0);
     /// <summary>L'image vivante qui attend d'être convertie (la plus récente seulement) ; 1 quand le travail à côté tourne.</summary>
-    BitmapSource? aConvertir;
+    Trame? aConvertir;
     int conversion;
     /// <summary>Le chemin rapide a échoué une fois : on reste au dessin WPF.</summary>
     volatile bool rapideEnPanne;
@@ -100,29 +106,32 @@ public sealed class MyVirtualCam : IDisposable
     {
         etat = e;
         bool r = Rapide;
-        Fil(() => { rendu.Afficher(e); rapideFil = r; sale = true; });
+        long v = Interlocked.Increment(ref versionDemandee);
+        Fil(() => { rendu.Afficher(e); rapideFil = r; versionFil = v; sale = true; });
     }
     public void Media(BitmapSource? b)
     {
         b = Gelee(b);
         bool r = Rapide;
-        Fil(() => { rendu.ImageDisplay(b); if (!r) sale = true; });
-        if (r) Convertir(b);
+        long v = Interlocked.Increment(ref versionDemandee);
+        Fil(() => { rendu.ImageDisplay(b); versionFil = v; if (!r) sale = true; });
+        if (r) Convertir(b, v);
     }
     /// <summary>Image vivante du contenu épinglé (Duo).</summary>
     public void MediaDuo(BitmapSource? b)
     {
         b = Gelee(b);
-        Fil(() => { rendu.ImageDuo(b); sale = true; });
+        long v = Interlocked.Increment(ref versionDemandee);
+        Fil(() => { rendu.ImageDuo(b); versionFil = v; sale = true; });
     }
 
     // ------------------------------------------------------------ chemin rapide : l'image vivante, mise à 1280 × 720 à côté
     static readonly BitmapSource Vide = Noir();
     static BitmapSource Noir() { var b = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgr24, null, new byte[12], 6); b.Freeze(); return b; }
 
-    void Convertir(BitmapSource? b)
+    void Convertir(BitmapSource? b, long v)
     {
-        Interlocked.Exchange(ref aConvertir, b ?? Vide);
+        Interlocked.Exchange(ref aConvertir, new Trame(b ?? Vide, v));
         if (Interlocked.CompareExchange(ref conversion, 1, 0) != 0) return; // le travail en cours prendra la plus récente
         _ = Task.Run(Travailler);
     }
@@ -133,15 +142,19 @@ public sealed class MyVirtualCam : IDisposable
         {
             try
             {
-                while (Interlocked.Exchange(ref aConvertir, null) is { } img)
+                while (Interlocked.Exchange(ref aConvertir, null) is { } t)
                 {
                     long t0 = Stopwatch.GetTimestamp();
+                    bool ecrite;
                     lock (verrouVue)
                     {
-                        if (ReferenceEquals(img, Vide)) Array.Clear(trame);
-                        else Cadrer(img, trame);
-                        Ecrire(trame, 5);
+                        if (t.Version < derniereEcrite) continue;
+                        if (ReferenceEquals(t.Image, Vide)) Array.Clear(trame);
+                        else Cadrer(t.Image, trame);
+                        ecrite = Ecrire(trame, 60, t.Version);
                     }
+                    // le filtre lisait à ce moment : on réessaie, quelques fois (sauf si une image plus récente attend déjà)
+                    if (!ecrite && t.Essais < 20) { Thread.Sleep(10); Interlocked.CompareExchange(ref aConvertir, t with { Essais = t.Essais + 1 }, null); }
                     Perf.Ajouter("MyVirtualCam : image vivante (à côté)", Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
                 }
             }
@@ -190,18 +203,24 @@ public sealed class MyVirtualCam : IDisposable
                 long t0 = Stopwatch.GetTimestamp();
                 dernierDessin = maintenant;
                 sale = false;
+                long version = versionFil;
                 rendu.Measure(new Size(Width, Height)); rendu.Arrange(new Rect(0, 0, Width, Height)); rendu.UpdateLayout();
                 image.Clear(); image.Render(rendu);
                 image.CopyPixels(bgra, Width * 4, 0);
                 lock (verrouVue)
                 {
-                    // BGRA → BGR, lignes de bas en haut (format DirectShow)
-                    for (int y = 0; y < Height; y++)
+                    // une image plus récente (une caméra, une fenêtre) est déjà partie : ce dessin, plus ancien, ne la remplace pas
+                    if (version >= derniereEcrite)
                     {
-                        int s = y * Width * 4, d = (Height - 1 - y) * Stride;
-                        for (int x = 0; x < Width; x++, s += 4, d += 3) { trame[d] = bgra[s]; trame[d + 1] = bgra[s + 1]; trame[d + 2] = bgra[s + 2]; }
+                        // BGRA → BGR, lignes de bas en haut (format DirectShow)
+                        for (int y = 0; y < Height; y++)
+                        {
+                            int s = y * Width * 4, d = (Height - 1 - y) * Stride;
+                            for (int x = 0; x < Width; x++, s += 4, d += 3) { trame[d] = bgra[s]; trame[d + 1] = bgra[s + 1]; trame[d + 2] = bgra[s + 2]; }
+                        }
+                        // le filtre lisait à ce moment : on redessinera au prochain tour
+                        if (!Ecrire(trame, 60, version)) sale = true;
                     }
-                    Ecrire(trame, 5);
                 }
                 Perf.Ajouter("MyVirtualCam : dessin (sur son fil)", Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
                 dernierEntete = maintenant;
@@ -211,24 +230,33 @@ public sealed class MyVirtualCam : IDisposable
             if (maintenant - dernierEntete < 500) return;
             dernierEntete = maintenant;
             if (!Monitor.TryEnter(verrouVue)) return;
-            try { Ecrire(null, 0); }
+            try { Ecrire(null, 0, -1); }
             finally { Monitor.Exit(verrouVue); }
         }
         catch (Exception e) { Journal.Erreur("MyVirtualCam", e); timer.Stop(); }
     }
 
-    /// <summary>Écrit l'en-tête (et l'image s'il y en a une) sous le verrou partagé avec le filtre DirectShow.</summary>
-    void Ecrire(byte[]? trameNeuve, int attenteMs)
+    /// <summary>
+    /// Écrit l'en-tête (et l'image s'il y en a une, avec son numéro de changement) sous le verrou partagé avec le filtre DirectShow.
+    /// À appeler sous <see cref="verrouVue"/>. Faux si le filtre gardait le verrou trop longtemps.
+    /// </summary>
+    bool Ecrire(byte[]? trameNeuve, int attenteMs, long version)
     {
+        if (dispose) return true;
         bool acquis;
         try { acquis = verrou.WaitOne(attenteMs); } catch (AbandonedMutexException) { acquis = true; }
-        if (!acquis) return;
+        if (!acquis) return false;
         try
         {
             vue.Write(0, 0x4D43414D); vue.Write(4, 1);
             vue.Write(8, Environment.TickCount64); vue.Write(16, Width); vue.Write(20, Height); vue.Write(24, Stride);
-            if (trameNeuve != null) { vue.WriteArray(64, trameNeuve, 0, Bytes); vue.Write(28, ++seq); }
+            if (trameNeuve != null)
+            {
+                vue.WriteArray(64, trameNeuve, 0, Bytes); vue.Write(28, ++seq);
+                if (version > derniereEcrite) derniereEcrite = version;
+            }
             else vue.Write(28, seq);
+            return true;
         }
         finally { verrou.ReleaseMutex(); }
     }
