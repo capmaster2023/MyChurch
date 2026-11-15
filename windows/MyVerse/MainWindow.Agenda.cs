@@ -461,7 +461,7 @@ public partial class MainWindow
         var rec = App.Donnees.Reglages.Recueil;
         string? recueil = rec.Length > 0 ? rec : null;
         int g = ++generationCmd;
-        using (Mesures.Chrono("recherche Ctrl K (rapide)"))
+        using (Perf.Chrono("recherche Ctrl K (rapide)"))
         {
             try { cmdRes = R.Commande(q, recueil, false); }
             catch (Exception x) { Journal.Erreur("recherche du culte", x); cmdRes = new(); }
@@ -473,7 +473,7 @@ public partial class MainWindow
         long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         try { complet = await Task.Run(() => R.Commande(q, recueil, true)); }
         catch (Exception x) { Journal.Erreur("recherche du culte (paroles)", x); return; }
-        Mesures.Ajouter("recherche Ctrl K (paroles, à côté)", System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
+        Perf.Ajouter("recherche Ctrl K (paroles, à côté)", System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
         if (g != generationCmd || Cmd.Text != q || complet.Count <= cmdRes.Count) return;
         // la ligne choisie reste la même si l'utilisateur a déjà bougé avec ↑ ↓
         var choisi = cmdIndex < cmdRes.Count ? cmdRes[cmdIndex] : null;

@@ -7,7 +7,7 @@ namespace MyVerse.Ui;
 /// Le test automatique en fait le résumé ; une opération de plus de 300 ms est notée dans le journal (une fois par minute au plus),
 /// pour retrouver une lenteur chez un utilisateur.
 /// </summary>
-public static class Mesures
+public static class Perf
 {
     sealed class Stat { public int N; public double Total, Max; public long DernierJournal; }
     static readonly Dictionary<string, Stat> stats = new();
@@ -24,7 +24,7 @@ public static class Mesures
         if (noter) Journal.Info($"lenteur : {nom} a pris {ms:0} ms");
     }
 
-    /// <summary>Mesure le bloc : <c>using (Mesures.Chrono("MajEcran")) { … }</c>.</summary>
+    /// <summary>Mesure le bloc : <c>using (Perf.Chrono("MajEcran")) { … }</c>.</summary>
     public static Mesure Chrono(string nom) => new(nom, Stopwatch.GetTimestamp());
 
     public readonly struct Mesure : IDisposable

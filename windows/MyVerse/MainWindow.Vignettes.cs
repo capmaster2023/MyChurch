@@ -70,7 +70,7 @@ public partial class MainWindow
     /// <summary>Reconstruit toutes les vignettes (déroulé, chants, Bible, découpage ou habillage changés).</summary>
     void VignettesMaj()
     {
-        using var _ = Mesures.Chrono("vignettes du culte (tout redessiner)");
+        using var chrono = Perf.Chrono("vignettes du culte (tout redessiner)");
         minuterieVignettes.Stop();
         Vignettes.Children.Clear();
         vignettes.Clear();

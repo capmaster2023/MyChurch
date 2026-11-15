@@ -946,7 +946,7 @@ public partial class MainWindow : Window
     /// <summary>Tout ce qui montre l'écran (aperçus, projection, caméra virtuelle, OBS, programme, télécommande) suit la régie.</summary>
     void MajEcran()
     {
-        using (Mesures.Chrono("mise à jour de l'écran (un clic)")) MajEcranTout();
+        using (Perf.Chrono("mise à jour de l'écran (un clic)")) MajEcranTout();
     }
 
     void MajEcranTout()

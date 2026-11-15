@@ -91,7 +91,7 @@ public sealed class MyVirtualCam : IDisposable
                         else Cadrer(img, trame);
                         Ecrire(trame, 5);
                     }
-                    Mesures.Ajouter("MyVirtualCam : image vivante (à côté)", Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
+                    Perf.Ajouter("MyVirtualCam : image vivante (à côté)", Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
                 }
             }
             catch (Exception x)
@@ -142,7 +142,7 @@ public sealed class MyVirtualCam : IDisposable
                 rendu.Measure(new Size(Width, Height)); rendu.Arrange(new Rect(0, 0, Width, Height)); rendu.UpdateLayout();
                 image.Clear(); image.Render(rendu);
                 image.CopyPixels(bgra, Width * 4, 0);
-                Mesures.Ajouter("MyVirtualCam : dessin (fil de l'interface)", Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
+                Perf.Ajouter("MyVirtualCam : dessin (fil de l'interface)", Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
                 // la conversion BGRA → BGR (lignes de bas en haut) et l'écriture se font à côté
                 var copie = (byte[])bgra.Clone();
                 _ = Task.Run(() =>

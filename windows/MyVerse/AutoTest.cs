@@ -1126,7 +1126,7 @@ public static class AutoTest
                 w.TestPage("agenda");
                 R.AfficherElement(lect, 0);
                 await Attendre(600);
-                Mesures.Vider();
+                Perf.Vider();
                 var chrono = System.Diagnostics.Stopwatch.StartNew();
                 for (int i = 0; i < 20; i++)
                 {
@@ -1136,7 +1136,7 @@ public static class AutoTest
                 chrono.Stop();
                 double moy = chrono.Elapsed.TotalMilliseconds / 20;
                 Note($"1.5.0 : un clic sur Suivant (page Culte) : {moy:0} ms en moyenne sur 20 clics");
-                Note("1.5.0 : mesures :\n" + Mesures.Resume());
+                Note("1.5.0 : mesures :\n" + Perf.Resume());
                 Ok(moy < 500, $"1.5.0 : un clic sur Suivant prend {moy:0} ms (moins de 500 ms)");
                 var tCmd = System.Diagnostics.Stopwatch.StartNew();
                 var resCmd = w.TestCommande("je lava vers dieu");
