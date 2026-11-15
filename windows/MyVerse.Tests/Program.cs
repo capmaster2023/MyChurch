@@ -2044,6 +2044,23 @@ if (Actif())
     }
 }
 
+Groupe("Rôles des téléphones (1.7.1)");
+if (Actif())
+{
+    var dossierR = Temp();
+    var st = new AppareilsJumeles(dossierR);
+    st.Ajouter("t1", "Tel 1", new byte[32]);
+    Egal(st.Role("t1"), Roles.Admin, "un téléphone déjà jumelé reste Admin");
+    st.ChangerRole("t1", Roles.Chants);
+    Egal(new AppareilsJumeles(dossierR).Role("t1"), Roles.Chants, "le rôle est gardé (devices.json)");
+    Ok(Roles.Permis(Roles.Chants, "song.show") && !Roles.Permis(Roles.Chants, "bible.show") && !Roles.Permis(Roles.Chants, "display.show") && !Roles.Permis(Roles.Chants, "app.quit"), "Chants : les chants, pas la Bible, ni les médias, ni fermer MyChurch");
+    Ok(Roles.Permis(Roles.Bible, "bible.show") && Roles.Permis(Roles.Bible, "next") && !Roles.Permis(Roles.Bible, "song.show"), "Versets : la Bible et Suivant, pas les chants");
+    Ok(Roles.Permis(Roles.Camera, "cam.ack") && !Roles.Permis(Roles.Camera, "next") && Roles.Images(Roles.Camera) && !Roles.Images(Roles.Bible), "Caméraman : MyCam seulement");
+    Ok(Roles.Permis(Roles.Admin, "app.quit") && Roles.Permis(Roles.Admin, "display.show"), "Admin : tout");
+    st.ChangerRole("t1", Roles.Admin);
+    Egal(new AppareilsJumeles(dossierR).Role("t1"), Roles.Admin, "redevenu Admin");
+}
+
 Groupe("Caméras USB fluides (1.6.5)");
 if (Actif())
 {

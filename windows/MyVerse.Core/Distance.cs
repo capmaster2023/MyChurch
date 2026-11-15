@@ -410,7 +410,7 @@ public sealed class AgentDistance : IDisposable
         await Envoyer(new JsonObject
         {
             ["t"] = "welcome", ["v"] = Telephone.Protocole, ["pcName"] = nomPc, ["paired"] = false, ["proto"] = Telephone.Fonctions,
-            ["codecs"] = new JsonArray("jpeg"), ["camHorloge"] = false, ["agent"] = true, ["app"] = "ferme",
+            ["codecs"] = new JsonArray("jpeg"), ["camHorloge"] = false, ["agent"] = true, ["app"] = "ferme", ["role"] = store.Role(deviceId),
         });
 
         while (ws.State == WebSocketState.Open && !t.IsCancellationRequested)
@@ -425,6 +425,12 @@ public sealed class AgentDistance : IDisposable
                 case "ping": await Envoyer(new JsonObject { ["t"] = "pong" }); break;
                 case "app.start":
                 {
+                    // 1.7.1 : seul un téléphone « Admin » démarre MyChurch
+                    if (store.Role(deviceId) != Roles.Admin)
+                    {
+                        await Envoyer(Rep(new JsonObject { ["t"] = "error", ["message"] = "Seul un téléphone « Admin » peut démarrer MyChurch." }));
+                        break;
+                    }
                     if (PortMyChurch.Lire(dossier) == null)
                     {
                         Journal.Info($"à distance : « {nom} » démarre MyChurch");

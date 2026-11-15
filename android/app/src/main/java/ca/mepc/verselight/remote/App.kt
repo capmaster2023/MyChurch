@@ -39,6 +39,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -73,6 +74,14 @@ object AppEtat {
     val chercherChant = MutableStateFlow("")
 }
 
+/** MyChurch 1.7.1 : les onglets de chaque rôle (0 Régie, 1 Bible, 2 Chants, 3 Culte, 4 MyCam). */
+fun ongletsDuRole(role: String): List<Int> = when (role) {
+    "bible" -> listOf(0, 1)
+    "chants" -> listOf(0, 2)
+    "camera" -> listOf(4)
+    else -> listOf(0, 1, 2, 3, 4)
+}
+
 private val ONGLETS: List<Pair<String, () -> ImageVector>> = listOf(
     "Régie" to { I.regie }, "Bible" to { I.bible }, "Chants" to { I.chants }, "Culte" to { I.culte }, "MyCam" to { I.cam },
 )
@@ -101,6 +110,12 @@ fun BarresSysteme(sombre: Boolean) {
 @Composable
 private fun Principal(remote: Remote) {
     val onglet by AppEtat.onglet.collectAsState()
+    val role by remote.role.collectAsState()
+    // 1.7.1 : un onglet que le rôle ne permet pas : on va au premier permis
+    LaunchedEffect(role, onglet) {
+        val permis = ongletsDuRole(role)
+        if (onglet !in permis) AppEtat.onglet.value = permis.first()
+    }
     val plein by MyCam.pleinEcran.collectAsState()
     val temoin by remote.temoin.collectAsState()
     val diffuse by MyCam.diffuse.collectAsState()
@@ -125,7 +140,7 @@ private fun Principal(remote: Remote) {
                     else -> MyCamOnglet(remote)
                 }
             }
-            if (!clavier) BarreOnglets(onglet, sombre, diffuse && temoin == "live") { AppEtat.onglet.value = it }
+            if (!clavier && ongletsDuRole(role).size > 1) BarreOnglets(onglet, sombre, diffuse && temoin == "live", ongletsDuRole(role)) { AppEtat.onglet.value = it }
         }
         BulleHote(Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp), sombre)
         if (reglages) Reglages(remote) { reglages = false }
@@ -133,12 +148,13 @@ private fun Principal(remote: Remote) {
 }
 
 @Composable
-private fun BarreOnglets(actif: Int, sombre: Boolean, camLive: Boolean, choisir: (Int) -> Unit) {
+private fun BarreOnglets(actif: Int, sombre: Boolean, camLive: Boolean, permis: List<Int>, choisir: (Int) -> Unit) {
     val fond = if (sombre) C.CamBarre else C.Carte
     Column(Modifier.fillMaxWidth().background(fond)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(if (sombre) Color(0xFF1F2940) else C.Trait))
         Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 8.dp)) {
             ONGLETS.forEachIndexed { i, (nom, icone) ->
+                if (i !in permis) return@forEachIndexed
                 val on = i == actif
                 val couleur = when {
                     on && sombre -> C.OrClair
@@ -214,7 +230,8 @@ private fun BandeauMyChurchFerme(remote: Remote) {
                 taille = 13.5.sp, poids = FontWeight.ExtraBold, couleur = C.AmbreTexte, modifier = Modifier.weight(1f), lignes = 2,
             )
         }
-        if (app == "ferme") Touche(onClick = { if (remote.demarrerMyChurch()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), fond = C.Ambre) {
+        val role by remote.role.collectAsState()
+        if (app == "ferme" && role == "admin") Touche(onClick = { if (remote.demarrerMyChurch()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), fond = C.Ambre) {
             T("Démarrer MyChurch", couleur = Color.White, poids = FontWeight.ExtraBold)
         }
     }
@@ -235,6 +252,7 @@ private fun Reglages(remote: Remote, fermer: () -> Unit) {
     val app by remote.appPc.collectAsState()
     val route by remote.route.collectAsState()
     val link by remote.link.collectAsState()
+    val role by remote.role.collectAsState()
     val context = LocalContext.current
     val version = remember {
         try {
@@ -295,12 +313,12 @@ private fun Reglages(remote: Remote, fermer: () -> Unit) {
                         }
                     }
                     // 1.7.0 : démarrer / fermer MyChurch sur le PC, de n'importe où
-                    if (link == Link.CONNECTED && app == "ferme") Touche(onClick = { if (remote.demarrerMyChurch()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
+                    if (link == Link.CONNECTED && app == "ferme" && role == "admin") Touche(onClick = { if (remote.demarrerMyChurch()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
                         Ico(I.ecran, C.Or, 18.dp)
                         Spacer(Modifier.width(8.dp))
                         T("Démarrer MyChurch sur le PC", couleur = C.Or, poids = FontWeight.ExtraBold)
                     }
-                    if (link == Link.CONNECTED && app.isEmpty() && proto >= 2) Touche(onClick = { fermerPc = true }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
+                    if (link == Link.CONNECTED && app.isEmpty() && proto >= 2 && role == "admin") Touche(onClick = { fermerPc = true }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
                         Ico(I.sortir, C.Encre2, 18.dp)
                         Spacer(Modifier.width(8.dp))
                         T("Fermer MyChurch sur le PC", couleur = C.Encre2, poids = FontWeight.ExtraBold)

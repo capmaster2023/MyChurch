@@ -38,6 +38,11 @@ class Store(context: Context) {
         get() = prefs.getBoolean("volumeKeys", true)
         set(v) = prefs.edit().putBoolean("volumeKeys", v).apply()
 
+    /** MyChurch 1.7.1 : le dernier rôle donné par le PC (les onglets s'ouvrent comme il faut avant la connexion). */
+    var role: String
+        get() = prefs.getString("role", "admin") ?: "admin"
+        set(v) = prefs.edit().putString("role", v).apply()
+
     var keepScreenOn: Boolean
         get() = prefs.getBoolean("keepScreenOn", true)
         set(v) = prefs.edit().putBoolean("keepScreenOn", v).apply()

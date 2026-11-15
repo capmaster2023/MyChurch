@@ -104,6 +104,17 @@ public partial class TelephoneWindow : FenetreDialogue
             };
             DockPanel.SetDock(x, Dock.Right);
             ligne.Children.Add(x);
+            // 1.7.1 : le rôle du téléphone (Admin, Versets, Chants, Caméraman)
+            var role = new ComboBox { Width = 130, Height = 32, Margin = new Thickness(0, 0, 8, 0), VerticalContentAlignment = VerticalAlignment.Center, ToolTip = "Ce que ce téléphone a le droit de faire" };
+            foreach (var r in Roles.Tous) role.Items.Add(new ComboBoxItem { Content = Roles.Nom(r), Tag = r });
+            var actuel = App.Telephone.Store.Role(id);
+            role.SelectedIndex = Array.IndexOf(Roles.Tous, actuel);
+            role.SelectionChanged += (_, _) =>
+            {
+                if (role.SelectedItem is ComboBoxItem { Tag: string r } && r != App.Telephone.Store.Role(id)) App.Telephone.ChangerRole(id, r);
+            };
+            DockPanel.SetDock(role, Dock.Right);
+            ligne.Children.Add(role);
             var point = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = Pinceau(en ? "Vert" : "Brume2"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             DockPanel.SetDock(point, Dock.Left);
             ligne.Children.Add(point);

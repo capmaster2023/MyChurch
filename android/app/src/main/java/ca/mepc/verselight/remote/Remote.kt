@@ -72,6 +72,8 @@ class Remote(private val context: Context, val store: Store) {
     val appPc = MutableStateFlow("")
     /** Par où passe la connexion : « wifi » (réseau de l'église) ou « internet » (relais MyChurch). */
     val route = MutableStateFlow("")
+    /** MyChurch 1.7.1 : le rôle de ce téléphone, donné par le PC (« admin », « bible », « chants », « camera »). */
+    val role = MutableStateFlow(store.role)
     private var agendaVu = -1
     private val clock = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.FRANCE)
 
@@ -378,6 +380,7 @@ class Remote(private val context: Context, val store: Store) {
             )
             route.value = if (viaRelais) "internet" else "wifi"
             appPc.value = if (agent) w.optString("app", "ferme") else ""
+            w.optString("role", "admin").ifBlank { "admin" }.let { role.value = it; store.role = it }
             pcName.value = name
             info.value = ""
             proto.value = w.optInt("proto", 1)

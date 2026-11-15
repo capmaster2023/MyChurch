@@ -21,6 +21,8 @@ public sealed class AppareilsJumeles
         [JsonPropertyName("key")] public string Key { get; set; } = ""; // secret dérivé (base64url), jamais transmis
         [JsonPropertyName("paired")] public string Paired { get; set; } = "";
         [JsonPropertyName("lastSeen"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public string? LastSeen { get; set; }
+        /// <summary>1.7.1 : le rôle du téléphone (« admin » si absent : les téléphones déjà jumelés gardent tout).</summary>
+        [JsonPropertyName("role"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Role { get; set; }
     }
 
     sealed class Fichier
@@ -112,11 +114,59 @@ public sealed class AppareilsJumeles
         }
     }
 
+    /// <summary>1.7.1 : le rôle d'un téléphone jumelé (« admin », « bible », « chants », « camera »).</summary>
+    public string Role(string deviceId)
+    {
+        lock (verrou) return Roles.Nettoyer(d.Devices.FirstOrDefault(x => x.DeviceId == deviceId)?.Role);
+    }
+
+    public void ChangerRole(string deviceId, string role)
+    {
+        lock (verrou)
+        {
+            foreach (var a in d.Devices.Where(x => x.DeviceId == deviceId)) a.Role = Roles.Nettoyer(role) == Roles.Admin ? null : Roles.Nettoyer(role);
+            Sauver();
+        }
+    }
+
     /// <summary>Copie sans les clés.</summary>
     public List<(string DeviceId, string Nom, string Jumele, string? VuLe)> Liste()
     {
         lock (verrou) return d.Devices.Select(a => (a.DeviceId, a.Name, a.Paired, a.LastSeen)).ToList();
     }
+}
+
+/// <summary>
+/// MyChurch 1.7.1 : les rôles des téléphones. Admin : tout (et démarrer / fermer MyChurch) ; Bible : les versets ;
+/// Chants : les chants ; Caméra : MyCam seulement. Le PC refuse ce que le rôle ne permet pas, l'app cache ces onglets.
+/// </summary>
+public static class Roles
+{
+    public const string Admin = "admin", Bible = "bible", Chants = "chants", Camera = "camera";
+    public static readonly string[] Tous = { Admin, Bible, Chants, Camera };
+
+    public static string Nettoyer(string? role) => role is Bible or Chants or Camera ? role : Admin;
+
+    public static string Nom(string? role) => Nettoyer(role) switch { Bible => "Versets", Chants => "Chants", Camera => "Caméraman", _ => "Admin" };
+
+    /// <summary>Demandes que l'app envoie d'elle-même à la connexion : refusées sans message.</summary>
+    public static bool Automatique(string commande) => commande is "state.get" or "agenda.get" or "display.list" or "sync.get" or "bible.get" or "cam.info";
+
+    public static bool Permis(string? role, string commande)
+    {
+        if (commande is "ping" or "state.get") return true;
+        return Nettoyer(role) switch
+        {
+            Admin => true,
+            Bible => commande is "bible.preview" or "bible.search" or "bible.show" or "bible.get" or "sync.get" or "next" or "prev" or "clear" or "noir",
+            Chants => commande is "song.search" or "song.open" or "song.show" or "sync.get" or "bible.get" or "next" or "prev" or "clear" or "noir",
+            Camera => commande is "cam.info" or "cam.ack",
+            _ => false,
+        };
+    }
+
+    /// <summary>Images MyCam : l'admin et le caméraman.</summary>
+    public static bool Images(string? role) => Nettoyer(role) is Admin or Camera;
 }
 
 /// <summary>
@@ -172,6 +222,8 @@ public sealed class Telephone : IDisposable
         public required WebSocket Ws;
         public required string DeviceId;
         public required string Nom;
+        /// <summary>1.7.1 : le rôle du téléphone (ce qu'il a le droit de faire).</summary>
+        public string Role = Roles.Admin;
         public readonly SemaphoreSlim Envoi = new(1, 1);
         /// <summary>Ce téléphone sert de caméra (MyCam) : il reçoit son témoin.</summary>
         public bool Camera;
@@ -350,6 +402,16 @@ public sealed class Telephone : IDisposable
     }
 
     public List<string> Connectes() { lock (phones) return phones.Select(p => p.DeviceId).Distinct().ToList(); }
+
+    /// <summary>1.7.1 : change le rôle d'un téléphone ; s'il est connecté, il se reconnecte avec son nouveau rôle.</summary>
+    public void ChangerRole(string deviceId, string role)
+    {
+        store.ChangerRole(deviceId, role);
+        Journal.Info($"téléphone {deviceId} : rôle « {Roles.Nom(role)} »");
+        List<Connexion> a;
+        lock (phones) a = phones.Where(p => p.DeviceId == deviceId).ToList();
+        foreach (var p in a) try { p.Ws.Abort(); } catch { }
+    }
 
     public void Revoquer(string deviceId)
     {
@@ -797,11 +859,11 @@ boucle();
         else store.Vu(deviceId, nom);
 
         Journal.Info($"téléphone connecté : {qui}");
-        var p = new Connexion { Ws = ws, DeviceId = deviceId, Nom = nom };
+        var p = new Connexion { Ws = ws, DeviceId = deviceId, Nom = nom, Role = store.Role(deviceId) };
         lock (phones) phones.Add(p);
         try
         {
-            var bienvenue = new JsonObject { ["t"] = "welcome", ["v"] = Protocole, ["pcName"] = NomPc, ["paired"] = jumelage, ["proto"] = Fonctions, ["codecs"] = Codecs(), ["camHorloge"] = true };
+            var bienvenue = new JsonObject { ["t"] = "welcome", ["v"] = Protocole, ["pcName"] = NomPc, ["paired"] = jumelage, ["proto"] = Fonctions, ["codecs"] = Codecs(), ["camHorloge"] = true, ["role"] = p.Role };
             // 1.7.0 : le téléphone apprend le relais (contrôle à distance) à sa prochaine connexion sur le Wi-Fi : rien à rescanner
             if (RelaisActif() is { } relais) bienvenue["relay"] = relais;
             await Envoyer(p, bienvenue);
@@ -819,6 +881,7 @@ boucle();
                 long arrivee = Horloge.Ns();
                 if (recu.Value.Binaire)
                 {
+                    if (!Roles.Images(p.Role)) continue;
                     if (Cameras.Recevoir(deviceId, nom, flux.GetBuffer(), (int)flux.Length, arrivee) && !p.Camera) DevientCamera(p);
                     continue;
                 }
@@ -829,6 +892,13 @@ boucle();
                 if (t == "cam.pong")
                 {
                     if (m["n"] is JsonValue vn && vn.TryGetValue<long>(out var envoi)) Cameras.AllerRetour(deviceId, arrivee - envoi);
+                    continue;
+                }
+                // 1.7.1 : ce que le rôle ne permet pas est refusé (sans message pour les demandes automatiques de l'app)
+                if (!Roles.Permis(p.Role, t))
+                {
+                    if (!Roles.Automatique(t) && m["rid"] is { } ridRefus)
+                        await Envoyer(p, new JsonObject { ["t"] = "error", ["rid"] = ridRefus.DeepClone(), ["message"] = $"Ce téléphone est « {Roles.Nom(p.Role)} » : demandez à l'admin de changer son rôle (MyChurch › Téléphone)." });
                     continue;
                 }
                 _ = Traiter(p, t, m);
