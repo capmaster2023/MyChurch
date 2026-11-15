@@ -309,7 +309,11 @@ public sealed class DirectWindow : FenetreDialogue
         Content = racine;
 
         D.Change += Maj;
-        Closed += (_, _) => { D.Change -= Maj; connexion?.Cancel(); Garder(); };
+        // la durée du direct avance chaque seconde
+        var horloge = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        horloge.Tick += (_, _) => { if (D.EnDirect) MajCarte(); };
+        horloge.Start();
+        Closed += (_, _) => { horloge.Stop(); D.Change -= Maj; connexion?.Cancel(); Garder(); };
         Maj();
         MajCompte();
     }
@@ -398,19 +402,9 @@ public sealed class DirectWindow : FenetreDialogue
         Maj();
     }
 
-    /// <summary>Met la fenêtre à jour : ce qui se voit selon le mode et l'état du direct.</summary>
-    void Maj()
+    /// <summary>La carte du direct : l'état, la durée, YouTube, la santé de l'image, l'encodeur, les reconnexions.</summary>
+    void MajCarte()
     {
-        bool compte = modeCompte.IsChecked == true, cleMode = modeCle.IsChecked == true, autre = modeAutre.IsChecked == true;
-        bool connecte = D.Compte.Connecte;
-        blocCompte.Visibility = compte ? Visibility.Visible : Visibility.Collapsed;
-        blocCle.Visibility = cleMode ? Visibility.Visible : Visibility.Collapsed;
-        blocAutre.Visibility = autre ? Visibility.Visible : Visibility.Collapsed;
-        blocDirect.Visibility = compte && connecte ? Visibility.Visible : Visibility.Collapsed;
-        blocNouveau.Visibility = nouveau.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-        blocPrevu.Visibility = prevu.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-
-        // la carte du direct
         bool actif = D.Actif;
         carteDirect.Visibility = actif || D.Message.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         var duree = D.Duree;
@@ -439,17 +433,28 @@ public sealed class DirectWindow : FenetreDialogue
         arreter.Visibility = actif ? Visibility.Visible : Visibility.Collapsed;
         arreter.IsEnabled = D.Etat is EtatDirect.EnDirect or EtatDirect.Reconnexion;
         voir.Visibility = studio.Visibility = D.Video != null ? Visibility.Visible : Visibility.Collapsed;
-        if (!actif && D.Video == null && R.DernierDirect.Length > 0 && compte) { studio.Visibility = Visibility.Visible; }
+    }
 
+    /// <summary>Met la fenêtre à jour : ce qui se voit selon le mode et l'état du direct.</summary>
+    void Maj()
+    {
+        bool compte = modeCompte.IsChecked == true, cleMode = modeCle.IsChecked == true, autre = modeAutre.IsChecked == true;
+        bool connecte = D.Compte.Connecte;
+        blocCompte.Visibility = compte ? Visibility.Visible : Visibility.Collapsed;
+        blocCle.Visibility = cleMode ? Visibility.Visible : Visibility.Collapsed;
+        blocAutre.Visibility = autre ? Visibility.Visible : Visibility.Collapsed;
+        blocDirect.Visibility = compte && connecte ? Visibility.Visible : Visibility.Collapsed;
+        blocNouveau.Visibility = nouveau.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        blocPrevu.Visibility = prevu.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        bool actif = D.Actif;
+        MajCarte();
         // les boutons du bas
         corps.IsEnabled = !actif;
         bool plusTard = programmer.IsChecked == true;
-        creer.Visibility = compte && connecte && nouveau.IsChecked == true && !actif ? Visibility.Visible : Visibility.Collapsed;
+        creer.Visibility = compte && connecte && nouveau.IsChecked == true && !actif && !plusTard ? Visibility.Visible : Visibility.Collapsed;
         demarrer.Visibility = actif ? Visibility.Collapsed : Visibility.Visible;
         demarrer.Content = !compte ? "Démarrer le direct" : !connecte ? "Connecter le compte YouTube" : prevu.IsChecked == true ? "Démarrer ce direct" : plusTard ? "Programmer le direct" : "Créer et démarrer le direct";
         demarrer.IsEnabled = !compte || D.Compte.Disponible;
-        creer.Visibility = plusTard ? Visibility.Collapsed : creer.Visibility;
-        if (D.Etat == EtatDirect.Erreur && message.Text.Length == 0) Dire("", false);
     }
 
     // ------------------------------------------------------------ actions

@@ -597,7 +597,8 @@ public static class AutoTest
             Capture(fen, "66-v160-youtube-en-direct.png");
             Capture(w, "67-v160-en-direct.png");
             await App.Direct.ArreterAsync();
-            Ok(App.Direct.Etat == Audio.EtatDirect.Arrete && w.TestDirectTexte == "YouTube", "1.6.0 : Arrêter le direct : " + App.Direct.Message);
+            await Attendre(500);
+            Ok(App.Direct.Etat == Audio.EtatDirect.Arrete && w.TestDirectTexte == "YouTube", $"1.6.0 : Arrêter le direct (« {w.TestDirectTexte} ») : " + App.Direct.Message);
             try { await serveur.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15)); } catch (Exception) { try { serveur.Kill(true); } catch (Exception) { } }
             Note("serveur RTMP de test : " + (await journalServeur).Trim());
             var (code, journal) = await Decrire(ffmpeg, recu);
