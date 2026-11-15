@@ -27,6 +27,9 @@ public partial class MainWindow
         EnvoyerStream.Click += (_, _) => { if (R.StreamSuitEglise) RetourStream(); else EnvoyerDansStream(); };
         ToolTipService.SetShowOnDisabled(EnvoyerStream, true);
         StreamChoisir.Click += (_, _) => Ouvrir(MenuStream(), StreamChoisir, PlacementMode.Bottom);
+        // 1.8.0 : l'église a sa source principale (son écran par défaut) et son bouton pour y revenir (Échap)
+        EgliseRetour.Click += (_, _) => R.Effacer();
+        EgliseChoisir.Click += (_, _) => Ouvrir(MenuEglise(), EgliseChoisir, PlacementMode.Bottom);
         DirectBtn.Click += (_, _) => OuvrirDirect();
         App.SourcesStream.Change += () =>
         {
@@ -76,6 +79,62 @@ public partial class MainWindow
         ImageStream();
         StreamApercu.Background = stream.Vide && stream.Duo == null ? Pinceau("Damier") : Brushes.Black;
         MajInfoStream();
+        MajInfoEglise();
+    }
+
+    /// <summary>1.8.0 : sous l'église, sa source principale ; les boutons « Église » / « Stream » des tuiles s'allument.</summary>
+    void MajInfoEglise()
+    {
+        EgliseInfo.Text = R.Cible is CibleDefaut
+            ? $"L'église montre sa source principale : {R.LibelleEcranDefaut}."
+            : $"Source principale de l'église : {R.LibelleEcranDefaut} (Échap pour y revenir).";
+        MajBoutonsTuiles();
+    }
+
+    /// <summary>1.8.0 : le menu « Source » de l'église : noir, fond seul, ou un média.</summary>
+    ContextMenu MenuEglise()
+    {
+        var menu = new ContextMenu();
+        menu.Items.Add(new MenuItem { Header = "Source principale de l'église", IsEnabled = false, FontWeight = FontWeights.Bold });
+        var actuel = R.EcranDefaut;
+        var actuelMedia = R.AnnoncePrincipaleEglise;
+        foreach (var (id, nom) in new[] { ("noir", "Noir"), ("fond", "Fond seul") })
+        {
+            var item = Article(nom, () => { R.ChoisirEcranDefaut(id); Toast($"Source principale de l'église : {nom}."); });
+            item.IsCheckable = true;
+            item.IsChecked = actuel == id;
+            menu.Items.Add(item);
+        }
+        var medias = R.Annonces.Where(a => a.Source is { Type: "image" or "camera" or "mycam" or "fenetre" or "video" }).ToList();
+        if (medias.Count > 0) menu.Items.Add(new Separator());
+        foreach (var a in medias)
+        {
+            var id = a.Id;
+            var item = Article(a.Titre, () => DefinirPrincipaleEglise(id));
+            item.IsCheckable = true;
+            item.IsChecked = id == actuelMedia;
+            item.ToolTip = a.Description;
+            menu.Items.Add(item);
+        }
+        return menu;
+    }
+
+    void DefinirPrincipaleEglise(string id)
+    {
+        var a = R.Annonces.FirstOrDefault(x => x.Id == id);
+        if (a == null) return;
+        if (R.ChoisirPrincipaleEglise(id)) Toast($"Source principale de l'église : « {a.Titre} » (Échap pour y revenir).");
+        MajInfoEglise();
+    }
+
+    void DefinirPrincipaleStream(string id)
+    {
+        var a = R.Annonces.FirstOrDefault(x => x.Id == id);
+        if (a == null) return;
+        if (!Regie.SourceStreamPossible(a.Source)) { Toast($"« {a.Titre} » ne peut pas aller sur MyStream (dans l'église seulement)."); return; }
+        R.ChoisirSourceStream(id);
+        Toast($"MyStream montre « {a.Titre} », quoi que montre l'église.");
+        MajInfoEglise();
     }
 
     /// <summary>

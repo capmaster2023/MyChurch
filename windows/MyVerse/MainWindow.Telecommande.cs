@@ -27,7 +27,8 @@ public partial class MainWindow
 
     void InitTelecommande()
     {
-        OngletBiblio.Click += (_, _) => MontrerOnglet(dernierBiblio);
+        OngletBiblio.Click += (_, _) => MontrerOnglet(dernierBiblio == "annonces" ? "bible" : dernierBiblio);
+        OngletMediasRail.Click += (_, _) => MontrerOnglet("annonces");
         SegBible.Click += (_, _) => MontrerOnglet("bible");
         SegChants.Click += (_, _) => MontrerOnglet("chants");
         SegMedias.Click += (_, _) => MontrerOnglet("annonces");
@@ -59,7 +60,8 @@ public partial class MainWindow
     {
         bool biblio = o is "bible" or "chants" or "annonces" or "duo";
         if (biblio) dernierBiblio = o;
-        OngletBiblio.IsChecked = biblio;
+        OngletBiblio.IsChecked = biblio && o != "annonces";
+        OngletMediasRail.IsChecked = o == "annonces";
         BiblioOnglets.Visibility = biblio ? Visibility.Visible : Visibility.Collapsed;
         SegBible.IsChecked = o == "bible";
         SegChants.IsChecked = o == "chants";

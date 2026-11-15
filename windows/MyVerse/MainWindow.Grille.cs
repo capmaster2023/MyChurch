@@ -20,6 +20,8 @@ public partial class MainWindow
     /// </summary>
     readonly Dictionary<string, SourcesDisplay> lecteursTuiles = new();
     readonly Dictionary<string, (Image Vue, TextBlock Attente, string Defaut)> vuesTuiles = new();
+    /// <summary>1.8.0 : les boutons « Église » et « Stream » de chaque tuile média (source principale).</summary>
+    readonly List<(string Id, Button Eglise, Button Stream)> boutonsTuiles = new();
     /// <summary>Tuiles MyCam : l'image, le téléphone, la source (aperçu vivant même hors de l'écran).</summary>
     readonly List<(Image Vue, string Telephone, string Annonce)> tuilesMyCam = new();
     readonly System.Windows.Threading.DispatcherTimer minuterieGrille = new() { Interval = TimeSpan.FromMilliseconds(350) };
@@ -112,6 +114,7 @@ public partial class MainWindow
         tuiles.Clear();
         tuilesMyCam.Clear();
         vuesTuiles.Clear();
+        boutonsTuiles.Clear();
         int n = 0;
         foreach (var a in R.Annonces.Where(x => x.Grille))
         {
@@ -120,7 +123,25 @@ public partial class MainWindow
         }
         GrilleVide.Visibility = n == 0 ? Visibility.Visible : Visibility.Collapsed;
         MajLecteursTuiles();
+        MajBoutonsTuiles();
         GrilleDirect();
+    }
+
+    /// <summary>1.8.0 : « ★ Église » / « ★ Stream » sur la tuile qui est la source principale.</summary>
+    void MajBoutonsTuiles()
+    {
+        var eglise = R.AnnoncePrincipaleEglise;
+        var stream = R.SourcePrincipaleStream?.Id;
+        foreach (var (id, e, s) in boutonsTuiles)
+        {
+            bool ue = id == eglise, us = id == stream;
+            e.Content = ue ? "★ Église" : "Église";
+            e.Foreground = ue ? Pinceau("Direct") : Pinceau("Blanc");
+            e.FontWeight = ue ? FontWeights.Bold : FontWeights.Normal;
+            s.Content = us ? "★ Stream" : "Stream";
+            s.Foreground = us ? Pinceau("Stream") : Pinceau("Blanc");
+            s.FontWeight = us ? FontWeights.Bold : FontWeights.Normal;
+        }
     }
 
     /// <summary>1.7.0 : un lecteur pour chaque caméra et chaque fenêtre de la grille (les autres lecteurs s'arrêtent).</summary>
@@ -242,6 +263,27 @@ public partial class MainWindow
         pile.Children.Add(tete);
         DockPanel.SetDock(bas, Dock.Bottom);
         pile.Children.Add(bas);
+        // 1.8.0 : deux boutons nets : en faire la source principale de l'église, ou celle de MyStream
+        if (type is "image" or "camera" or "mycam" or "fenetre" or "video")
+        {
+            Button Bouton(string texte, string tip, Action clic)
+            {
+                var b = new Button { Style = Style_("BtnPetit"), Content = texte, Height = 28, FontSize = 11.5, Padding = new Thickness(6, 0, 6, 0), ToolTip = tip };
+                b.Click += (_, ev) => { clic(); ev.Handled = true; };
+                return b;
+            }
+            var id = a.Id;
+            var bEglise = Bouton("Église", "En faire la source principale de l'église (Échap y revient)", () => DefinirPrincipaleEglise(id));
+            var bStream = Bouton("Stream", "En faire la source principale de MyStream (Zoom, YouTube)", () => DefinirPrincipaleStream(id));
+            var rang = new UniformGrid { Columns = 2, Margin = new Thickness(10, 0, 10, 10) };
+            bEglise.Margin = new Thickness(0, 0, 3, 0);
+            bStream.Margin = new Thickness(3, 0, 0, 0);
+            rang.Children.Add(bEglise);
+            rang.Children.Add(bStream);
+            DockPanel.SetDock(rang, Dock.Bottom);
+            pile.Children.Add(rang);
+            boutonsTuiles.Add((id, bEglise, bStream));
+        }
         // la vignette sombre au milieu (coins arrondis), le nom dessous sur fond blanc
         pile.Children.Add(new Border { Height = 112, Margin = new Thickness(10, 0, 10, 0), CornerRadius = new CornerRadius(9), ClipToBounds = true, Child = vue });
         var tuile = new Border

@@ -65,6 +65,27 @@ public sealed partial class Regie
     }
 
     /// <summary>
+    /// 1.8.0 : un média devient la source principale de l'église (son écran par défaut) : l'écran principal du déroulé qui le
+    /// montre, ajouté au besoin. Faux pour un texte ou un dossier Duo.
+    /// </summary>
+    public bool ChoisirPrincipaleEglise(string annonceId)
+    {
+        if (donnees.Annonces.FirstOrDefault(x => x.Id == annonceId) is not { Source: { Type: "image" or "camera" or "mycam" or "fenetre" or "video" } s }) return false;
+        var e = Agenda.Elements.FirstOrDefault(x => x.Type == "principal" && x.Source is { } xs && MemeSource(xs, s)) ?? AjouterPrincipalAgenda(annonceId);
+        if (e == null) return false;
+        ChoisirEcranDefaut(e.Id);
+        return true;
+    }
+
+    /// <summary>1.8.0 : le média (id) qui est la source principale de l'église, ou null (noir, fond seul, texte).</summary>
+    public string? AnnoncePrincipaleEglise =>
+        EcranDefaut is "noir" or "fond" || ElementDuDeroule(EcranDefaut)?.Source is not { } s ? null
+            : donnees.Annonces.FirstOrDefault(a => a.Source is { } x && MemeSource(x, s))?.Id;
+
+    static bool MemeSource(SourceDisplay a, SourceDisplay b) =>
+        a.Type == b.Type && a.Peripherique == b.Peripherique && a.Chemin == b.Chemin && a.Fenetre == b.Fenetre && a.Processus == b.Processus;
+
+    /// <summary>
     /// Un écran principal dans le déroulé : une source Display (image, caméra, fenêtre, vidéo), un display texte (sa première diapositive),
     /// ou rien (le fond seul : l'habillage sans texte). Null si la source n'existe pas, est un dossier Duo ou est un texte vide.
     /// </summary>
