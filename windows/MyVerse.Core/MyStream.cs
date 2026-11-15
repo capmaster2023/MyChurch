@@ -18,7 +18,8 @@ namespace MyVerse;
 public sealed partial class Regie
 {
     /// <summary>Les sources qui peuvent être la source principale de MyStream (une image vivante ou fixe, pas un texte).</summary>
-    public static bool SourceStreamPossible(SourceDisplay? s) => s?.Type is "camera" or "mycam" or "fenetre" or "video" or "image";
+    /// <remarks>1.6.8 : pas une source « Dans l'église seulement » (MyVirtualCam choisie comme média, un Zoom projeté…).</remarks>
+    public static bool SourceStreamPossible(SourceDisplay? s) => s?.Type is "camera" or "mycam" or "fenetre" or "video" or "image" && !s.EgliseSeulement;
 
     /// <summary>La source principale de MyStream (une source Display), ou null : MyStream reste noir (sauf « Envoyer dans le stream »).</summary>
     public Annonce? SourcePrincipaleStream =>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -390,6 +391,8 @@ public sealed class Rendu : Grid
 
     /// <summary>Pour le test automatique (1.6.6) : où est le texte dans le dessin (vide s'il n'y en a pas).</summary>
     public Rect TestZoneTexte => texte.IsVisible && texte.ActualWidth > 0 ? texte.TransformToAncestor(this).TransformBounds(new Rect(texte.RenderSize)) : Rect.Empty;
+    /// <summary>Pour le test automatique (1.6.8) : aucun mot ne dépasse de son bloc (le plus long tient dans la largeur du texte).</summary>
+    public bool TestTexteEntier => texte.IsVisible && PlusLongMot(texte) <= texte.ActualWidth + 2 && texte.ActualWidth <= ActualWidth;
 
     /// <summary>Plein écran (1.6.6 : marges 4 % / 3,5 %, tout l'écran pour le texte) ou bandeau en bas (30 % de la hauteur).</summary>
     void Placer()
@@ -457,33 +460,59 @@ public sealed class Rendu : Grid
         double maxH = hauteur;
         if (refT.Visibility == Visibility.Visible) maxH -= Mesure(refT, largeur).Height + refT.Margin.Top + 40 * H / 1080;
         double plafond = 20 * (etat.Taille > 0 ? etat.Taille : 1);
-        double lo = 1, hi = plafond, best = 1;
+        // 1.6.8 : un mot ne se coupe pas (une adresse courriel, un long mot en gras) : le plus long doit tenir sur une ligne.
+        // Le TextBlock mesuré dans une largeur ne le dit pas (sa taille est rognée à cette largeur) : le mot est mesuré à part,
+        // une fois, et sa largeur suit la taille du texte.
+        Taille(10, avec2);
+        double mot1 = PlusLongMot(texte) / texte.FontSize, mot2 = avec2 ? PlusLongMot(texte2) / texte2.FontSize : 0;
+        double lo = 0.5, hi = plafond, best = 0.5;
         for (int i = 0; i < 16; i++)
         {
             double mid = (lo + hi) / 2;
             Taille(mid, avec2);
             var s1 = Mesure(texte, largeur);
             double haut = s1.Height;
-            bool ok = s1.Width <= largeur + 2;
+            bool ok = mot1 * texte.FontSize <= largeur * 0.98;
             if (avec2)
             {
                 var s2 = Mesure(texte2, largeur);
                 haut += texte2.Margin.Top + s2.Height;
-                ok &= s2.Width <= largeur + 2;
+                ok &= mot2 * texte2.FontSize <= largeur * 0.98;
             }
             if (haut <= maxH + 2 && ok) { best = mid; lo = mid; } else hi = mid;
         }
         Taille(best, avec2);
-        Equilibrer(texte, largeur);
-        if (avec2) Equilibrer(texte2, largeur);
+        Equilibrer(texte, largeur, mot1 * texte.FontSize);
+        if (avec2) Equilibrer(texte2, largeur, mot2 * texte2.FontSize);
     }
 
-    /// <summary>Lignes équilibrées (comme « text-wrap: balance ») : la largeur la plus petite qui garde le même nombre de lignes.</summary>
-    static void Equilibrer(TextBlock t, double largeur)
+    /// <summary>
+    /// La largeur du plus long mot de <paramref name="t"/> à sa taille actuelle (les mots sont séparés par les espaces et les retours
+    /// à la ligne ; une espace insécable lie deux mots, comme à l'écran).
+    /// </summary>
+    double PlusLongMot(TextBlock t)
+    {
+        if (string.IsNullOrEmpty(t.Text)) return 0;
+        var police = new Typeface(t.FontFamily, t.FontStyle, t.FontWeight, t.FontStretch);
+        double ppp = VisualTreeHelper.GetDpi(this).PixelsPerDip, max = 0;
+        foreach (var mot in t.Text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var ft = new FormattedText(mot, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, police, t.FontSize, Brushes.White, ppp);
+            if (ft.Width > max) max = ft.Width;
+        }
+        return max;
+    }
+
+    /// <summary>
+    /// Lignes équilibrées (comme « text-wrap: balance ») : la largeur la plus petite qui garde le même nombre de lignes, jamais plus
+    /// étroite que le plus long mot (1.6.8 : sinon un mot qui ne se coupe pas dépassait et était rogné, « DIME ET OFFRAN »).
+    /// </summary>
+    static void Equilibrer(TextBlock t, double largeur, double motMin)
     {
         double h = Mesure(t, largeur).Height;
         if (h <= t.LineHeight * 1.5) return; // une seule ligne
-        double lo = largeur * 0.45, hi = largeur;
+        double lo = Math.Max(largeur * 0.45, motMin + 4), hi = largeur;
+        if (lo >= hi) return;
         for (int i = 0; i < 9; i++)
         {
             double mid = (lo + hi) / 2;

@@ -696,6 +696,23 @@ public static class AutoTest
         w.TestRetourStream();
         await Attendre(300);
         Ok(!R.StreamSuitEglise && w.TestEtatStream.Mode == "vide", "1.6.6 : M : MyStream ne suit plus l'église (noir)");
+
+        // 1.6.8 : un mot qui ne se coupe pas (une adresse courriel en gras) n'est plus rogné (« DIME ET OFFRAN »), à toutes les tailles
+        var dime = R.NouvelleAnnonce("DIME ET OFFRANDE", "DIME ET OFFRANDE\nMEPCMTL01@GMAIL.COM");
+        double tailleAvantDime = App.Donnees.Reglages.Taille;
+        foreach (var t in new[] { 1.0, 0.5, 1.6 })
+        {
+            R.Taille(t);
+            R.AfficherAnnonce(dime);
+            await Attendre(700);
+            var zd = w.TestZoneTexteEglise;
+            Ok(w.TestTexteEntierEglise && !zd.IsEmpty && zd.Left >= 0 && zd.Right <= 1920.5,
+                $"1.6.8 : « DIME ET OFFRANDE / MEPCMTL01@GMAIL.COM » entier à {t:P0} ({zd.Left:0} — {zd.Width:0} px de large)");
+            if (t == 1.0) Capture(w, "64d-v168-texte-entier.png");
+        }
+        R.Taille(tailleAvantDime);
+        R.Effacer();
+        R.SupprimerAnnonce(dime.Id);
     }
 
     /// <summary>
@@ -715,7 +732,8 @@ public static class AutoTest
             Ok(Journal.Lignes().Count(l => l.Contains("@device:absente-autotest") && l.Contains("nouvel essai")) >= 2, "1.6.7 : plusieurs essais en 5 secondes (la source ne s'arrête pas)");
             lecteur.ChoisirSource(null);
         }
-        var appareils = SourcesDisplay.Peripheriques();
+        var appareils = SourcesDisplay.Peripheriques(true);
+        Ok(SourcesDisplay.Peripheriques().All(d => !SourcesDisplay.EstMyVirtualCam(d.Nom)), "1.6.8 : MyVirtualCam se choisit à part (liste des médias), pas parmi les caméras ordinaires");
         Note("caméras DirectShow : " + (appareils.Count == 0 ? "aucune" : string.Join(", ", appareils.Select(d => d.Nom))));
         var vcam = appareils.FirstOrDefault(d => d.Nom.Contains("MyVirtualCam", StringComparison.OrdinalIgnoreCase)) ?? appareils.FirstOrDefault();
         if (vcam == null) { Note("1.6.5 : pas de caméra DirectShow sur cet ordinateur : réglage non essayé"); return; }

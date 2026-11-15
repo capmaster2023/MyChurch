@@ -23,7 +23,8 @@ public partial class MainWindow
     void InitMyStream()
     {
         StreamRetour.Click += (_, _) => RetourStream();
-        EnvoyerStream.Click += (_, _) => EnvoyerDansStream();
+        // 1.6.8 : allumé (« MyStream suit l'église »), un clic l'arrête, comme « Source principale » (M)
+        EnvoyerStream.Click += (_, _) => { if (R.StreamSuitEglise) RetourStream(); else EnvoyerDansStream(); };
         ToolTipService.SetShowOnDisabled(EnvoyerStream, true);
         StreamChoisir.Click += (_, _) => Ouvrir(MenuStream(), StreamChoisir, PlacementMode.Bottom);
         DirectBtn.Click += (_, _) => OuvrirDirect();
@@ -94,7 +95,7 @@ public partial class MainWindow
             EnvoyerStream.BorderBrush = Pinceau("Stream");
             EnvoyerStreamTexte.Text = "MyStream suit l'église";
             EnvoyerStreamTexte.Foreground = Pinceau("Stream");
-            EnvoyerStream.ToolTip = "MyStream montre ce que montre l'église et le suit. « Source principale » (M) pour " + retour + ".";
+            EnvoyerStream.ToolTip = "MyStream montre ce que montre l'église et la suit. Cliquez ici (ou M) pour " + retour + ".";
             StreamRetour.BorderBrush = Pinceau("Stream");
         }
         else
@@ -108,7 +109,7 @@ public partial class MainWindow
         }
         if (suit)
         {
-            StreamInfo.Text = $"MyStream suit l'église : ce qu'elle montre part sur Zoom et YouTube. M : {retour}.";
+            StreamInfo.Text = $"MyStream suit l'église : ce qu'elle montre part sur Zoom et YouTube. Re-cliquez « MyStream suit l'église » (ou M) : {retour}.";
             return;
         }
         if (p == null)
@@ -154,11 +155,11 @@ public partial class MainWindow
     void EnvoyerDansStream()
     {
         string retour = R.SourcePrincipaleStream is { } p ? "revenir sur " + p.Titre : "arrêter";
-        if (R.StreamSuitEglise) { Toast($"MyStream suit déjà l'église. « Source principale » (M) pour {retour}."); return; }
+        if (R.StreamSuitEglise) { Toast($"MyStream suit déjà l'église. Re-cliquez le bouton (ou M) pour {retour}."); return; }
         if (R.EnvoyerDansStream())
             Toast(R.Etat is { Mode: "vide" or "fond" } || R.Cible is CibleDefaut
-                ? $"MyStream suit l'église : ce que vous montrerez partira aussi sur Zoom et YouTube. M pour {retour}."
-                : $"Envoyé dans le stream : MyStream montre ce que montre l'église, et la suit. M pour {retour}.");
+                ? $"MyStream suit l'église : ce que vous montrerez partira aussi sur Zoom et YouTube. Re-cliquez (ou M) pour {retour}."
+                : $"Envoyé dans le stream : MyStream montre ce que montre l'église, et la suit. Re-cliquez (ou M) pour {retour}.");
     }
 
     /// <summary>Le menu « Source » : la source principale de MyStream (ce qu'il montre), aucune, le direct.</summary>
@@ -238,6 +239,7 @@ public partial class MainWindow
     public EtatEcran TestEtatStream => etatStream;
     /// <summary>1.6.6 : où est le texte sur l'écran de l'église (dessin 1920 × 1080).</summary>
     public Rect TestZoneTexteEglise => EgliseRendu.TestZoneTexte;
+    public bool TestTexteEntierEglise => EgliseRendu.TestTexteEntier;
     public string TestInfoStream => StreamInfo.Text;
     public string TestDirectTexte => DirectTexte.Text;
     public void TestRetourStream() => RetourStream();

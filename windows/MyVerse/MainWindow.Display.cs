@@ -74,11 +74,8 @@ public partial class MainWindow
             }));
         }
         menu.Items.Add(new Separator());
-        menu.Items.Add(Article("Caméra virtuelle MyVirtualCam", () =>
-        {
-            if (MyVirtualCam.Installee) Toast("MyVirtualCam est disponible automatiquement dans vos logiciels vidéo.");
-            else MyVirtualCam.Installer(this);
-        }));
+        // 1.6.8 : un clic ajoute MyVirtualCam aux médias (l'image de MyStream, à montrer dans l'église) ; installée d'abord au besoin
+        menu.Items.Add(Article("Caméra virtuelle MyVirtualCam", () => AjouterMyVirtualCam(null)));
         return menu;
     }
 
@@ -139,13 +136,51 @@ public partial class MainWindow
     {
         try
         {
-            var devices = SourcesDisplay.Peripheriques();
+            // 1.6.8 : MyVirtualCam (l'image de MyStream) se choisit aussi ; elle reste « Dans l'église seulement » (sinon MyStream
+            // se filmerait lui-même, en tunnel sans fin)
+            var devices = SourcesDisplay.Peripheriques(true);
             if (devices.Count == 0) { Toast("Aucun périphérique vidéo. Branchez une webcam ou une carte de capture USB/HDMI, puis réessayez."); return; }
-            if (ChoisirSource("Périphérique de capture vidéo", "Webcam ou carte de capture USB/HDMI", devices, d => d.Nom) is { } device)
-                ChoisirDisplay(R.NouveauDisplay(device.Nom, new SourceDisplay { Type = "camera", Peripherique = device.Id }));
+            if (ChoisirSource("Périphérique de capture vidéo", "Webcam, carte de capture USB/HDMI, ou MyVirtualCam (l'image de MyStream)", devices,
+                    d => SourcesDisplay.EstMyVirtualCam(d.Nom) ? "MyVirtualCam (l'image de MyStream : Zoom, YouTube)" : d.Nom) is not { } device) return;
+            if (SourcesDisplay.EstMyVirtualCam(device.Nom)) { AjouterMyVirtualCam(device); return; }
+            ChoisirDisplay(R.NouveauDisplay(device.Nom, new SourceDisplay { Type = "camera", Peripherique = device.Id }));
         }
         catch (Exception ex) { Toast("Liste des périphériques inaccessible : " + ex.Message); }
     }
+    /// <summary>
+    /// 1.6.8 : MyVirtualCam comme média : l'image de MyStream (ce que voient Zoom et YouTube), à montrer dans l'église. Une seule fois
+    /// dans les médias ; « Dans l'église seulement » (jamais sur MyStream) ; 720p à 30 images/s (son format). Pas encore installée :
+    /// MyChurch l'installe (Windows demande l'autorisation), puis l'ajoute.
+    /// </summary>
+    async void AjouterMyVirtualCam(SourcesDisplay.Peripherique? device)
+    {
+        try
+        {
+            if (R.Annonces.FirstOrDefault(x => x.Source is { EstMyVirtualCam: true }) is { } deja)
+            {
+                R.GrilleAnnonce(deja.Id, true);
+                ChoisirDisplay(deja);
+                Toast($"MyVirtualCam est déjà dans les médias (« {deja.Titre} ») : un clic sur sa tuile montre l'image de MyStream dans l'église.");
+                return;
+            }
+            device ??= TrouverMyVirtualCam();
+            if (device == null && !MyVirtualCam.Installee)
+            {
+                Toast("Installation de MyVirtualCam : acceptez la demande de Windows.");
+                if (!await MyVirtualCam.InstallerEtAttendre(this)) { Toast("MyVirtualCam n'est pas installée."); return; }
+                for (int i = 0; i < 10 && (device = TrouverMyVirtualCam()) == null; i++) await Task.Delay(300);
+            }
+            if (device == null) { Toast("MyVirtualCam est installée, mais Windows ne la montre pas encore : fermez puis rouvrez MyChurch, et réessayez."); return; }
+            var a = R.NouveauDisplay("MyVirtualCam (MyStream)", new SourceDisplay { Type = "camera", Peripherique = device.Id, Diffusion = SourceDisplay.Eglise, Ips = 30, Taille = "720p" });
+            R.GrilleAnnonce(a.Id, true);
+            ChoisirDisplay(a);
+            Toast("MyVirtualCam ajoutée aux médias : un clic sur sa tuile montre dans l'église l'image de MyStream (Zoom, YouTube). Elle ne repart jamais sur MyStream.");
+        }
+        catch (Exception ex) { Toast("MyVirtualCam inaccessible : " + ex.Message); }
+    }
+
+    static SourcesDisplay.Peripherique? TrouverMyVirtualCam() => SourcesDisplay.Peripheriques(true).FirstOrDefault(d => SourcesDisplay.EstMyVirtualCam(d.Nom));
+
     /// <summary>MyCam (4.0) : un téléphone jumelé qui diffuse devient une source, comme une caméra USB.</summary>
     void AjouterMyCam()
     {

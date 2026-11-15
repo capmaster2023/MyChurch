@@ -97,7 +97,7 @@ public static class CameraFrames
             }
             else
             {
-                var device = SourcesDisplay.Peripheriques().FirstOrDefault(d => d.Id == id) ?? throw new IOException("Caméra absente.");
+                var device = SourcesDisplay.Peripheriques(true).FirstOrDefault(d => d.Id == id) ?? throw new IOException("Caméra absente.");
                 capture = new() { Id = id, Ips = ips, Taille = taille };
                 captures[id] = capture;
                 var state = capture;

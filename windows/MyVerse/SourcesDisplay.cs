@@ -377,7 +377,11 @@ public sealed class SourcesDisplay : IDisposable
     public void ReconnecterSource(SourceDisplay? s) { source = null; ChoisirSource(s); }
     public void Dispose() { ++generation; try { fin?.Cancel(); } catch (ObjectDisposedException) { } }
 
-    public static List<Peripherique> Peripheriques()
+    /// <summary>
+    /// Les caméras DirectShow (webcams, cartes de capture). MyVirtualCam (l'image de MyStream) n'y est que si
+    /// <paramref name="avecMyVirtualCam"/> (1.6.8 : on peut la choisir comme média ; l'index reste celui de DirectShow).
+    /// </summary>
+    public static List<Peripherique> Peripheriques(bool avecMyVirtualCam = false)
     {
         var liste = new List<Peripherique>();
         object? obj = null;
@@ -398,7 +402,7 @@ public sealed class SourcesDisplay : IDisposable
                     m.BindToStorage(null!, null!, ref iid, out sac);
                     ((IPropertyBag)sac).Read("FriendlyName", out var nom, IntPtr.Zero);
                     m.GetDisplayName(null!, null!, out var id);
-                    if (!string.Equals(nom?.ToString(), "MyVirtualCam", StringComparison.OrdinalIgnoreCase))
+                    if (avecMyVirtualCam || !EstMyVirtualCam(nom?.ToString()))
                         liste.Add(new Peripherique(index, nom?.ToString() ?? $"Caméra {index + 1}", id));
                 }
                 finally { if (sac != null) Marshal.ReleaseComObject(sac); Marshal.ReleaseComObject(m); index++; }
@@ -407,6 +411,8 @@ public sealed class SourcesDisplay : IDisposable
         finally { if (enumeration != null) Marshal.ReleaseComObject(enumeration); if (obj != null) Marshal.ReleaseComObject(obj); }
         return liste;
     }
+
+    public static bool EstMyVirtualCam(string? nom) => string.Equals(nom, "MyVirtualCam", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Les fenêtres qu'on peut capturer, comme la liste d'OBS (1.3.1) : visibles, avec un titre, ni fenêtre enfant, ni petite fenêtre

@@ -1170,6 +1170,28 @@ if (Actif())
     var tel = rg2.NouveauDisplay("MyCam", new SourceDisplay { Type = "mycam", Peripherique = "tel" });
     rg2.AfficherAnnonce(tel);
     Ok(rg2.SourcePrincipaleStream?.Id == tel.Id, "1.6.6 : MyCam montrée : elle devient la source principale");
+
+    // 1.6.8 : MyVirtualCam choisie comme média (l'image de MyStream, montrée dans l'église) ne va jamais sur MyStream
+    const string idVcam = @"@device:sw:{860BB310-5D01-11D0-BD3B-00A0C911CE86}\{a9d47a18-c751-4bde-ab6b-a3d13f090501}";
+    Ok(new SourceDisplay { Type = "camera", Peripherique = idVcam }.EgliseSeulement && new SourceDisplay { Type = "camera", Peripherique = idVcam, Diffusion = SourceDisplay.Streaming } is { EgliseSeulement: true, StreamingSeulement: false }
+        && !new SourceDisplay { Type = "camera", Peripherique = "@device:pnp:usb#vid_0fd9" }.EstMyVirtualCam && !Regie.SourceStreamPossible(new SourceDisplay { Type = "camera", Peripherique = idVcam }),
+        "1.6.8 : MyVirtualCam reconnue à son identité : toujours « Dans l'église seulement », jamais source de MyStream");
+    var don3 = Donnees.Charger(Temp(), res);
+    var rg3 = new Regie(don3, new Bibles(don3));
+    var vcam = rg3.NouveauDisplay("MyVirtualCam (MyStream)", new SourceDisplay { Type = "camera", Peripherique = idVcam, Diffusion = SourceDisplay.Eglise, Ips = 30, Taille = "720p" });
+    rg3.AfficherAnnonce(vcam);
+    Ok(rg3.Etat.Media == vcam.Source && rg3.EtatSalle(rg3.Etat).Media == vcam.Source && rg3.SourcePrincipaleStream == null && rg3.EtatStream(rg3.Etat).Mode == "vide",
+        "1.6.8 : MyVirtualCam montrée dans l'église : elle ne devient pas la source principale, MyStream reste noir");
+    rg3.ChoisirSourceStream(vcam.Id);
+    Ok(rg3.SourcePrincipaleStream == null && !rg3.SourcesStreamPossibles.Contains(vcam), "1.6.8 : MyVirtualCam ne se choisit pas comme source de MyStream");
+    rg3.EnvoyerDansStream();
+    Ok(rg3.EtatStream(rg3.Etat).Media != vcam.Source, "1.6.8 : « Envoyer dans le stream » pendant MyVirtualCam : elle ne repart pas sur MyStream");
+    var cam3 = rg3.NouveauDisplay("USB", new SourceDisplay { Type = "camera", Peripherique = "@device:usb" });
+    rg3.ChoisirSourceStream(cam3.Id);
+    rg3.EnvoyerDansStream();
+    rg3.AfficherAnnonce(vcam);
+    Ok(rg3.EtatStream(rg3.Etat).Media == cam3.Source, "1.6.8 : MyStream suit l'église, l'église montre MyVirtualCam : MyStream garde sa caméra (pas de tunnel)");
+    Ok(vcam.Description.Contains("MyVirtualCam") && !vcam.Description.Contains("images/s"), "1.6.8 : sa description : « " + vcam.Description + " »");
 }
 
 Groupe("Dossiers Duo");

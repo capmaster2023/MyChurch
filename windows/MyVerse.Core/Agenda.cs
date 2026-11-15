@@ -55,8 +55,14 @@ public sealed record SourceDisplay
     [JsonIgnore] public string TailleVoulue => Taille == "4k" ? "4k" : Taille == "720p" ? "720p" : "1080p";
 
     public const string Eglise = "eglise", Streaming = "streaming";
-    [JsonIgnore] public bool EgliseSeulement => Diffusion == Eglise;
-    [JsonIgnore] public bool StreamingSeulement => Diffusion == Streaming;
+    /// <summary>
+    /// 1.6.8 : MyVirtualCam choisie comme média (l'image de MyStream, montrée dans l'église). Reconnue à l'identité de son filtre
+    /// DirectShow ; elle ne va jamais sur MyStream (il se filmerait lui-même, en tunnel sans fin).
+    /// </summary>
+    public const string IdentiteMyVirtualCam = "A9D47A18-C751-4BDE-AB6B-A3D13F090501";
+    [JsonIgnore] public bool EstMyVirtualCam => Type == "camera" && Peripherique.Contains(IdentiteMyVirtualCam, StringComparison.OrdinalIgnoreCase);
+    [JsonIgnore] public bool EgliseSeulement => Diffusion == Eglise || EstMyVirtualCam;
+    [JsonIgnore] public bool StreamingSeulement => Diffusion == Streaming && !EstMyVirtualCam;
 
     /// <summary>« Dans l'église seulement », « MyStream seulement » (Zoom, YouTube, OBS) ou « Église et MyStream ».</summary>
     public static string NomDiffusion(string? diffusion) => diffusion switch
@@ -77,7 +83,7 @@ public sealed class Annonce
     [JsonPropertyName("source"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SourceDisplay? Source { get; set; }
     /// <summary>Dans la grille de Display (un clic = en direct).</summary>
     [JsonPropertyName("grille")] public bool Grille { get; set; }
-    [JsonIgnore] public string Description => Source?.Type switch { "duo" => "Duo · 2 éléments ensemble", "camera" => $"Caméra USB · {(Source.TailleVoulue == "4k" ? "4K" : Source.TailleVoulue)} · {Source.IpsVoulues} images/s (clic droit pour changer)", "mycam" => "Téléphone MyCam", "fenetre" => "Capture de fenêtre · " + SourceDisplay.NomDiffusion(Source.Diffusion), "image" => "Image · " + Path.GetFileName(Source.Chemin), "video" => "Vidéo · " + Path.GetFileName(Source.Chemin), _ => Texte };
+    [JsonIgnore] public string Description => Source is { EstMyVirtualCam: true } ? "MyVirtualCam · l'image de MyStream (Zoom, YouTube), montrée dans l'église" : Source?.Type switch { "duo" => "Duo · 2 éléments ensemble", "camera" => $"Caméra USB · {(Source.TailleVoulue == "4k" ? "4K" : Source.TailleVoulue)} · {Source.IpsVoulues} images/s (clic droit pour changer)", "mycam" => "Téléphone MyCam", "fenetre" => "Capture de fenêtre · " + SourceDisplay.NomDiffusion(Source.Diffusion), "image" => "Image · " + Path.GetFileName(Source.Chemin), "video" => "Vidéo · " + Path.GetFileName(Source.Chemin), _ => Texte };
 }
 
 /// <summary>Un agenda (comme dans VideoPsalm) : la liste préparée d'un culte.</summary>

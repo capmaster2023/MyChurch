@@ -95,6 +95,17 @@ public sealed class MyVirtualCam : IDisposable
         }
         catch (Exception e) { Dialogue.Informer(owner, "Installation interrompue : " + e.Message); }
     }
+    /// <summary>1.6.8 : installe MyVirtualCam (Windows demande l'autorisation) et attend la fin. Vrai si elle est installée.</summary>
+    public static async Task<bool> InstallerEtAttendre(Window owner)
+    {
+        try
+        {
+            using var p = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, "--virtualcam-install") { UseShellExecute = true, Verb = "runas" });
+            if (p != null) await p.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60));
+        }
+        catch (Exception e) { Dialogue.Informer(owner, "Installation interrompue : " + e.Message); return false; }
+        return Installee;
+    }
     public static int Enregistrer(bool installer)
     {
         // Register both architectures; consumers load the matching in-process DirectShow source.
