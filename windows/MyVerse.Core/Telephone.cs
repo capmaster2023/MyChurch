@@ -130,7 +130,13 @@ public sealed class Telephone : IDisposable
     public const int Fonctions = 2;
 
     readonly Regie regie;
+    readonly string dossier;
     readonly Func<Func<Task>, Task> surUi;
+    /// <summary>
+    /// 1.7.0 : un téléphone demande de fermer MyChurch (« app.quit », de chez lui par Internet). Appelé sur l'interface ;
+    /// rend null si MyChurch se ferme, sinon la raison du refus (un direct YouTube en cours…).
+    /// </summary>
+    public Func<string?>? FermerDemande;
     readonly AppareilsJumeles store;
     readonly CancellationTokenSource fin = new();
     readonly List<Connexion> phones = new();
@@ -177,6 +183,7 @@ public sealed class Telephone : IDisposable
     /// <param name="surUi">Exécute une action sur le fil de l'interface (la régie n'est utilisée que là).</param>
     public Telephone(string dossier, Regie regie, Func<Func<Task>, Task> surUi, string? nomPc = null)
     {
+        this.dossier = dossier;
         this.regie = regie;
         this.surUi = surUi;
         store = new AppareilsJumeles(dossier);
@@ -202,7 +209,7 @@ public sealed class Telephone : IDisposable
         s = s.Replace('-', '+').Replace('_', '/');
         return Convert.FromBase64String(s.PadRight(s.Length + (4 - s.Length % 4) % 4, '='));
     }
-    static string Hasard(int n) => B64(RandomNumberGenerator.GetBytes(n));
+    internal static string Hasard(int n) => B64(RandomNumberGenerator.GetBytes(n));
     public static byte[] DeriverCle(byte[] secret, string pcId, string deviceId) => HMACSHA256.HashData(secret, Encoding.UTF8.GetBytes($"verselight-pair|{pcId}|{deviceId}"));
     public static string HmacB64(byte[] cle, string msg) => B64(HMACSHA256.HashData(cle, Encoding.UTF8.GetBytes(msg)));
     public static string PreuveServeur(byte[] cle, string cnonce, string nonce) => HmacB64(cle, $"verselight-srv|{cnonce}|{nonce}");
@@ -256,6 +263,8 @@ public sealed class Telephone : IDisposable
             return;
         }
         Journal.Info($"écoute des téléphones sur le port {Port}");
+        // 1.7.0 : l'agent « à distance » sait que MyChurch est ouvert, et sur quel port lui passer un téléphone venu par Internet
+        PortMyChurch.Ecrire(dossier, Port);
         // MyCam H.264 : le FFmpeg d'OBS est chargé et vérifié d'avance, le premier téléphone n'attend pas
         _ = Task.Run(() => Journal.Info("MyCam H.264 : " + (DecodeurH264.Disponible ? DecodeurH264.Etat : "indisponible, images JPEG (" + DecodeurH264.Etat + ")")));
         _ = Accepter(ecoute);
@@ -324,11 +333,21 @@ public sealed class Telephone : IDisposable
             jumelageFin = DateTime.UtcNow.AddMinutes(10);
         }
         var ips = AdressesLocales();
+        // 1.7.0 : le relais (contrôle à distance actif) : le téléphone joint aussi ce PC par Internet
+        var relais = RelaisActif();
         return "verselight://pair?pcId=" + Uri.EscapeDataString(PcId) + "&name=" + Uri.EscapeDataString(NomPc) +
-               "&ips=" + string.Join(",", ips) + "&port=" + Port + "&secret=" + B64(secret);
+               "&ips=" + string.Join(",", ips) + "&port=" + Port + "&secret=" + B64(secret) +
+               (relais != null ? "&relay=" + Uri.EscapeDataString(relais) : "");
     }
 
     public void FermerJumelage() { lock (phones) cleJumelage = null; }
+
+    /// <summary>1.7.0 : l'adresse du relais si le contrôle à distance est actif (Réglages › À distance), sinon null.</summary>
+    public string? RelaisActif()
+    {
+        var r = ReglagesDistance.Lire(dossier);
+        return r.Actif ? ReglagesDistance.Nettoyer(r.Relais) : null;
+    }
 
     public List<string> Connectes() { lock (phones) return phones.Select(p => p.DeviceId).Distinct().ToList(); }
 
@@ -616,7 +635,7 @@ boucle();
         await s.FlushAsync(fin.Token);
     }
 
-    static async Task<JsonObject?> Recevoir(WebSocket ws, CancellationToken t, int max = 1 << 20)
+    internal static async Task<JsonObject?> Recevoir(WebSocket ws, CancellationToken t, int max = 1 << 20)
     {
         var buf = new byte[16 * 1024];
         using var ms = new MemoryStream();
@@ -674,7 +693,7 @@ boucle();
         catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException) { }
     }
 
-    static async Task EnvoyerBrut(WebSocket ws, string texte, CancellationToken t) =>
+    internal static async Task EnvoyerBrut(WebSocket ws, string texte, CancellationToken t) =>
         await ws.SendAsync(Encoding.UTF8.GetBytes(texte), WebSocketMessageType.Text, true, t);
 
     async Task Envoyer(Connexion p, JsonNode msg) => await Envoyer(p, msg.ToJsonString());
@@ -782,7 +801,10 @@ boucle();
         lock (phones) phones.Add(p);
         try
         {
-            await Envoyer(p, new JsonObject { ["t"] = "welcome", ["v"] = Protocole, ["pcName"] = NomPc, ["paired"] = jumelage, ["proto"] = Fonctions, ["codecs"] = Codecs(), ["camHorloge"] = true });
+            var bienvenue = new JsonObject { ["t"] = "welcome", ["v"] = Protocole, ["pcName"] = NomPc, ["paired"] = jumelage, ["proto"] = Fonctions, ["codecs"] = Codecs(), ["camHorloge"] = true };
+            // 1.7.0 : le téléphone apprend le relais (contrôle à distance) à sa prochaine connexion sur le Wi-Fi : rien à rescanner
+            if (RelaisActif() is { } relais) bienvenue["relay"] = relais;
+            await Envoyer(p, bienvenue);
             if (dernierEtat.Length > 0) await Envoyer(p, dernierEtat);
             Prevenir();
 
@@ -1006,6 +1028,15 @@ boucle();
                     break;
                 }
                 case "next": await surUi(() => { regie.Bouger(1); return Task.CompletedTask; }); break;
+                case "app.quit":
+                {
+                    // 1.7.0 : fermer MyChurch depuis le téléphone (de chez soi) ; l'agent « à distance » peut le redémarrer
+                    string? refus = "Impossible de fermer MyChurch d'ici.";
+                    if (FermerDemande is { } fermer) await surUi(() => { refus = fermer(); return Task.CompletedTask; });
+                    if (refus != null) await Erreur(refus);
+                    else await Rep(new JsonObject { ["t"] = "app.etat", ["app"] = "fermeture" });
+                    break;
+                }
                 case "prev": await surUi(() => { regie.Bouger(-1); return Task.CompletedTask; }); break;
                 case "clear": await surUi(() => { regie.Effacer(); return Task.CompletedTask; }); break;
                 case "state.get":
@@ -1229,6 +1260,7 @@ boucle();
 
     public void Dispose()
     {
+        PortMyChurch.Effacer(dossier);
         fin.Cancel();
         regie.Change -= EtatChange;
         regie.AgendaChange -= AgendaChange;

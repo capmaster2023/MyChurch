@@ -18,6 +18,13 @@ public sealed class SourcesDisplay : IDisposable
     readonly string export;
     public SourcesDisplay(string export = "display.jpg") { this.export = export; }
 
+    /// <summary>
+    /// 1.7.0 : lecteur d'une tuile de la grille (« Médias ») : la caméra donne sa vignette (petite image) dix fois par seconde au
+    /// plus, une fenêtre est capturée quatre fois par seconde ; il garde aussi la dernière image (une fenêtre montrée ensuite à
+    /// l'écran apparaît tout de suite).
+    /// </summary>
+    public bool Tuile { get; init; }
+
     public sealed record Peripherique(int Index, string Nom, string Id);
     /// <summary>Une fenêtre ouverte : son programme (« Zoom.exe ») et sa classe servent à la retrouver quand elle est rouverte (1.3.1).</summary>
     public sealed record Fenetre(long Handle, int Processus, string Titre, string Exe = "", string Classe = "")
@@ -80,21 +87,30 @@ public sealed class SourcesDisplay : IDisposable
                     {
                         try
                         {
-                            using var lease = Audio.CameraFrames.Acquire(nouvelle.Peripherique, nouvelle);
+                            using var lease = Audio.CameraFrames.Acquire(nouvelle.Peripherique, nouvelle, Tuile);
                             BitmapSource? previous = null;
                             while (!token.IsCancellationRequested)
                             {
                                 if (lease.Error is { } error) throw new IOException(error);
                                 var prochaine = lease.Prochaine;
-                                if (lease.Image is { } b && !ReferenceEquals(b, previous)) { await Publier(b, g, token.Token); previous = b; attente = ""; continue; }
+                                if ((Tuile ? lease.Vignette : lease.Image) is { } b && !ReferenceEquals(b, previous))
+                                {
+                                    await Publier(b, g, token.Token);
+                                    previous = b;
+                                    attente = "";
+                                    if (Tuile) await Task.Delay(90, token.Token);
+                                    continue;
+                                }
                                 await Task.WhenAny(prochaine, Task.Delay(500, token.Token));
                                 token.Token.ThrowIfCancellationRequested();
                             }
                         }
                         catch (IOException ex)
                         {
-                            Journal.Info($"caméra « {nouvelle.Peripherique} » : {ex.Message} (nouvel essai dans 2 s)");
-                            attente = await Attendre(g, attente, ex.Message.TrimEnd('.') + " : MyChurch réessaie toutes les 2 secondes.", false);
+                            var message = ex.Message.TrimEnd('.') + " : MyChurch réessaie toutes les 2 secondes.";
+                            // une seule ligne au journal tant que la raison ne change pas (une tuile attend une caméra débranchée des heures)
+                            if (message != attente) Journal.Info($"caméra « {nouvelle.Peripherique} » : {ex.Message} (nouvel essai toutes les 2 s)");
+                            attente = await Attendre(g, attente, message, false);
                             await Task.Delay(2000, token.Token);
                         }
                     }
@@ -207,7 +223,7 @@ public sealed class SourcesDisplay : IDisposable
                         }
                         attente = "";
                         await Publier(image, g, token.Token);
-                        await Task.Delay(66, token.Token);
+                        await Task.Delay(Tuile ? 250 : 66, token.Token);
                     }
                 }
             }
@@ -266,7 +282,7 @@ public sealed class SourcesDisplay : IDisposable
 
     /// <summary>
     /// 1.6.6 : la dernière image des dernières sources montrées (caméra, MyCam, fenêtre, image ; pas les vidéos, qui repartent du début),
-    /// pour tous les lecteurs (église, MyStream, Duo…) : une source montrée de nouveau apparaît tout de suite. Six sources au plus
+    /// pour tous les lecteurs (église, MyStream, Duo, tuiles…) : une source montrée de nouveau apparaît tout de suite. Douze sources au plus
     /// (une image 1080p pèse 8 Mo). Sur le fil de l'interface seulement.
     /// </summary>
     static readonly List<(string Cle, BitmapSource Image)> dernieres = new();
@@ -294,7 +310,7 @@ public sealed class SourcesDisplay : IDisposable
         if (i == 0) { dernieres[0] = (cle, b); return; }
         if (i > 0) dernieres.RemoveAt(i);
         dernieres.Insert(0, (cle, b));
-        if (dernieres.Count > 6) dernieres.RemoveAt(dernieres.Count - 1);
+        if (dernieres.Count > 12) dernieres.RemoveAt(dernieres.Count - 1);
     }
 
     async Task Publier(BitmapSource b, int g, CancellationToken token)
@@ -304,7 +320,8 @@ public sealed class SourcesDisplay : IDisposable
         {
             if (g != generation) return;
             Image = b; Statut = "En direct";
-            if (source != null) Garder(source, b);
+            // la vignette d'une caméra (petite) ne remplace pas sa dernière image en grand
+            if (source != null && !(Tuile && source.Type == "camera")) Garder(source, b);
             Change?.Invoke();
         });
         // 1.3.1 : une source « Dans l'église » ne part pas vers la page OBS

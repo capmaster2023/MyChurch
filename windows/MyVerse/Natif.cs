@@ -225,6 +225,34 @@ public static class Natif
         catch (Exception e) { Journal.Erreur("démarrage avec Windows", e); return false; }
     }
 
+    /// <summary>1.7.0 : l'agent « à distance » au démarrage de Windows (valeur « MyChurch Agent » de la clé « Run »).</summary>
+    public static bool ChangerAgentAuDemarrage(bool oui)
+    {
+        try
+        {
+            using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(CleExecuter, true);
+            var voulu = "\"" + Environment.ProcessPath + "\" --agent";
+            if (oui)
+            {
+                if (k.GetValue("MyChurch Agent") as string != voulu) k.SetValue("MyChurch Agent", voulu);
+            }
+            else k.DeleteValue("MyChurch Agent", false);
+            return true;
+        }
+        catch (Exception e) { Journal.Erreur("agent au démarrage de Windows", e); return false; }
+    }
+
+    /// <summary>1.7.0 : Windows ouvre-t-il la session tout seul au démarrage (sans mot de passe à taper) ?</summary>
+    public static bool? SessionAutomatique()
+    {
+        try
+        {
+            using var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon");
+            return k?.GetValue("AutoAdminLogon") is string v && v == "1";
+        }
+        catch (Exception) { return null; }
+    }
+
     /// <summary>Crochet de fenêtre : l'économiseur d'écran ne démarre pas (WM_SYSCOMMAND / SC_SCREENSAVE refusé).</summary>
     public static IntPtr SansEconomiseur(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {

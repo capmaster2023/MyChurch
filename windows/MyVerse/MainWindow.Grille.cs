@@ -14,6 +14,12 @@ namespace MyVerse.Ui;
 public partial class MainWindow
 {
     readonly List<(Border Tuile, string Id, int I, Image? Vue, TextBlock Direct)> tuiles = new();
+    /// <summary>
+    /// 1.7.0 : un lecteur par caméra et par fenêtre de la grille : leur tuile reste en direct même quand elles ne sont pas à
+    /// l'écran (la caméra reste ouverte, prête ; la fenêtre apparaît tout de suite quand on la choisit).
+    /// </summary>
+    readonly Dictionary<string, SourcesDisplay> lecteursTuiles = new();
+    readonly Dictionary<string, (Image Vue, TextBlock Attente, string Defaut)> vuesTuiles = new();
     /// <summary>Tuiles MyCam : l'image, le téléphone, la source (aperçu vivant même hors de l'écran).</summary>
     readonly List<(Image Vue, string Telephone, string Annonce)> tuilesMyCam = new();
     readonly System.Windows.Threading.DispatcherTimer minuterieGrille = new() { Interval = TimeSpan.FromMilliseconds(350) };
@@ -105,6 +111,7 @@ public partial class MainWindow
         GrilleSources.Children.Clear();
         tuiles.Clear();
         tuilesMyCam.Clear();
+        vuesTuiles.Clear();
         int n = 0;
         foreach (var a in R.Annonces.Where(x => x.Grille))
         {
@@ -112,7 +119,53 @@ public partial class MainWindow
             for (int i = 0; i < textes.Count; i++) GrilleSources.Children.Add(Tuile(a, i, textes[i], textes.Count, ++n));
         }
         GrilleVide.Visibility = n == 0 ? Visibility.Visible : Visibility.Collapsed;
+        MajLecteursTuiles();
         GrilleDirect();
+    }
+
+    /// <summary>1.7.0 : un lecteur pour chaque caméra et chaque fenêtre de la grille (les autres lecteurs s'arrêtent).</summary>
+    void MajLecteursTuiles()
+    {
+        var voulues = new Dictionary<string, SourceDisplay>();
+        foreach (var a in R.Annonces)
+            if (a.Grille && a.Source is { Type: "camera" or "fenetre" } s) voulues[a.Id] = s;
+        foreach (var id in lecteursTuiles.Keys.ToList())
+        {
+            if (voulues.ContainsKey(id)) continue;
+            lecteursTuiles[id].Dispose();
+            lecteursTuiles.Remove(id);
+        }
+        foreach (var (id, s) in voulues)
+        {
+            if (!lecteursTuiles.TryGetValue(id, out var l))
+            {
+                l = new SourcesDisplay("") { Tuile = true };
+                var cle = id;
+                l.Change += () => ImageTuile(cle);
+                lecteursTuiles[id] = l;
+            }
+            l.ChoisirSource(s); // sans effet si c'est déjà elle
+            ImageTuile(id);
+        }
+    }
+
+    /// <summary>L'image vivante d'une tuile ; sans image, ce qu'elle attend (« Fenêtre fermée… »).</summary>
+    void ImageTuile(string id)
+    {
+        if (!vuesTuiles.TryGetValue(id, out var v) || !lecteursTuiles.TryGetValue(id, out var l)) return;
+        if (l.Image != null) v.Vue.Source = l.Image;
+        else
+        {
+            v.Vue.Source = null;
+            var st = l.Statut;
+            string texte = st.Length == 0 || st == "En direct" || st == "Connexion à la source…" ? v.Defaut
+                : st.StartsWith("La fenêtre a été fermée", StringComparison.Ordinal) ? "Fenêtre fermée · reprise dès qu'elle se rouvre"
+                : st.StartsWith("La fenêtre est réduite", StringComparison.Ordinal) ? "Fenêtre réduite"
+                : l.Source?.Type == "camera" ? "Caméra indisponible · nouvel essai toutes les 2 s"
+                : st;
+            v.Attente.Text = texte;
+            v.Attente.FontSize = texte == v.Defaut ? 15 : 12;
+        }
     }
 
     Border Tuile(Annonce a, int i, string texte, int total, int numero)
@@ -157,6 +210,7 @@ public partial class MainWindow
             attente.SetBinding(UIElement.VisibilityProperty, new System.Windows.Data.Binding(nameof(Image.Source)) { Source = image, Converter = SansImage.Instance });
             if (type == "image" && a.Source?.Chemin is { Length: > 0 } chemin) image.Source = ImageFichier(chemin, 360);
             if (type == "mycam" && a.Source is { } sm) tuilesMyCam.Add((image, sm.Peripherique, a.Id));
+            if (type is "camera" or "fenetre") vuesTuiles[a.Id] = (image, attente, attente.Text);
             vue.Children.Add(image);
         }
         var direct = new TextBlock { Text = "EN DIRECT", FontSize = 10.5, FontWeight = FontWeights.Bold, Foreground = Pinceau("Direct"), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed, Margin = new Thickness(6, 0, 0, 0) };
@@ -241,13 +295,17 @@ public partial class MainWindow
             t.Tuile.BorderBrush = Pinceau(ok ? "Direct" : "Nuit3");
             t.Tuile.BorderThickness = new Thickness(ok ? 2 : 1.5);
             t.Direct.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;
-            if (t.Vue != null) t.Vue.Source = ok ? App.Sources.Image : null;
+            // 1.7.0 : caméras et fenêtres ont leur propre lecteur (toujours en direct) ; MyCam suit l'écran quand elle y est
+            if (t.Vue != null && !lecteursTuiles.ContainsKey(t.Id)) t.Vue.Source = ok ? App.Sources.Image : null;
         }
         GrilleInfo.Text = ecran != null ? "Écran : " + NomEcran() : "Aucun écran choisi (Projection, en haut à droite)";
     }
 
     // ------------------------------------------------------------ pour le test automatique
     public int TestTuiles => tuiles.Count;
+    /// <summary>1.7.0 : les tuiles caméra / fenêtre qui montrent une image vivante (sans être à l'écran).</summary>
+    public int TestTuilesVivantes => vuesTuiles.Count(v => v.Value.Vue.Source != null);
+    public int TestLecteursTuiles => lecteursTuiles.Count;
     /// <summary>Une tuile de dossier Duo dessinée comme l'écran principal (et non un simple texte).</summary>
     public bool TestTuileDuoDessinee => tuiles.Any(t => t.Tuile.Child is DockPanel d && d.Children.OfType<Border>().Any(b => b.Child is Grid { Tag: "duo-rendu" }));
     public bool TestCliquerTuile(int k)

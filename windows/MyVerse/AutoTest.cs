@@ -719,6 +719,51 @@ public static class AutoTest
     /// MyChurch 1.6.5 : une caméra USB (ici MyVirtualCam elle-même, une vraie caméra DirectShow quand elle est installée) : MyChurch
     /// essaie MJPG puis le format non compressé, aux images par seconde voulues, mesure, garde le meilleur ; les images arrivent.
     /// </summary>
+    /// <summary>
+    /// 1.7.0 : une fenêtre de la grille reste en direct dans sa tuile sans être à l'écran ; Réglages › À distance (coupé par défaut,
+    /// activé : l'état demandé au relais, le relais dans le code QR).
+    /// </summary>
+    static async Task TestTuilesEtDistance(MainWindow w)
+    {
+        var h = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+        int lecteursAvant = w.TestLecteursTuiles, vivantesAvant = w.TestTuilesVivantes;
+        var fen = R.NouveauDisplay("Régie MyChurch", new SourceDisplay { Type = "fenetre", Fenetre = h.ToInt64(), Processus = Environment.ProcessId, Titre = w.Title });
+        R.GrilleAnnonce(fen.Id, true);
+        R.Effacer();
+        w.TestOngletAnnonces();
+        for (int i = 0; i < 30 && w.TestTuilesVivantes <= vivantesAvant; i++) await Attendre(200);
+        Ok(w.TestLecteursTuiles == lecteursAvant + 1 && w.TestTuilesVivantes > vivantesAvant && !(R.Cible is CibleDisplay cdf && cdf.Id == fen.Id),
+            $"1.7.0 : une fenêtre de la grille reste en direct dans sa tuile sans être à l'écran ({w.TestTuilesVivantes} tuile(s) vivante(s))");
+        Capture(w, "64e-v170-tuiles-vivantes.png");
+        R.AfficherAnnonce(fen);
+        await Attendre(400);
+        Ok(App.Sources.Image != null, "1.7.0 : la fenêtre choisie apparaît tout de suite à l'écran (dernière image de sa tuile)");
+        R.Effacer();
+        R.SupprimerAnnonce(fen.Id);
+        await Attendre(400);
+        Ok(w.TestLecteursTuiles == lecteursAvant, "1.7.0 : tuile retirée : son lecteur s'arrête");
+
+        var dossier = App.Donnees.Dossier;
+        new ReglagesDistance { Actif = false, Relais = "127.0.0.1:9" }.Ecrire(dossier);
+        w.TestPage("reglages");
+        w.Reglages.Aller("distance", false);
+        w.Reglages.MajDistance();
+        await Attendre(900);
+        Ok(w.Reglages.TestDistance.Contains("coupé"), "1.7.0 : Réglages › À distance : coupé par défaut (« " + w.Reglages.TestDistance + " »)");
+        var r = ReglagesDistance.Lire(dossier);
+        r.Actif = true;
+        r.Ecrire(dossier);
+        w.Reglages.MajDistance();
+        for (int i = 0; i < 40 && !w.Reglages.TestDistance.Contains("injoignable"); i++) await Attendre(250);
+        Ok(w.Reglages.TestDistance.Contains("injoignable"), "1.7.0 : activé, relais éteint : « injoignable » (« " + w.Reglages.TestDistance + " »)");
+        Ok(App.Telephone.OuvrirJumelage().Contains("&relay=127.0.0.1%3A9"), "1.7.0 : contrôle à distance actif : le relais est dans le code QR");
+        App.Telephone.FermerJumelage();
+        Capture(w, "64f-v170-reglages-distance.png");
+        new ReglagesDistance { Actif = false, Relais = ReglagesDistance.RelaisDefaut }.Ecrire(dossier);
+        w.Reglages.MajDistance();
+        w.TestOngletAnnonces();
+    }
+
     static async Task TestCameraUsb()
     {
         // 1.6.7 : une caméra qui ne s'ouvre pas (ici : absente) n'arrête pas la source : un message, et un nouvel essai toutes les 2 secondes
@@ -1504,6 +1549,9 @@ public static class AutoTest
             // 1.6.5 : une vraie caméra DirectShow (MyVirtualCam, si elle est installée) : réglage trouvé, images qui arrivent
             try { await TestCameraUsb(); }
             catch (Exception x) { Echec("1.6.5 : caméra USB : " + x); }
+            // 1.7.0 : tuiles vivantes (caméras, fenêtres) et Réglages › À distance
+            try { await TestTuilesEtDistance(w); }
+            catch (Exception x) { Echec("1.7.0 : " + x); }
             await Fenetre(w, () => new DecoupeWindow(new CibleVerset(42, 3, 16, 16)), "13-decoupe.png");
             await Fenetre(w, () => new ImportWindow(), "14-import.png");
             await Fenetre(w, () => new BiblesWindow(), "15-bibles.png");

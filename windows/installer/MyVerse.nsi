@@ -167,6 +167,8 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\MyVerse"
   ; 1.6.4 : « Ouvrir MyChurch au démarrage de Windows » (directs automatiques)
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "MyChurch"
+  ; 1.7.0 : l'agent « à distance »
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "MyChurch Agent"
 SectionEnd
 
 Function un.FermerMyVerse

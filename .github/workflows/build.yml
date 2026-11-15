@@ -128,6 +128,8 @@ jobs:
       - name: Tests du cœur (Bible, recherche, chants, téléphone, mélangeur sur la vraie libobs)
         run: |
           New-Item -ItemType Directory -Force ci | Out-Null
+          # 1.7.0 : le relais MyChurch (Node + ws) tourne pendant les tests « À distance »
+          npm install --prefix relais --no-save --no-package-lock ws@8 2>&1 | Out-Host
           $env:MYCHURCH_OBS = (Resolve-Path "out/obs").Path
           "ffmpeg des tests : $env:MYCHURCH_FFMPEG"
           dotnet run --project windows/MyVerse.Tests -c Release -- "$PWD/windows/MyVerse/Ressources" 2>&1 | Tee-Object -FilePath ci/tests.log

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Diagnostics;
 using MyVerse;
 
@@ -1896,6 +1897,152 @@ if (Actif())
 
 Groupe("YouTube (1.6.0)");
 if (Actif()) MyVerse.Tests.YouTubeTests.RunAsync(Ok).GetAwaiter().GetResult();
+
+Groupe("À distance par Internet (1.7.0) : relais, agent, démarrer MyChurch");
+if (Actif())
+{
+    // le vrai relais (relais/relais.js, Node + ws) sur ce PC, en ws:// ; l'agent et un « téléphone » s'y relient
+    var script = Path.GetFullPath(Path.Combine(res, "..", "..", "..", "relais", "relais.js"));
+    int portRelais = 18000 + Random.Shared.Next(2000);
+    System.Diagnostics.Process? node = null;
+    try
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("node", $"\"{script}\"") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        psi.Environment["PORT"] = portRelais.ToString();
+        if (File.Exists(script)) node = System.Diagnostics.Process.Start(psi);
+    }
+    catch (System.ComponentModel.Win32Exception) { }
+    string? pret = null;
+    if (node != null)
+    {
+        var lu = node.StandardOutput.ReadLineAsync();
+        if (await Task.WhenAny(lu, Task.Delay(8000)) == lu) pret = lu.Result;
+    }
+    if (pret == null || !pret.Contains("relais MyChurch"))
+    {
+        Console.WriteLine($"   (relais non essayé : node ou le module ws absent — {script})" + (node != null ? " " + await node.StandardError.ReadToEndAsync() : ""));
+        try { node?.Kill(); } catch { }
+    }
+    else
+    {
+        var relais = $"ws://127.0.0.1:{portRelais}";
+        Egal(ReglagesDistance.Nettoyer(" https://2-25-216-99.sslip.io/ "), "2-25-216-99.sslip.io", "adresse du relais nettoyée");
+        Egal(ReglagesDistance.Adresse("2-25-216-99.sslip.io", "/pc/x").ToString(), "wss://2-25-216-99.sslip.io/pc/x", "relais en HTTPS (wss://)");
+        Egal(ReglagesDistance.AdresseEtat("2-25-216-99.sslip.io", "x").ToString(), "https://2-25-216-99.sslip.io/etat/x", "page d'état du relais");
+
+        var don = Donnees.Charger(Temp(), res);
+        var dossier = don.Dossier;
+        new ReglagesDistance { Actif = true, Relais = relais }.Ecrire(dossier);
+        var store = new AppareilsJumeles(dossier);
+        var pcId = store.PcId;
+        var cleTel = RandomNumberGenerator.GetBytes(32);
+        store.Ajouter("tel-maison", "Pixel de Mike", cleTel);
+        Ok(await ReglagesDistance.PcJoignable(relais, pcId) == false, "relais en marche, PC pas encore relié : « pas joignable »");
+
+        Telephone? myChurch = null;
+        Regie? rgD = null;
+        int demarrages = 0;
+        bool Demarrer()
+        {
+            demarrages++;
+            rgD = new Regie(don, new Bibles(don));
+            myChurch = new Telephone(dossier, rgD, f => f(), "PC-EGLISE");
+            myChurch.FermerDemande = () => null;
+            myChurch.Demarrer();
+            return true;
+        }
+        using var agent = new AgentDistance(dossier, Demarrer, "PC-EGLISE") { PauseReconnexion = TimeSpan.FromMilliseconds(300) };
+        var tache = agent.Executer();
+        for (int i = 0; i < 50 && !agent.Connecte; i++) await Task.Delay(100);
+        Ok(agent.Connecte, "l'agent se relie au relais tout seul", string.Join(" | ", Journal.Lignes().Where(l => l.Contains("distance")).TakeLast(3)));
+        Ok(await ReglagesDistance.PcJoignable(relais, pcId) == true, "le relais dit : PC joignable de l'extérieur (Réglages)");
+
+        async Task<System.Net.WebSockets.ClientWebSocket> TelOuvrir()
+        {
+            var ws = new System.Net.WebSockets.ClientWebSocket();
+            await ws.ConnectAsync(new Uri($"{relais}/telephone/{pcId}"), CancellationToken.None);
+            return ws;
+        }
+        async Task TelEnv(System.Net.WebSockets.ClientWebSocket ws, object o) =>
+            await ws.SendAsync(System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(o)), System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None);
+        async Task<System.Text.Json.Nodes.JsonObject?> TelRec(System.Net.WebSockets.ClientWebSocket ws, string? type = null, int ms = 5000)
+        {
+            var finR = DateTime.Now.AddMilliseconds(ms);
+            var buf = new byte[1 << 16];
+            while (DateTime.Now < finR)
+            {
+                using var cts = new CancellationTokenSource(finR - DateTime.Now);
+                using var mem = new MemoryStream();
+                try
+                {
+                    System.Net.WebSockets.WebSocketReceiveResult r;
+                    do { r = await ws.ReceiveAsync(buf, cts.Token); mem.Write(buf, 0, r.Count); } while (!r.EndOfMessage);
+                    if (r.MessageType == System.Net.WebSockets.WebSocketMessageType.Close) return null;
+                }
+                catch (Exception e) when (e is OperationCanceledException or System.Net.WebSockets.WebSocketException) { return null; }
+                var o = System.Text.Json.Nodes.JsonNode.Parse(mem.ToArray())!.AsObject();
+                if (type == null || (string?)o["t"] == type) return o;
+            }
+            return null;
+        }
+        async Task<(System.Net.WebSockets.ClientWebSocket Ws, System.Text.Json.Nodes.JsonObject? Bienvenue)> TelConnecter(byte[] cle, string device = "tel-maison")
+        {
+            var ws = await TelOuvrir();
+            await TelEnv(ws, new { t = "hello", v = 1, pcId, deviceId = device, deviceName = "Pixel de Mike", pair = false, cnonce = "cn9" });
+            var ch = await TelRec(ws);
+            if ((string?)ch?["t"] != "challenge") return (ws, ch);
+            var nonce = (string)ch!["nonce"]!;
+            Ok((string?)ch["proof"] == Telephone.PreuveServeur(cle, "cn9", nonce), "par Internet aussi, le PC prouve qu'il connaît la clé du téléphone");
+            await TelEnv(ws, new { t = "auth", mac = Telephone.MacClient(cle, nonce, device) });
+            return (ws, await TelRec(ws));
+        }
+
+        // MyChurch fermé : l'agent répond
+        var (w1, b1) = await TelConnecter(cleTel);
+        Ok((string?)b1?["t"] == "welcome" && (bool?)b1?["agent"] == true && (string?)b1?["app"] == "ferme", "MyChurch fermé : l'agent accueille le téléphone (« MyChurch est fermé »)", b1?.ToJsonString());
+        await TelEnv(w1, new { t = "bible.show", @ref = "jn 3 16", rid = "7" });
+        var er = await TelRec(w1, "error");
+        Ok(er != null && (string?)er["rid"] == "7" && ((string?)er["message"] ?? "").Contains("Démarrer MyChurch"), "une commande pendant que MyChurch est fermé : « appuyez sur Démarrer MyChurch »");
+        // démarrer MyChurch depuis le téléphone
+        await TelEnv(w1, new { t = "app.start", rid = "8" });
+        var e1 = await TelRec(w1, "app.etat");
+        var e2 = await TelRec(w1, "app.etat", 10000);
+        Ok((string?)e1?["app"] == "demarrage" && (string?)e2?["app"] == "ouvert" && demarrages == 1 && myChurch?.Port > 0, "« Démarrer MyChurch » : l'agent le lance, puis dit « ouvert »");
+        Ok(await TelRec(w1, null, 3000) == null, "… et ferme la connexion : le téléphone se reconnecte");
+        Egal(PortMyChurch.Lire(dossier), myChurch?.Port, "MyChurch ouvert : son port est connu de l'agent");
+
+        // MyChurch ouvert : le téléphone passe par l'agent jusqu'à MyChurch (même vérification, mêmes commandes)
+        var (w2, b2) = await TelConnecter(cleTel);
+        Ok((string?)b2?["t"] == "welcome" && b2?["agent"] == null && (string?)b2?["relay"] == ReglagesDistance.Nettoyer(relais), "MyChurch ouvert : le téléphone joint MyChurch lui-même (et apprend le relais)", b2?.ToJsonString());
+        await TelEnv(w2, new { t = "bible.show", @ref = "jn 3 16", rid = 1 });
+        var st = await TelRec(w2, "state");
+        Egal((string?)st?["ref"], "Jean 3:16 (LSG)", "par Internet : un verset affiché à l'église depuis la maison");
+        Ok(myChurch!.Connectes().Contains("tel-maison"), "MyChurch voit le téléphone connecté");
+        Ok(myChurch.OuvrirJumelage().Contains("&relay=" + Uri.EscapeDataString(ReglagesDistance.Nettoyer(relais))), "code QR : le relais y est (nouveaux téléphones)");
+        myChurch.FermerJumelage();
+        await TelEnv(w2, new { t = "app.quit", rid = "9" });
+        var fq = await TelRec(w2, "app.etat");
+        Egal((string?)fq?["app"], "fermeture", "« Fermer MyChurch » depuis le téléphone");
+        try { w2.Abort(); } catch { }
+
+        // un téléphone inconnu (pas jumelé) est refusé, par l'agent comme par MyChurch
+        var (w3, b3) = await TelConnecter(RandomNumberGenerator.GetBytes(32), "intrus");
+        Ok((string?)b3?["t"] == "auth.fail", "un téléphone pas jumelé est refusé par Internet", b3?.ToJsonString());
+        try { w3.Abort(); } catch { }
+        myChurch.Dispose();
+        Ok(PortMyChurch.Lire(dossier) == null, "MyChurch fermé : le port n'est plus annoncé");
+        var (w4, b4) = await TelConnecter(cleTel);
+        Ok((bool?)b4?["agent"] == true, "MyChurch refermé : l'agent reprend le téléphone");
+        try { w4.Abort(); } catch { }
+
+
+        // coupé dans les Réglages : l'agent s'arrête tout seul
+        new ReglagesDistance { Actif = false, Relais = relais }.Ecrire(dossier);
+        var fini = await Task.WhenAny(tache, Task.Delay(10000)) == tache;
+        Ok(fini, "contrôle à distance coupé dans les Réglages : l'agent s'arrête");
+        try { node!.Kill(); } catch { }
+    }
+}
 
 Groupe("Caméras USB fluides (1.6.5)");
 if (Actif())

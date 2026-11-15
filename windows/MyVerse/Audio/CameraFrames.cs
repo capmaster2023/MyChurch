@@ -40,9 +40,16 @@ public static class CameraFrames
     public sealed class Lease : IDisposable
     {
         readonly Capture capture;
+        readonly bool vignettes;
         bool disposed;
-        internal Lease(Capture capture) => this.capture = capture;
+        internal Lease(Capture capture, bool vignettes)
+        {
+            this.capture = capture;
+            this.vignettes = vignettes;
+        }
         public BitmapSource? Image => Volatile.Read(ref capture.Image);
+        /// <summary>1.7.0 : la même image en petit (384 px de large, 10 par seconde au plus), pour une tuile de la grille.</summary>
+        public BitmapSource? Vignette => Volatile.Read(ref capture.Vignette);
         public string? Error => capture.Error;
         /// <summary>Finie quand la prochaine image arrive (pour la montrer tout de suite, sans attendre un tour de minuterie).</summary>
         public Task Prochaine => Volatile.Read(ref capture.Prochaine).Task;
@@ -51,6 +58,7 @@ public static class CameraFrames
             lock (gate)
             {
                 if (disposed) return; disposed = true;
+                if (vignettes) capture.Vignettes--;
                 // l'appareil reste ouvert, prêt, pendant la garde (il revient tout de suite)
                 if (--capture.Users == 0) capture.Libere = Environment.TickCount64;
             }
@@ -62,6 +70,10 @@ public static class CameraFrames
         public string Id = "";
         public int Users;
         public BitmapSource? Image;
+        public BitmapSource? Vignette;
+        /// <summary>Parts qui veulent aussi la vignette (tuiles de la grille) ; la dernière vignette faite (horloge).</summary>
+        public int Vignettes;
+        public long DerniereVignette;
         public volatile string? Error;
         public readonly CancellationTokenSource Cancel = new();
         public TaskCompletionSource Prochaine = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -84,7 +96,7 @@ public static class CameraFrames
     /// Une part de l'appareil <paramref name="id"/>. <paramref name="source"/> : la source qui le demande (ses images par seconde et sa taille) ;
     /// null (l'enregistrement) : comme il est déjà ouvert, sinon 60 images par seconde en 1080p.
     /// </summary>
-    public static Lease Acquire(string id, SourceDisplay? source = null)
+    public static Lease Acquire(string id, SourceDisplay? source = null, bool vignettes = false)
     {
         lock (gate)
         {
@@ -104,7 +116,8 @@ public static class CameraFrames
                 new Thread(() => Boucle(state, device)) { IsBackground = true, Name = "caméra " + device.Nom, Priority = ThreadPriority.AboveNormal }.Start();
             }
             capture.Users++;
-            return new(capture);
+            if (vignettes) capture.Vignettes++;
+            return new(capture, vignettes);
         }
     }
 
@@ -206,6 +219,17 @@ public static class CameraFrames
         var bitmap = BitmapSource.Create(bgra.Width, bgra.Height, 96, 96, PixelFormats.Bgra32, null, bgra.Data, (int)(bgra.Step() * bgra.Height), (int)bgra.Step());
         bitmap.Freeze();
         Volatile.Write(ref state.Image, bitmap);
+        // 1.7.0 : la tuile de la grille reste en direct sans pousser 8 Mo par image vers l'écran
+        if (Volatile.Read(ref state.Vignettes) > 0 && Environment.TickCount64 - state.DerniereVignette >= 90 && bgra.Width > 0)
+        {
+            state.DerniereVignette = Environment.TickCount64;
+            int l = Math.Min(384, bgra.Width), h = Math.Max(1, (int)Math.Round(bgra.Height * (double)l / bgra.Width));
+            using var petite = new Mat();
+            Cv2.Resize(bgra, petite, new OpenCvSharp.Size(l, h), 0, 0, InterpolationFlags.Area);
+            var vignette = BitmapSource.Create(petite.Width, petite.Height, 96, 96, PixelFormats.Bgra32, null, petite.Data, (int)(petite.Step() * petite.Height), (int)petite.Step());
+            vignette.Freeze();
+            Volatile.Write(ref state.Vignette, vignette);
+        }
         var avant = Interlocked.Exchange(ref state.Prochaine, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
         avant.TrySetResult();
     }

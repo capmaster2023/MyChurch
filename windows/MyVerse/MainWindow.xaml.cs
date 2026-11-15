@@ -316,6 +316,9 @@ public partial class MainWindow : Window
             App.Donnees.SauverReglages();
         }
         catch (Exception e) { Journal.Erreur("fermeture", e); }
+        // 1.7.0 : les lecteurs des tuiles (caméras, fenêtres) s'arrêtent
+        foreach (var l in lecteursTuiles.Values) l.Dispose();
+        lecteursTuiles.Clear();
         // la projection ouverte se rouvrira au prochain démarrage
         fermetureApp = true;
         ecran?.Close();

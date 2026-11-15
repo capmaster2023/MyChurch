@@ -15,11 +15,12 @@ public static class Journal
     /// <summary>Événement : une ligne a été ajoutée (thread quelconque).</summary>
     public static event Action<string>? Ajoute;
 
-    public static void Ouvrir(string dossier)
+    /// <param name="nom">1.7.0 : l'agent « à distance » (autre processus) écrit dans son propre journal.</param>
+    public static void Ouvrir(string dossier, string nom = "journal-myverse.txt")
     {
         lock (Verrou)
         {
-            fichier = Path.Combine(dossier, "journal-myverse.txt");
+            fichier = Path.Combine(dossier, nom);
             try
             {
                 if (File.Exists(fichier))

@@ -16,6 +16,8 @@ public sealed class ReglagesPage : Grid
     readonly List<(string Id, RadioButton Bouton, FrameworkElement Section)> sections = new();
     readonly Audio.ReglagesSon son = new();
     readonly StackPanel ecrans = new() { Margin = new Thickness(0, 8, 0, 0) };
+    readonly StackPanel distance = new() { Margin = new Thickness(0, 8, 0, 0) };
+    int versionDistance;
     readonly Button clair, sombre;
     bool defilement;
 
@@ -42,6 +44,8 @@ public sealed class ReglagesPage : Grid
         var jumeler = new Button { Style = S("Btn"), Content = "Jumeler un téléphone (code QR)…", Height = 40, Padding = new Thickness(14, 0, 14, 0), FontSize = 14, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 0, 0) };
         jumeler.Click += (_, _) => { if (Principale is { } m) new TelephoneWindow { Owner = m }.ShowDialog(); };
         var telephone = Section("Téléphone", "La télécommande Android passe les diapositives et choisit les chants. Le PC et le téléphone doivent être sur le même réseau.", jumeler);
+        var aDistance = Section("À distance", "Contrôler MyChurch avec le téléphone de n'importe où, par Internet (passe par le relais MyChurch du VPS). "
+            + "Réglé une fois ici : ensuite, dès que ce PC est allumé, il est joignable, et le téléphone peut même démarrer ou fermer MyChurch.", distance);
 
         // l'ordre de la page : Licences (dernière section du son) passe tout en bas
         son.Children.Remove(son.Licences);
@@ -51,6 +55,7 @@ public sealed class ReglagesPage : Grid
         pile.Children.Add(son);
         Ajouter("projection", "Projection", projection);
         Ajouter("telephone", "Téléphone", telephone);
+        Ajouter("distance", "À distance", aDistance);
         Ajouter("maj", "Mise à jour", maj);
         Ajouter("transfert", "Transfert", transfert);
         Ajouter("journal", "Journal", journal);
@@ -67,7 +72,7 @@ public sealed class ReglagesPage : Grid
         sections[0].Bouton.IsChecked = true;
 
         Palette.Change += MajApparence;
-        IsVisibleChanged += (_, _) => { if (IsVisible) { MajEcrans(); MajApparence(); Outils.MajJournal(); } };
+        IsVisibleChanged += (_, _) => { if (IsVisible) { MajEcrans(); MajDistance(); MajApparence(); Outils.MajJournal(); } };
         MajApparence();
     }
 
@@ -222,6 +227,87 @@ public sealed class ReglagesPage : Grid
         ecrans.Children.Add(Ligne(fenetre, "Fenêtre", "une fenêtre redimensionnable", f));
         ecrans.Children.Add(Ligne(App.CameraVirtuelle != null, "MyVirtualCam", App.CameraVirtuelle != null ? "caméra virtuelle 720p30, toujours disponible" : "indisponible sur cet ordinateur", null));
     }
+
+    /// <summary>
+    /// 1.7.0 : la section « À distance » : activer (l'agent démarre avec Windows), l'adresse du relais, et l'état vu par le
+    /// relais lui-même (ce PC est-il joignable de l'extérieur ?).
+    /// </summary>
+    public async void MajDistance()
+    {
+        int v = ++versionDistance;
+        var dossier = App.Donnees.Dossier;
+        var r = ReglagesDistance.Lire(dossier);
+        distance.Children.Clear();
+        var bascule = new Button { Style = S(r.Actif ? "BtnPetit" : "Btn"), Content = r.Actif ? "Couper" : "Activer", Height = 34, Padding = new Thickness(14, 0, 14, 0) };
+        bascule.Click += (_, _) =>
+        {
+            var n = ReglagesDistance.Lire(dossier);
+            n.Actif = !n.Actif;
+            try { n.Ecrire(dossier); }
+            catch (Exception x) { Principale?.Toast("Réglage impossible à enregistrer : " + x.Message); return; }
+            Journal.Info(n.Actif ? $"à distance : activé (relais « {n.Relais} »)" : "à distance : coupé");
+            App.MajAgent();
+            Principale?.Toast(n.Actif ? "Contrôle à distance activé : ce PC sera joignable par Internet dès que Windows démarre." : "Contrôle à distance coupé.");
+            MajDistance();
+        };
+        var etat = Ligne(r.Actif, "Contrôle à distance", r.Actif ? "vérification auprès du relais…" : "coupé : le téléphone ne joint ce PC que sur le Wi-Fi de l'église", bascule);
+        distance.Children.Add(etat);
+
+        // l'adresse du relais (celle du VPS par défaut)
+        var adresse = new TextBox { Text = r.Relais, Height = 34, FontSize = 13.5, VerticalContentAlignment = VerticalAlignment.Center, MinWidth = 300, Margin = new Thickness(0, 0, 10, 0) };
+        var garder = new Button { Style = S("BtnPetit"), Content = "Enregistrer", Height = 34, Padding = new Thickness(12, 0, 12, 0) };
+        garder.Click += (_, _) =>
+        {
+            var n = ReglagesDistance.Lire(dossier);
+            n.Relais = ReglagesDistance.Nettoyer(adresse.Text);
+            try { n.Ecrire(dossier); }
+            catch (Exception x) { Principale?.Toast("Réglage impossible à enregistrer : " + x.Message); return; }
+            Journal.Info($"à distance : relais « {n.Relais} »");
+            Principale?.Toast($"Relais : {n.Relais}");
+            MajDistance();
+        };
+        var ligneAdresse = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
+        DockPanel.SetDock(garder, Dock.Right);
+        ligneAdresse.Children.Add(garder);
+        ligneAdresse.Children.Add(adresse);
+        var blocAdresse = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        blocAdresse.Children.Add(new TextBlock { Text = "Adresse du relais (le VPS MyChurch)", FontSize = 12.5, Foreground = P("Brume") });
+        blocAdresse.Children.Add(ligneAdresse);
+        distance.Children.Add(blocAdresse);
+
+        if (Natif.SessionAutomatique() != true)
+            distance.Children.Add(new TextBlock
+            {
+                Text = "Pour que tout reparte seul après un redémarrage, Windows doit ouvrir la session sans qu'on tape de mot de passe "
+                    + "(touche Windows + R › netplwiz › décocher « Les utilisateurs doivent entrer un nom d'utilisateur et un mot de passe »). "
+                    + "Sans mot de passe sur ce compte, rien à faire.",
+                Style = S("Muet"), FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0),
+            });
+        if (!r.Actif) return;
+
+        // ce que voit le relais : ce PC joignable ?
+        var joignable = await ReglagesDistance.PcJoignable(r.Relais, App.Telephone.PcId);
+        if (v != versionDistance) return;
+        var agent = App.AgentEnMarche();
+        string sous = joignable switch
+        {
+            true => $"actif · joignable de l'extérieur par « {ReglagesDistance.Nettoyer(r.Relais)} »",
+            false => agent ? "actif · l'agent se relie au relais… (quelques secondes)" : "actif · l'agent ne tourne pas : fermez puis rouvrez MyChurch",
+            null => $"actif · relais « {ReglagesDistance.Nettoyer(r.Relais)} » injoignable (VPS éteint, adresse fausse, ou pas d'Internet)",
+        };
+        int i = distance.Children.IndexOf(etat);
+        distance.Children.RemoveAt(i);
+        distance.Children.Insert(i, Ligne(joignable == true, "Contrôle à distance", sous, bascule));
+        if (joignable != true && IsVisible)
+        {
+            await Task.Delay(4000);
+            if (v == versionDistance && IsVisible) MajDistance();
+        }
+    }
+
+    /// <summary>Pour le test automatique : le texte de l'état « À distance ».</summary>
+    public string TestDistance => string.Join(" / ", distance.Children.OfType<Border>().Select(b => b.Child).OfType<DockPanel>()
+        .SelectMany(d => d.Children.OfType<StackPanel>()).SelectMany(sp => sp.Children.OfType<TextBlock>()).Select(t => t.Text));
 
     static Border Ligne(bool actif, string titre, string sous, Button? bouton)
     {

@@ -97,6 +97,12 @@ public partial class App : Application
             Shutdown(ok ? 0 : 2);
             return;
         }
+        // 1.7.0 : l'agent « à distance » (lancé à l'ouverture de session Windows), sans fenêtre
+        if (args.Contains("--agent"))
+        {
+            DemarrerAgent();
+            return;
+        }
         int i = Array.IndexOf(args, "--autotest");
         if (i >= 0) AutoTest = i + 1 < args.Length ? args[i + 1] : Path.Combine(Path.GetTempPath(), "myverse-autotest");
         if (AutoTest == null && !UneSeuleCopie(args.Contains("--redemarrage")))
@@ -171,6 +177,20 @@ public partial class App : Application
         var w = new MainWindow();
         MainWindow = w;
         w.Show();
+        // 1.7.0 : « Fermer MyChurch » depuis le téléphone (par Internet) ; jamais pendant un direct
+        Telephone.FermerDemande = () =>
+        {
+            if (Direct.EnDirect) return "Un direct YouTube est en cours : arrêtez-le d'abord.";
+            if (Audio.Recorder.AnyBusy) return "Un enregistrement est en cours : arrêtez-le d'abord.";
+            Journal.Info("à distance : fermeture de MyChurch demandée par un téléphone");
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                await Task.Delay(1000);
+                (MainWindow as MainWindow)?.Close();
+            });
+            return null;
+        };
+        MajAgent();
         // 1.5.1 : de quoi comprendre une lenteur chez l'utilisateur (Réglages › Journal) ; sans carte graphique, l'aperçu en grand se fait léger
         try
         {
@@ -185,6 +205,79 @@ public partial class App : Application
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => Audio.Start()));
         if (Donnees.Migration.Length > 0) w.Toast("Données de MyChurch 3 reprises : " + Donnees.Migration + ".");
         if (AutoTest != null) Ui.AutoTest.Lancer(w, AutoTest);
+    }
+
+    static Mutex? agentUnique;
+    static AgentDistance? agent;
+    const string NomAgent = @"Local\MyChurch-agent-distance";
+
+    /// <summary>
+    /// 1.7.0 : l'agent « à distance ». Il tourne sans fenêtre dès l'ouverture de session Windows, garde le lien avec le relais
+    /// MyChurch (VPS) et peut démarrer MyChurch quand un téléphone le demande de l'extérieur. Il s'arrête tout seul quand le
+    /// contrôle à distance est coupé dans les Réglages.
+    /// </summary>
+    void DemarrerAgent()
+    {
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        agentUnique = new Mutex(true, NomAgent, out bool premier);
+        if (!premier)
+        {
+            Shutdown(0);
+            return;
+        }
+        var dossier = Donnees.DossierParDefaut();
+        try { Directory.CreateDirectory(dossier); } catch (Exception) { }
+        Journal.Ouvrir(dossier, "journal-agent.txt");
+        Journal.Info($"— agent à distance de MyChurch {Version} —");
+        agent = new AgentDistance(dossier, DemarrerMyChurch);
+        _ = Task.Run(async () =>
+        {
+            try { await agent.Executer(); }
+            catch (Exception x) { Journal.Erreur("agent à distance", x); }
+            Journal.Sauver();
+            _ = Dispatcher.BeginInvoke(new Action(() => Shutdown(0)));
+        });
+    }
+
+    /// <summary>L'agent lance MyChurch (demandé par un téléphone, de l'extérieur).</summary>
+    static bool DemarrerMyChurch()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, WorkingDirectory = AppContext.BaseDirectory });
+            return true;
+        }
+        catch (Exception e) { Journal.Erreur("à distance : démarrage de MyChurch", e); return false; }
+    }
+
+    /// <summary>L'agent tourne-t-il en ce moment (sur cette session Windows) ?</summary>
+    public static bool AgentEnMarche()
+    {
+        try
+        {
+            using var m = Mutex.OpenExisting(NomAgent);
+            return true;
+        }
+        catch (WaitHandleCannotBeOpenedException) { return false; }
+        catch (UnauthorizedAccessException) { return true; }
+    }
+
+    /// <summary>
+    /// 1.7.0 : contrôle à distance actif : l'agent démarre avec Windows (clé « Run ») et tourne dès maintenant.
+    /// Coupé : plus au démarrage de Windows (l'agent en marche s'arrête tout seul en relisant les réglages).
+    /// </summary>
+    public static void MajAgent()
+    {
+        if (AutoTest != null) return;
+        var r = ReglagesDistance.Lire(Donnees.Dossier);
+        Natif.ChangerAgentAuDemarrage(r.Actif);
+        if (!r.Actif || AgentEnMarche()) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--agent") { UseShellExecute = false, WorkingDirectory = AppContext.BaseDirectory });
+            Journal.Info("à distance : agent démarré");
+        }
+        catch (Exception e) { Journal.Erreur("à distance : démarrage de l'agent", e); }
     }
 
     /// <summary>
@@ -228,6 +321,13 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (agent != null)
+        {
+            agent.Dispose();
+            Journal.Sauver();
+            base.OnExit(e);
+            return;
+        }
         Journal.Info("fermeture de MyVerse");
         try { Planificateur?.Dispose(); } catch (Exception x) { Journal.Erreur("fin des directs automatiques", x); }
         try { Direct?.Dispose(); } catch (Exception x) { Journal.Erreur("fin du direct", x); }
