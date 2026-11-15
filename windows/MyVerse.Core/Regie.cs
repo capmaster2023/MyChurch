@@ -578,7 +578,8 @@ public sealed partial class Regie
     }
 
     /// <summary>Enregistre un chant de l'éditeur (nouveau si id est null). Renvoie son identifiant.</summary>
-    public string EnregistrerChant(string? id, string titre, List<Section> sections, string? recueil = null)
+    /// <param name="sauverPlusTard">1.5.1 : l'éditeur enregistre à chaque pause de frappe : le fichier s'écrit à côté, sans bloquer.</param>
+    public string EnregistrerChant(string? id, string titre, List<Section> sections, string? recueil = null, bool sauverPlusTard = false)
     {
         var c = Trouver(id);
         if (c == null)
@@ -588,7 +589,7 @@ public sealed partial class Regie
         }
         c.Title = titre.Trim().Length > 0 ? titre.Trim() : "Sans titre";
         c.Sections = sections;
-        donnees.SauverChants();
+        if (sauverPlusTard) donnees.SauverChantsPlusTard(); else donnees.SauverChants();
         ChantsChange?.Invoke();
         if (Cible is CibleChant cc && cc.Id == c.Id)
         {

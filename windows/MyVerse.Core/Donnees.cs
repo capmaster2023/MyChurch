@@ -221,7 +221,36 @@ public sealed class Donnees
     public void SauverReglages() => Sauver(FReglages, Reglages, "réglages");
     public void SauverAgendas() => Sauver(FAgendas, Agendas, "agendas");
     public void SauverAnnonces() => Sauver(FAnnonces, Annonces, "annonces");
-    public void SauverChants() => Sauver(FChants, Chants, "chants");
+    public void SauverChants() { lock (verrouChants) Sauver(FChants, Chants, "chants"); }
+
+    // ------------------------------------------------------------ 1.5.1 : l'éditeur enregistre tout seul, à côté
+    readonly object verrouChants = new();
+    int chantsAEcrire;
+    /// <summary>
+    /// Enregistre les chants un instant plus tard, sans bloquer l'interface (l'éditeur enregistre à chaque pause de frappe) :
+    /// plusieurs demandes rapprochées ne font qu'une écriture. Le fichier reste toujours entier (écrit à côté, puis remplacé).
+    /// </summary>
+    public void SauverChantsPlusTard()
+    {
+        if (Interlocked.Exchange(ref chantsAEcrire, 1) == 1) return;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(300);
+            Interlocked.Exchange(ref chantsAEcrire, 0);
+            for (int essai = 0; essai < 4; essai++)
+            {
+                try
+                {
+                    lock (verrouChants) Ecrire(FChants, JsonSerializer.Serialize(Chants.ToList(), Json));
+                    return;
+                }
+                // la liste a changé pendant la copie : on recommence un peu plus tard
+                catch (InvalidOperationException) { await Task.Delay(120); }
+                catch (ArgumentException) { await Task.Delay(120); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Journal.Erreur("enregistrement des chants", e); return; }
+            }
+        });
+    }
     public void SauverDecoupes() => Sauver(FDecoupes, Decoupes, "versets découpés");
 
     // ------------------------------------------------------------ reprise des données de MyVerse 3.x

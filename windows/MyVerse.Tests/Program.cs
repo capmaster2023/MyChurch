@@ -1748,6 +1748,8 @@ if (Actif())
     Ok(w.Count > 0 && w[0].Titre == "45 - Ndashima", "« wokovu 45 » : le chant 45 du recueil Wokovu");
     Ok(!w.Any(x => x.Titre == "45 - Autre"), "« wokovu 45 » : pas le 45 d'un autre recueil");
     Ok(rg.Commande("wokovo 45").Any(x => x.Titre == "45 - Ndashima"), "faute dans le nom du recueil tolérée");
+    Ok(rg.Commande("45 wokovu").Any(x => x.Titre == "45 - Ndashima") && !rg.Commande("45 wokovu").Any(x => x.Titre == "45 - Autre"), "1.5.1 : « 45 wokovu » : le numéro d'abord, seulement ce recueil");
+    Ok(rg.Commande("45 wok").Any(x => x.Titre == "45 - Ndashima") && rg.Commande("45wok").Any(x => x.Titre == "45 - Ndashima"), "1.5.1 : « 45 wok » et « 45wok » (sans espace)");
     Ok(rg.Commande("je lava vers dieu").Any(x => x.Titre == "45 - Ndashima"), "« je lava vers dieu » trouve « je leva les yeux vers Dieu »");
     Ok(!rg.Commande("bonjour la maison").Any(x => x.Titre == "45 - Ndashima"), "des mots sans rapport ne trouvent pas le chant");
 }

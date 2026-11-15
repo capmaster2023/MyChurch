@@ -88,6 +88,8 @@
     <Geometry x:Key="IconePalette">M12,3 A9,9 0 1 0 12,21 C13.4,21 14,20.2 14,19.3 C14,18.1 13,17.7 13,16.6 C13,15.6 13.8,15 14.9,15 H17 A4,4 0 0 0 21,11 C21,6.6 17,3 12,3 Z M7.5,11 A1.2,1.2 0 1 0 7.49,11 Z M10.5,7 A1.2,1.2 0 1 0 10.49,7 Z M15.5,7.5 A1.2,1.2 0 1 0 15.49,7.5 Z</Geometry>
     <Geometry x:Key="IconeCoin">M4.5,4 H19.5 A2,2 0 0 1 21.5,6 V18 A2,2 0 0 1 19.5,20 H4.5 A2,2 0 0 1 2.5,18 V6 A2,2 0 0 1 4.5,4 Z M13,12 H18.5 V17 H13 Z</Geometry>
     <Geometry x:Key="IconeClavier">M4,6 H20 A2,2 0 0 1 22,8 V16 A2,2 0 0 1 20,18 H4 A2,2 0 0 1 2,16 V8 A2,2 0 0 1 4,6 Z M6,10 H6.1 M10,10 H10.1 M14,10 H14.1 M18,10 H18.1 M8,14 H16</Geometry>
+    <!-- 1.5.1 : retour en arrière (flèche qui revient) -->
+    <Geometry x:Key="IconeAnnuler">M9,14 L4,9 L9,4 M4,9 H14.5 A5.5,5.5 0 0 1 14.5,20 H11</Geometry>
     <Geometry x:Key="IconeSoleil">M12,8 A4,4 0 1 1 11.99,8 Z M12,2 V4 M12,20 V22 M4.9,4.9 L6.3,6.3 M17.7,17.7 L19.1,19.1 M2,12 H4 M20,12 H22 M4.9,19.1 L6.3,17.7 M17.7,6.3 L19.1,4.9</Geometry>
 
     <!-- ===================== polices (incluses dans MyChurch) : projection (Literata, Atkinson, Unbounded), interface (Manrope, design « Pupitre ») =====================
@@ -299,6 +301,24 @@
         </Setter>
     </Style>
     <!-- petit « + » devant un chant ou un verset : ajouter au déroulé -->
+    <!-- 1.5.1 : le « + » devant chaque verset, en plus léger qu'un bouton (un chapitre de 176 versets s'ouvre plus vite) -->
+    <Geometry x:Key="IconePlusPetit">M0,5 H10 M5,0 V10</Geometry>
+    <Style x:Key="PlusVerset" TargetType="Border">
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{StaticResource Nuit3}" />
+        <Setter Property="Background" Value="{StaticResource Encre}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ToolTip" Value="Ajouter au programme" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource OrLeger}" />
+                <Setter Property="BorderBrush" Value="{StaticResource OrVif}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
     <Style x:Key="BtnAjout" TargetType="Button">
         <Setter Property="Foreground" Value="{StaticResource Or}" />
         <Setter Property="Background" Value="{StaticResource Encre}" />
@@ -306,7 +326,7 @@
         <Setter Property="Width" Value="30" />
         <Setter Property="Height" Value="30" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="ToolTip" Value="Ajouter au déroulé" />
+        <Setter Property="ToolTip" Value="Ajouter au programme" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusOr}" />
         <Setter Property="Template">
             <Setter.Value>

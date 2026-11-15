@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace MyVerse.Ui;
@@ -7,43 +8,77 @@ namespace MyVerse.Ui;
 /// <summary>
 /// Éditeur de chant : un chant collé (même en désordre) est rangé tout seul en diapositives de 3 à 5 lignes ;
 /// Entrée devant une ligne = nouvelle diapositive ; aperçu des diapositives à droite.
+/// MyChurch 1.5.1 : tout s'enregistre tout seul (à chaque pause de frappe, et tout de suite après Ranger ou un collage) ;
+/// « Retour en arrière » (ou Ctrl+Z) défait la dernière modification, plusieurs fois de suite ; « Fermer » ferme.
 /// </summary>
 public partial class EditeurWindow : FenetreDialogue
 {
-    readonly string? id;
+    /// <summary>Le chant (null tant qu'un nouveau chant n'a rien d'enregistré).</summary>
+    string? id;
+    readonly bool nouveau;
     readonly string recueil;
     string brut = "";
     readonly DispatcherTimer minuterie = new() { Interval = TimeSpan.FromMilliseconds(120) };
+    /// <summary>Enregistrement automatique, un instant après la dernière touche.</summary>
+    readonly DispatcherTimer sauvegarde = new() { Interval = TimeSpan.FromMilliseconds(700) };
+    /// <summary>Les états enregistrés avant (titre, paroles) : « Retour en arrière » y revient, un par un.</summary>
+    readonly Stack<(string Titre, string Texte)> historique = new();
+    (string Titre, string Texte) enregistre;
+    bool restauration, aEnregistre;
 
-    /// <summary>Identifiant du chant enregistré (null si annulé).</summary>
+    /// <summary>Identifiant du chant enregistré (null si rien n'a été enregistré, ou un nouveau chant revenu à vide).</summary>
     public string? IdEnregistre { get; private set; }
 
     public EditeurWindow(Chant? c, int? focus = null, string? recueilNouveau = null)
     {
         InitializeComponent();
         id = c?.Id;
+        nouveau = c == null;
+        IdEnregistre = id;
         recueil = recueilNouveau ?? "";
         Titre.Text = c?.Title ?? "";
         Texte.Text = c != null ? ChantsFormats.VersTexte(c.Sections) : "";
+        enregistre = (Titre.Text, Texte.Text);
         int l = App.Donnees.Reglages.LignesDiapo;
         Lignes.SelectedItem = Lignes.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == l.ToString()) ?? Lignes.Items[0];
         Apercu_();
 
         DataObject.AddPastingHandler(Texte, Coller);
-        Texte.TextChanged += (_, _) => { minuterie.Stop(); minuterie.Start(); };
+        Texte.TextChanged += (_, _) => { minuterie.Stop(); minuterie.Start(); Modifie(); };
+        Titre.TextChanged += (_, _) => Modifie();
         minuterie.Tick += (_, _) => { minuterie.Stop(); Apercu_(); };
-        Ranger.Click += (_, _) => { if (brut.Length == 0) brut = MyVerse.Ranger.SansEntetes(Texte.Text); RangerTexte(brut); };
+        sauvegarde.Tick += (_, _) => SauverMaintenant();
+        Ranger.Click += (_, _) =>
+        {
+            SauverMaintenant();
+            if (brut.Length == 0) brut = MyVerse.Ranger.SansEntetes(Texte.Text);
+            RangerTexte(brut);
+            SauverMaintenant();
+        };
         Lignes.SelectionChanged += (_, _) =>
         {
             if (!IsLoaded) return;
             App.Donnees.Reglages.LignesDiapo = NbLignes;
             App.Donnees.SauverReglages();
+            SauverMaintenant();
             if (brut.Length == 0) brut = MyVerse.Ranger.SansEntetes(Texte.Text);
             if (brut.Trim().Length > 0) RangerTexte(brut);
+            SauverMaintenant();
         };
-        Brut.Click += (_, _) => { Texte.Text = brut; Apercu_(); };
+        Brut.Click += (_, _) => { SauverMaintenant(); Texte.Text = brut; Apercu_(); SauverMaintenant(); };
         Annuler.Click += (_, _) => Close();
-        Enregistrer.Click += (_, _) => Sauver();
+        Retour.Click += (_, _) => RetourArriere();
+        // Ctrl+Z : le même retour en arrière, par étapes (plutôt que lettre par lettre)
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Z && Keyboard.Modifiers == ModifierKeys.Control) { RetourArriere(); e.Handled = true; }
+        };
+        // en fermant : ce qui vient d'être tapé est enregistré, et le fichier est écrit tout de suite
+        Closing += (_, _) =>
+        {
+            SauverMaintenant();
+            if (aEnregistre) App.Donnees.SauverChants();
+        };
         Loaded += (_, _) =>
         {
             if (c != null && focus is int f)
@@ -72,7 +107,7 @@ public partial class EditeurWindow : FenetreDialogue
         {
             e.CancelCommand();
             brut = t.Replace("\r\n", "\n");
-            Dispatcher.BeginInvoke(new Action(() => RangerTexte(brut)));
+            Dispatcher.BeginInvoke(new Action(() => { SauverMaintenant(); RangerTexte(brut); SauverMaintenant(); }));
         }
     }
 
@@ -87,13 +122,6 @@ public partial class EditeurWindow : FenetreDialogue
         if (!silence && Owner is MainWindow m) m.Toast($"Chant rangé : {r.Sections.Count} diapositive{(r.Sections.Count > 1 ? "s" : "")}.");
     }
 
-    /// <summary>Pour le test automatique : comme un chant collé.</summary>
-    public void TestColler(string t)
-    {
-        brut = t.Replace("\r\n", "\n");
-        RangerTexte(brut, true);
-    }
-
     void Apercu_()
     {
         var secs = ChantsFormats.SplitSections(Texte.Text);
@@ -101,15 +129,89 @@ public partial class EditeurWindow : FenetreDialogue
         Dialogue.Miniatures(Apercu, secs.Select((s, i) => ($"{i + 1}. {(s.Label.Length > 0 ? s.Label : "Strophe")}", s.Text)));
     }
 
-    void Sauver()
+    // ------------------------------------------------------------ 1.5.1 : enregistrement automatique et retour en arrière
+    void Modifie()
     {
-        var sections = ChantsFormats.SplitSections(Texte.Text);
+        if (restauration) return;
+        sauvegarde.Stop();
+        sauvegarde.Start();
+        Etat("Modification en cours…", "Brume2");
+    }
+
+    /// <summary>Enregistre ce qui est à l'écran s'il a changé ; l'état d'avant part dans l'historique (une étape de « Retour en arrière »).</summary>
+    void SauverMaintenant()
+    {
+        sauvegarde.Stop();
+        var actuel = (Titre.Text, Texte.Text);
+        if (actuel == enregistre) { Etat("Tout est enregistré.", "Vert"); return; }
+        if (!Ecrire(actuel)) return;
+        historique.Push(enregistre);
+        enregistre = actuel;
+        Retour.IsEnabled = true;
+    }
+
+    /// <summary>Écrit un état dans le chant. Paroles vides : un nouveau chant disparaît, un chant existant reste comme il était.</summary>
+    bool Ecrire((string Titre, string Texte) e)
+    {
+        var sections = ChantsFormats.SplitSections(e.Texte);
         if (sections.Count == 0)
         {
-            Dialogue.Informer(this, "Le chant est vide.");
-            return;
+            if (nouveau && id != null)
+            {
+                App.Regie.SupprimerChant(id);
+                id = null;
+                IdEnregistre = null;
+                aEnregistre = true;
+                Etat("Chant vide : il n'est plus dans la liste.", "Brume");
+                return true;
+            }
+            if (nouveau) return true;
+            Etat("Paroles vides : le chant garde ses anciennes paroles.", "RougeTexte");
+            return false;
         }
-        IdEnregistre = App.Regie.EnregistrerChant(id, Titre.Text, sections, recueil);
-        DialogResult = true;
+        id = App.Regie.EnregistrerChant(id, e.Titre, sections, recueil, sauverPlusTard: true);
+        IdEnregistre = id;
+        aEnregistre = true;
+        Etat($"Enregistré tout seul à {DateTime.Now:HH:mm:ss}.", "Vert");
+        return true;
     }
+
+    /// <summary>Défait la dernière modification (ce qui vient d'être tapé compte comme une étape).</summary>
+    void RetourArriere()
+    {
+        SauverMaintenant();
+        if (historique.Count == 0) { Retour.IsEnabled = false; return; }
+        var avant = historique.Pop();
+        restauration = true;
+        try
+        {
+            Titre.Text = avant.Titre;
+            Texte.Text = avant.Texte;
+            Texte.CaretIndex = Texte.Text.Length;
+        }
+        finally { restauration = false; }
+        Ecrire(avant);
+        enregistre = avant;
+        Apercu_();
+        Retour.IsEnabled = historique.Count > 0;
+        Etat(historique.Count > 0 ? $"Retour en arrière fait (encore {historique.Count} possible{(historique.Count > 1 ? "s" : "")})." : "Retour en arrière fait : c'est le chant du début.", "Vert");
+    }
+
+    void Etat(string texte, string couleur)
+    {
+        EtatTexte.Text = texte;
+        EtatPoint.Fill = MainWindow.Pinceau(couleur);
+    }
+
+    // ------------------------------------------------------------ pour le test automatique
+    /// <summary>Comme un chant collé.</summary>
+    public void TestColler(string t)
+    {
+        brut = t.Replace("\r\n", "\n");
+        RangerTexte(brut, true);
+    }
+    /// <summary>Enregistre tout de suite (sans attendre la pause de frappe) et rend l'identifiant du chant.</summary>
+    public string? TestSauver() { SauverMaintenant(); return id; }
+    public void TestRetour() => RetourArriere();
+    public bool TestRetourPossible => Retour.IsEnabled;
 }

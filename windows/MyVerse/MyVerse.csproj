@@ -11,8 +11,8 @@
     <AssemblyName>MyChurch</AssemblyName>
     <ApplicationIcon>myverse.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.5.0</Version>
-    <FileVersion>1.5.0.0</FileVersion>
+    <Version>1.5.1</Version>
+    <FileVersion>1.5.1.0</FileVersion>
     <Product>MyChurch</Product>
     <AssemblyTitle>MyChurch</AssemblyTitle>
     <Company>MEPC Montréal</Company>

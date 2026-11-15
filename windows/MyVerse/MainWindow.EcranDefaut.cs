@@ -133,7 +133,7 @@ public partial class MainWindow
         }
         if (etat != null)
         {
-            var rendu = new Rendu { Transitions = false, Width = 1920, Height = 1080, IsHitTestVisible = false };
+            var rendu = new Rendu { Transitions = false, Leger = true, Width = 1920, Height = 1080, IsHitTestVisible = false };
             rendu.Afficher(etat);
             if (etat is { Mode: "media", Media: { Type: "image" } m }) rendu.ImageDisplay(ImageFichier(m.Chemin, 160));
             mini.Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = rendu });

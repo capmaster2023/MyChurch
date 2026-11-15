@@ -18,11 +18,7 @@ public partial class ImportWindow : FenetreDialogue
         {
             var rec = NomRecueil.Text.Trim();
             Close();
-            if (Owner is MainWindow m)
-            {
-                var e = new EditeurWindow(null, null, rec) { Owner = m };
-                if (e.ShowDialog() == true && e.IdEnregistre != null) m.OuvrirChant(e.IdEnregistre);
-            }
+            if (Owner is MainWindow m) m.Editer(null, null, rec);
         };
         TexteRecueil.Click += (_, _) => RecueilTexte();
         Fichiers.Click += (_, _) => FichiersChants();

@@ -488,8 +488,8 @@ public partial class MainWindow
         bool texte = Cmd.Text.Trim().Length > 0;
         CmdPopup.IsOpen = texte && Cmd.IsKeyboardFocusWithin;
         CmdAide.Text = texte && cmdRes.Count == 0
-            ? "Rien trouvé. Essayez « jean 3 16 », « chant 45 » ou des mots du chant."
-            : "Entrée : montrer. Tab ou + : ajouter au programme. ↑ ↓ : choisir. × : annuler.";
+            ? "Rien trouvé. Essaie « jean 3 16 », « wokovu 45 », « 45 wok » ou des paroles du chant."
+            : "Entrée ou clic : y aller. Maj+Entrée : montrer tout de suite. Tab ou + : ajouter au programme. ↑ ↓ : choisir. × : annuler.";
         for (int i = 0; i < cmdRes.Count; i++)
         {
             var r = cmdRes[i];
@@ -506,12 +506,13 @@ public partial class MainWindow
             g.Children.Add(txt);
             if (choisi)
             {
-                var k = new Border { Style = Style_("Touche"), Margin = new Thickness(10, 0, 0, 0), Background = Pinceau("Encre"), Child = new TextBlock { Text = "Entrée", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Pinceau("Or") } };
+                var k = new Border { Style = Style_("Touche"), Margin = new Thickness(10, 0, 0, 0), Background = Pinceau("Encre"), Child = new TextBlock { Text = r.Action != null ? "Entrée" : "Y aller", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Pinceau("Or") } };
                 Grid.SetColumn(k, 2);
                 g.Children.Add(k);
             }
             var ligne = new Button { Style = Style_("BtnPlat"), Content = g, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(10, 8, 10, 8), Background = choisi ? Pinceau("OrLeger") : Brushes.Transparent };
-            ligne.Click += (_, _) => ExecuterCommande(r, false);
+            ligne.ToolTip = r.Action != null ? null : "Clic : y aller (sans le montrer). Maj+clic : le montrer tout de suite.";
+            ligne.Click += (_, _) => ExecuterCommande(r, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? "montrer" : "aller");
             var rang = new Grid { Margin = new Thickness(0, 0, 0, 2) };
             rang.ColumnDefinitions.Add(new ColumnDefinition());
             rang.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -519,7 +520,7 @@ public partial class MainWindow
             if (r.Action == null)
             {
                 var plus = new Button { Style = Style_("BtnAjout"), Margin = new Thickness(6, 0, 4, 0), ToolTip = "Ajouter au programme (Tab)", VerticalAlignment = VerticalAlignment.Center };
-                plus.Click += (_, _) => ExecuterCommande(r, true);
+                plus.Click += (_, _) => ExecuterCommande(r, "ajouter");
                 Grid.SetColumn(plus, 1);
                 rang.Children.Add(plus);
             }
@@ -541,17 +542,22 @@ public partial class MainWindow
                 break;
             case Key.Enter:
                 if (minuterieCmd.IsEnabled) { minuterieCmd.Stop(); CommandeMaj(); }
-                if (cmdRes.Count > 0) ExecuterCommande(cmdRes[Math.Clamp(cmdIndex, 0, cmdRes.Count - 1)], false);
+                if (cmdRes.Count > 0) ExecuterCommande(cmdRes[Math.Clamp(cmdIndex, 0, cmdRes.Count - 1)], Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? "montrer" : "aller");
                 e.Handled = true;
                 break;
             case Key.Tab:
                 if (minuterieCmd.IsEnabled) { minuterieCmd.Stop(); CommandeMaj(); }
-                if (cmdRes.Count > 0 && cmdRes[Math.Clamp(cmdIndex, 0, cmdRes.Count - 1)] is { Action: null } r) { ExecuterCommande(r, true); e.Handled = true; }
+                if (cmdRes.Count > 0 && cmdRes[Math.Clamp(cmdIndex, 0, cmdRes.Count - 1)] is { Action: null } r) { ExecuterCommande(r, "ajouter"); e.Handled = true; }
                 break;
         }
     }
 
-    void ExecuterCommande(ResultatCommande r, bool ajouter)
+    /// <summary>
+    /// Un résultat de la recherche. 1.5.1 : « aller » (Entrée ou clic) emmène à sa place, sans rien montrer : le chant ouvert dans
+    /// Bibliothèque › Chants, le verset choisi dans Bibliothèque › Bible ; « montrer » (Maj+Entrée) l'affiche tout de suite ;
+    /// « ajouter » (Tab ou +) le met dans le programme.
+    /// </summary>
+    void ExecuterCommande(ResultatCommande r, string mode)
     {
         switch (r.Action)
         {
@@ -564,24 +570,63 @@ public partial class MainWindow
                 FinCommande();
                 return;
         }
-        if (ajouter)
+        if (mode == "ajouter")
         {
             var el = r.ChantId != null ? R.AjouterChantAgenda(r.ChantId) : r.Ref is Ref ra ? R.AjouterBibleAgenda(ra) : null;
             if (el != null) { Toast($"« {el.Titre} » ajouté au programme."); ChoisirElement(el); }
             Cmd.SelectAll();
             return;
         }
-        if (r.ChantId != null)
+        if (mode == "montrer")
         {
-            if (R.Trouver(r.ChantId) is { Sections.Count: > 0 } c) R.AfficherSection(c.Id, 0);
+            if (r.ChantId != null)
+            {
+                if (R.Trouver(r.ChantId) is { Sections.Count: > 0 } c) R.AfficherSection(c.Id, 0);
+            }
+            else if (r.Ref is Ref rf)
+            {
+                var s = rf.V1 > 0 ? rf : new Ref(rf.B, rf.C, 1, 1);
+                R.Selection = s;
+                R.AfficherVerset(s);
+            }
+            FinCommande();
+            return;
         }
-        else if (r.Ref is Ref rf)
-        {
-            var s = rf.V1 > 0 ? rf : new Ref(rf.B, rf.C, 1, 1);
-            R.Selection = s;
-            R.AfficherVerset(s);
-        }
+        // y aller
         FinCommande();
+        if (r.ChantId != null) AllerAuChant(r.ChantId);
+        else if (r.Ref is Ref rv) AllerAuVerset(rv);
+    }
+
+    /// <summary>1.5.1 : ouvre le chant dans Bibliothèque › Chants (son recueil choisi, le chant sélectionné dans la liste), sans le montrer.</summary>
+    public void AllerAuChant(string id)
+    {
+        if (R.Trouver(id) is not { } c) return;
+        MontrerOnglet("chants");
+        if (Qc.Text.Length > 0) { Qc.Clear(); minuterieQc.Stop(); }
+        if (NumChant.Text.Length > 0) { NumChant.Clear(); minuterieNum.Stop(); }
+        var rec = c.Author ?? "";
+        if (App.Donnees.Reglages.Recueil != rec)
+        {
+            App.Donnees.Reglages.Recueil = rec;
+            App.Donnees.SauverReglages();
+        }
+        ListeChantsMaj();
+        OuvrirChant(c.Id);
+        ListeChants.SelectedItem = c;
+        if (ListeChants.SelectedItem != null) ListeChants.ScrollIntoView(c);
+        Toast($"« {c.Title} » est ouvert. Clique une strophe, ou Entrée, pour la montrer.");
+    }
+
+    /// <summary>1.5.1 : ouvre le chapitre dans Bibliothèque › Bible, le verset choisi, sans le montrer.</summary>
+    public void AllerAuVerset(Ref r)
+    {
+        MontrerOnglet("bible");
+        if (Q.Text.Length > 0) { Q.Clear(); minuterieQ.Stop(); }
+        OuvrirChapitre(r.B, r.C, r.V1, r.V2);
+        Toast(r.V1 > 0
+            ? $"{Livres.Libelle(r.B, r.C, r.V1, r.V2)} est choisi. Entrée ou « Montrer la sélection » pour le montrer."
+            : $"{Livres.Libelle(r.B, r.C)} est ouvert. Clique un verset pour le choisir.");
     }
 
     void FinCommande()
@@ -680,6 +725,16 @@ public partial class MainWindow
     // ------------------------------------------------------------ pour le test automatique
     public void TestOngletAgenda() => MontrerOnglet("agenda");
     public void TestOngletAnnonces() => MontrerOnglet("annonces");
+    /// <summary>1.5.1 : Entrée sur le premier résultat de la recherche (y aller, sans montrer).</summary>
+    public void TestAllerCommande(string q)
+    {
+        var res = TestCommande(q);
+        if (res.Count > 0) ExecuterCommande(res[0], "aller");
+    }
+    public string TestPageOuverte => onglet;
+    public Ref? TestSelection => sel;
+    public string? TestChantOuvert => chantOuvert;
+
     public List<ResultatCommande> TestCommande(string q)
     {
         Cmd.Text = q; minuterieCmd.Stop(); ++generationCmd;
@@ -709,9 +764,10 @@ public partial class MainWindow
     /// <summary>Test : clic sur le « + » du premier verset affiché.</summary>
     public int TestPlusPremierVerset()
     {
-        if (Versets.Children.OfType<Border>().FirstOrDefault() is not { } ligne || Enfants<Button>(ligne).FirstOrDefault() is not { } bouton) return -2;
+        // 1.5.1 : le « + » d'un verset est un petit cadre (plus léger qu'un bouton) : on le « clique » comme la souris
+        if (Versets.Children.OfType<Border>().FirstOrDefault() is not { } ligne || ligne.Child is not Grid g || g.Children.OfType<Border>().FirstOrDefault() is not { } plus) return -2;
         int avant = R.Agenda.Elements.Count;
-        bouton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        plus.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
         return R.Agenda.Elements.Count - avant;
     }
 }

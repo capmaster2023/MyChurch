@@ -642,6 +642,20 @@ public static class AutoTest
             var cm = w.TestCommande("jean 3 16");
             Ok(cm.Count > 0 && cm[0].Titre == "Jean 3:16", "recherche du culte (Ctrl K) : " + string.Join(" | ", cm.Select(x => x.Titre)));
             w.TestCommande("");
+            // 1.5.1 : Entrée (ou un clic) sur un résultat emmène à sa place, sans rien montrer à l'écran
+            w.TestAllerCommande("jean 3 16");
+            await Attendre(300);
+            Ok(w.TestPageOuverte == "bible" && w.TestSelection is Ref selAller && selAller.B == 42 && selAller.C == 3 && selAller.V1 == 16 && R.Cible is not CibleVerset,
+                "1.5.1 : Entrée sur « jean 3 16 » : Bible › Jean 3, le verset 16 choisi, rien de montré à l'écran");
+            Capture(w, "63-v151-recherche-aller-verset.png");
+            if (c != null)
+            {
+                w.TestAllerCommande(c.Title);
+                await Attendre(300);
+                Ok(w.TestPageOuverte == "chants" && w.TestChantOuvert == c.Id && R.Cible is not CibleChant, "1.5.1 : Entrée sur un chant : Bibliothèque › Chants, le chant ouvert, rien de montré à l'écran");
+            }
+            w.TestPage("agenda");
+            await Attendre(300);
             for (int i = 0; i < 15 && R.ElementCourant?.Type != "bible"; i++) R.Bouger(1);
             Ok(R.ElementCourant?.Type == "bible" && R.Etat.Ref.StartsWith("Jean 3:16"), "déroulé : Suivant passe à la lecture · " + R.Etat.Ref);
             App.Bibles.BasculerSeconde("kjv");
@@ -1190,8 +1204,23 @@ public static class AutoTest
             // 1.0 : Échap dans une recherche, anti-veille, projecteur débranché puis rebranché, réouverture au démarrage
             await TestEchapEtProjecteur(w);
 
+            // 1.5.1 : l'éditeur enregistre tout seul ; « Retour en arrière » défait, étape par étape
+            string? idEditeur = null;
             await Fenetre(w, () => new EditeurWindow(null), "12-editeur.png", d =>
-                ((EditeurWindow)d).TestColler("Mon chant collé\n\nC G Am F\nLigne une du chant\nLigne deux du chant\nLigne trois du chant\nLigne quatre du chant\nLigne cinq du chant\nLigne six du chant\nLigne sept\n\nRefrain :\nGloire à toi\nGloire à toi"));
+            {
+                var ed = (EditeurWindow)d;
+                const string colle = "Mon chant collé\n\nC G Am F\nLigne une du chant\nLigne deux du chant\nLigne trois du chant\nLigne quatre du chant\nLigne cinq du chant\nLigne six du chant\nLigne sept\n\nRefrain :\nGloire à toi\nGloire à toi";
+                ed.TestColler(colle);
+                var idAuto = ed.TestSauver();
+                Ok(idAuto != null && R.Trouver(idAuto) is { Sections.Count: > 0 }, "1.5.1 : éditeur : le chant collé s'enregistre tout seul, sans bouton Enregistrer");
+                Ok(ed.TestRetourPossible, "1.5.1 : « Retour en arrière » est prêt");
+                ed.TestRetour();
+                Ok(idAuto != null && R.Trouver(idAuto) == null && !ed.TestRetourPossible, "1.5.1 : Retour en arrière : le nouveau chant revient à vide (il n'est plus dans la liste)");
+                ed.TestColler(colle);
+                idEditeur = ed.TestSauver();
+            });
+            Ok(idEditeur != null && R.Trouver(idEditeur) != null, "1.5.1 : fermer l'éditeur garde le chant enregistré");
+            if (idEditeur != null) R.SupprimerChant(idEditeur);
             await Fenetre(w, () => new DecoupeWindow(new CibleVerset(42, 3, 16, 16)), "13-decoupe.png");
             await Fenetre(w, () => new ImportWindow(), "14-import.png");
             await Fenetre(w, () => new BiblesWindow(), "15-bibles.png");

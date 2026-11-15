@@ -485,6 +485,16 @@ public sealed partial class Regie
                         res.Add(new ResultatCommande("CHANT", c.Title, rec, ChantId: c.Id));
         }
 
+        // 1.5.1 : « 48 wok », « 48wok » : le numéro d'abord, puis le nom (ou un morceau du nom) du recueil
+        var mr2 = Regex.Match(n, @"^(\d{1,5})\s*([^\d]+)$");
+        if (num == null && mr2.Success && mr2.Groups[2].Value.Trim().Length >= 2)
+        {
+            foreach (var rec in RecueilsProches(mr2.Groups[2].Value.Trim()))
+                foreach (var c in ParNumero(mr2.Groups[1].Value, rec))
+                    if (vus.Add(c.Id) && res.Count < 9)
+                        res.Add(new ResultatCommande("CHANT", c.Title, rec, ChantId: c.Id));
+        }
+
         // titre ou paroles d'un chant
         if (n.Length >= 3)
             foreach (var c in Filtrer(q, null).Take(8))

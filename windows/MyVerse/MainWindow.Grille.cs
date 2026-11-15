@@ -130,11 +130,11 @@ public partial class MainWindow
             // le dossier Duo tel qu'il sort sur l'écran principal : ses deux éléments, chacun à sa place et à sa taille
             if (R.EtatAnnonce(a) is { } etat)
             {
-                var rendu = new Rendu { Transitions = false, Width = 1920, Height = 1080, IsHitTestVisible = false };
+                var rendu = new Rendu { Transitions = false, Leger = true, Width = 1920, Height = 1080, IsHitTestVisible = false };
                 rendu.Afficher(etat);
                 if (etat is { Mode: "media", Media: { Type: "image" } m1 }) rendu.ImageDisplay(ImageFichier(m1.Chemin, 640));
                 if (etat.Duo?.Etat is { Mode: "media", Media: { Type: "image" } m2 }) rendu.ImageDuo(ImageFichier(m2.Chemin, 640));
-                vue.Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = rendu });
+                vue.Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = rendu, CacheMode = CacheApercu() });
                 vue.Tag = "duo-rendu";
             }
             else vue.Children.Add(new TextBlock

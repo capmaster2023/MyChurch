@@ -234,7 +234,7 @@
                         <Border Background="{StaticResource Encre}" BorderBrush="{StaticResource Trait2}" BorderThickness="1" CornerRadius="16" Padding="6" Margin="0,8,0,14">
                             <StackPanel>
                                 <StackPanel x:Name="CmdResultats" />
-                                <TextBlock x:Name="CmdAide" Margin="10,6,10,4" FontSize="12" Foreground="{StaticResource Brume}" Text="Entrée : montrer. Tab ou + : ajouter au programme. ↑ ↓ : choisir. × : annuler." TextWrapping="Wrap" />
+                                <TextBlock x:Name="CmdAide" Margin="10,6,10,4" FontSize="12" Foreground="{StaticResource Brume}" Text="Entrée ou clic : y aller. Maj+Entrée : montrer tout de suite. Tab ou + : ajouter au programme. ↑ ↓ : choisir. × : annuler." TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                     </Popup>
@@ -591,7 +591,7 @@
                     <Border x:Name="SuivantApercu" BorderBrush="{StaticResource Ensuite}" BorderThickness="2.5" CornerRadius="14" Background="{StaticResource Damier}" ToolTip="La diapositive qui vient avec Suivant">
                         <Border CornerRadius="12" ClipToBounds="True">
                             <Viewbox Stretch="Uniform">
-                                <local:Rendu x:Name="SuivantRendu" Width="1920" Height="1080" Transitions="False" IsHitTestVisible="False" />
+                                <local:Rendu x:Name="SuivantRendu" Width="1920" Height="1080" Transitions="False" Leger="True" IsHitTestVisible="False" />
                             </Viewbox>
                         </Border>
                     </Border>
@@ -704,7 +704,7 @@
                         <Border x:Name="Apercu" Width="128" Height="72" BorderBrush="{StaticResource Nuit3}" BorderThickness="2" CornerRadius="10" Background="{StaticResource Damier}"
                                 ToolTip="Ce qui est à l'écran. Double-clic : découper cette diapositive" Cursor="Hand">
                             <Viewbox Stretch="Uniform">
-                                <local:Rendu x:Name="ApercuRendu" Width="1920" Height="1080" Transitions="False" />
+                                <local:Rendu x:Name="ApercuRendu" Width="1920" Height="1080" Transitions="False" Leger="True" />
                             </Viewbox>
                         </Border>
                         <Border x:Name="Pastille" Visibility="Collapsed">

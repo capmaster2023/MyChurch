@@ -43,7 +43,7 @@ public partial class MainWindow
     {
         minuterieVignettes.Tick += (_, _) => { minuterieVignettes.Stop(); VignettesMaj(); };
         DefilVignettes.SizeChanged += (_, _) => LargeurVignettes();
-        R.ChantsChange += () => { ListeAgendaMaj(); VignettesPlusTard(); };
+        R.ChantsChange += () => { if (editionChant) { chantsEnAttente = true; return; } ListeAgendaMaj(); VignettesPlusTard(); };
         R.DuosChange += VignettesPlusTard;
         VB.Change += VignettesPlusTard;
     }
@@ -126,6 +126,17 @@ public partial class MainWindow
         return pile;
     }
 
+    /// <summary>
+    /// 1.5.1 : une vignette est dessinée une fois puis gardée en image (le cadre rouge ou or qui change autour ne la redessine pas,
+    /// ni le défilement, ni le retour sur la page Culte).
+    /// </summary>
+    BitmapCache CacheApercu()
+    {
+        double echelle = 1;
+        try { echelle = Math.Max(1, VisualTreeHelper.GetDpi(this).DpiScaleX); } catch (Exception) { }
+        return new BitmapCache(echelle) { EnableClearType = false, SnapsToDevicePixels = true };
+    }
+
     /// <summary>Une vignette : la diapositive dessinée comme à l'écran, son numéro et son nom dessous (trait de la couleur du type).</summary>
     Border CreerVignette(ElementAgenda e, DiapoAgenda d, int i)
     {
@@ -135,11 +146,11 @@ public partial class MainWindow
         catch (Exception x) { Journal.Erreur("vignette du programme", x); }
         if (etat != null)
         {
-            var rendu = new Rendu { Transitions = false, Width = 1920, Height = 1080, IsHitTestVisible = false };
+            var rendu = new Rendu { Transitions = false, Leger = true, Width = 1920, Height = 1080, IsHitTestVisible = false };
             rendu.Afficher(etat);
             if (etat is { Mode: "media", Media: { Type: "image" } m1 }) rendu.ImageDisplay(ImageFichier(m1.Chemin, 480));
             if (etat.Duo?.Etat is { Mode: "media", Media: { Type: "image" } m2 }) rendu.ImageDuo(ImageFichier(m2.Chemin, 480));
-            ecran.Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = rendu });
+            ecran.Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = rendu, CacheMode = CacheApercu() });
             if (etat.Theme == "transparent") ecran.Background = Pinceau("Damier");
             if (etat is { Mode: "media", Media.Type: "camera" or "mycam" or "fenetre" or "video" } && etat.Media is { } mv)
                 ecran.Children.Add(new TextBlock

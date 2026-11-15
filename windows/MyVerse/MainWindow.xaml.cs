@@ -150,11 +150,7 @@ public partial class MainWindow : Window
         };
         ListeChants.SelectionChanged += (_, _) => { if (ListeChants.SelectedItem is Chant c && c.Id != chantOuvert) OuvrirChant(c.Id); };
         Importer.Click += (_, _) => new ImportWindow { Owner = this }.ShowDialog();
-        Nouveau.Click += (_, _) =>
-        {
-            var e = new EditeurWindow(null, null, (Recueil.SelectedItem as ComboBoxItem)?.Tag as string) { Owner = this };
-            if (e.ShowDialog() == true && e.IdEnregistre != null) { ListeChantsMaj(); OuvrirChant(e.IdEnregistre); }
-        };
+        Nouveau.Click += (_, _) => Editer(null, null, (Recueil.SelectedItem as ComboBoxItem)?.Tag as string);
         SupprimerRecueil.Click += (_, _) =>
         {
             if (Recueil.SelectedItem is not ComboBoxItem i) return;
@@ -207,7 +203,13 @@ public partial class MainWindow : Window
         R.EstNoir = () => noir && ReferenceEquals(R.Etat, etatNoir);
         R.BasculerNoir = BasculerNoir;
         R.Change += MajEcran;
-        R.ChantsChange += () => { ListeChantsMaj(); if (chantOuvert != null) OuvrirChant(chantOuvert); };
+        R.ChantsChange += () =>
+        {
+            // 1.5.1 : pendant l'éditeur (il enregistre à chaque pause de frappe), la liste et les vignettes attendent sa fermeture
+            if (editionChant) { chantsEnAttente = true; return; }
+            ListeChantsMaj();
+            if (chantOuvert != null) OuvrirChant(chantOuvert);
+        };
         R.Message += Toast;
         VB.Change += () => { RemplirBibles(); if (vue is { } v) OuvrirChapitre(v.B, v.C, sel?.V1 ?? 0, sel?.V2 ?? 0, false); };
         App.Telephone.Change += () => Dispatcher.BeginInvoke(new Action(MajTelephone));
@@ -680,8 +682,17 @@ public partial class MainWindow : Window
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
         g.ColumnDefinitions.Add(new ColumnDefinition());
         // « + » devant le verset : l'ajouter à l'agenda (tout le passage s'il fait partie des versets choisis)
-        var plus = new Button { Style = Style_("BtnAjout"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
-        plus.Click += (_, ev) => { ev.Handled = true; AjouterVersetAgenda(b, c, v); };
+        var plus = new Border
+        {
+            Style = Style_("PlusVerset"), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+            Child = new System.Windows.Shapes.Path
+            {
+                Data = (Geometry)FindResource("IconePlusPetit"), Stroke = Pinceau("Or"), StrokeThickness = 1.9, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        plus.MouseLeftButtonDown += (_, ev) => ev.Handled = true;
+        plus.MouseLeftButtonUp += (_, ev) => { ev.Handled = true; AjouterVersetAgenda(b, c, v); };
         g.Children.Add(plus);
         var num = new TextBlock { Text = v.ToString(), FontSize = 12, FontWeight = FontWeights.Bold, Foreground = Pinceau("Brume2"), TextAlignment = TextAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
         Grid.SetColumn(num, 1);
@@ -902,14 +913,27 @@ public partial class MainWindow : Window
         foreach (var c in Sections.Children.OfType<FrameworkElement>()) c.Width = l;
     }
 
-    public void Editer(Chant? c, int? focus = null)
+    bool editionChant, chantsEnAttente;
+
+    /// <summary>
+    /// L'éditeur de chant (1.5.1 : il enregistre tout seul). Pendant qu'il est ouvert, la liste des chants, le programme et les vignettes
+    /// ne se refont pas à chaque touche : une seule fois, à la fermeture.
+    /// </summary>
+    public void Editer(Chant? c, int? focus = null, string? recueilNouveau = null)
     {
-        var e = new EditeurWindow(c, focus) { Owner = this };
-        if (e.ShowDialog() == true && e.IdEnregistre != null)
+        var e = new EditeurWindow(c, focus, recueilNouveau) { Owner = this };
+        editionChant = true;
+        try { e.ShowDialog(); }
+        finally { editionChant = false; }
+        if (chantsEnAttente)
         {
+            chantsEnAttente = false;
+            ListeAgendaMaj();
+            VignettesPlusTard();
             ListeChantsMaj();
-            OuvrirChant(e.IdEnregistre);
         }
+        if (e.IdEnregistre != null) OuvrirChant(e.IdEnregistre);
+        else if (chantOuvert != null) OuvrirChant(R.Trouver(chantOuvert) != null ? chantOuvert : null);
     }
 
     // ------------------------------------------------------------ afficher, découper

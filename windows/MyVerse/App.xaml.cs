@@ -153,6 +153,15 @@ public partial class App : Application
         var w = new MainWindow();
         MainWindow = w;
         w.Show();
+        // 1.5.1 : de quoi comprendre une lenteur chez l'utilisateur (Réglages › Journal) ; sans carte graphique, l'aperçu en grand se fait léger
+        try
+        {
+            int niveau = System.Windows.Media.RenderCapability.Tier >> 16;
+            Journal.Info($"affichage : {(niveau >= 2 ? "carte graphique" : niveau == 1 ? "carte graphique en partie" : "sans carte graphique (le processeur dessine tout, plus lent)")}, "
+                + $"{Donnees.Chants.Count} chants, {Donnees.Chants.Select(c => c.Author ?? "").Distinct().Count()} recueils");
+            if (niveau < 2) w.ModeLeger();
+        }
+        catch (Exception x) { Journal.Erreur("diagnostic de l'affichage", x); }
         // le moteur audio d'OBS démarre une fois la fenêtre affichée (quelques dixièmes de seconde) ;
         // sans le dossier « obs », MyChurch fonctionne normalement et le panneau Audio l'indique
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => Audio.Start()));

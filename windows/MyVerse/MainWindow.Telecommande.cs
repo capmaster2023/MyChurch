@@ -133,6 +133,13 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>1.5.1 : sans carte graphique (dessin par le processeur), le grand aperçu du culte perd aussi l'ombre floue du texte.</summary>
+    public void ModeLeger()
+    {
+        CulteRendu.Leger = true;
+        Journal.Info("affichage léger : le grand aperçu du culte sans ombre floue (plus rapide sans carte graphique)");
+    }
+
     // ------------------------------------------------------------ pour le test automatique
     public string TestTelecommande => BarreTitre.Text + " / " + BarreSous.Text;
     /// <summary>Ouvre (ou referme) une ligne d'outil : « style », « taille », « coin », « repos », « aide ».</summary>

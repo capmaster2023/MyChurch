@@ -121,6 +121,23 @@ public sealed class Rendu : Grid
         else { epingle?.ImagesVivantes(liste, true); gauche?.ImagesVivantes(liste, duo); }
     }
 
+    bool leger;
+    /// <summary>
+    /// 1.5.1 : un petit aperçu (vignettes, Ensuite, la télécommande, les miniatures) : sans l'ombre floue sous le texte ni le fond flou
+    /// des caméras. À cette taille on ne les voit presque pas, et ce sont eux qui coûtent le plus à dessiner.
+    /// </summary>
+    public bool Leger
+    {
+        get => leger;
+        set
+        {
+            leger = value;
+            if (value) { pile.Effect = null; mediaFlou.Effect = null; FondFlou = false; }
+            if (gauche != null) gauche.Leger = value;
+            if (epingle != null) epingle.Leger = value;
+        }
+    }
+
     bool sansEffets;
     /// <summary>
     /// Dessin pour l'enregistrement (MyChurch 1.2) : le fond flou est rendu sans son effet (l'enregistrement le floute lui-même à chaque image),
@@ -132,7 +149,7 @@ public sealed class Rendu : Grid
         set
         {
             sansEffets = value;
-            mediaFlou.Effect = value ? null : flou;
+            mediaFlou.Effect = value || leger ? null : flou;
             if (gauche != null) gauche.SansEffets = value;
             if (epingle != null) epingle.SansEffets = value;
         }
@@ -165,7 +182,7 @@ public sealed class Rendu : Grid
     {
         if (r == null)
         {
-            r = new Rendu { Transitions = Transitions, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, SansEffets = sansEffets };
+            r = new Rendu { Transitions = Transitions, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, SansEffets = sansEffets, Leger = leger };
             Children.Add(r);
         }
         r.Transitions = Transitions;
@@ -306,7 +323,7 @@ public sealed class Rendu : Grid
             var encre = e.Theme == "ciel" ? EncreCiel : e.Theme == "lin" ? EncreLin : Blanc;
             texte.Foreground = texte2.Foreground = encre;
             refT.Foreground = e.Theme == "ciel" ? RefCiel : e.Theme == "lin" ? RefLin : Or2;
-            pile.Effect = Clair(e.Theme) ? null : ombre;
+            pile.Effect = Clair(e.Theme) || leger ? null : ombre;
             Placer();
         }
         media.Visibility = e.Mode == "media" ? Visibility.Visible : Visibility.Collapsed;
