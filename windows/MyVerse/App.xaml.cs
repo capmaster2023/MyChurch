@@ -47,6 +47,12 @@ public partial class App : Application
     /// </summary>
     public static SourcesDisplay SourcesDefaut { get; private set; } = null!;
     public static MyVirtualCam? CameraVirtuelle { get; private set; }
+    /// <summary>MyStream (1.6.0) : l'image de Zoom et du direct YouTube, composée sur son propre fil.</summary>
+    public static MyStreamMoteur? MyStream { get; private set; }
+    /// <summary>Capture de la source principale de MyStream (sa caméra, son MyCam…), quand l'église ne la montre pas déjà.</summary>
+    public static SourcesDisplay SourcesStream { get; private set; } = null!;
+    /// <summary>Le direct (YouTube ou un autre service).</summary>
+    public static Audio.DirectService Direct { get; private set; } = null!;
     public static Audio.ChurchAudioService Audio { get; private set; } = null!;
     public static Telephone Telephone { get; private set; } = null!;
     /// <summary>Dossier du test automatique (« MyChurch.exe --autotest dossier »), sinon null.</summary>
@@ -147,9 +153,17 @@ public partial class App : Application
         Sources = new SourcesDisplay();
         SourcesDuo = new SourcesDisplay("display-duo.jpg");
         SourcesDefaut = new SourcesDisplay("");
+        SourcesStream = new SourcesDisplay("");
         if (AutoTest == null || Environment.GetEnvironmentVariable("MYCHURCH_TEST_CAM") == "1")
             try { CameraVirtuelle = new MyVirtualCam(); } catch (Exception ex) { Journal.Erreur("MyVirtualCam démarrage", ex); }
+        try
+        {
+            var (l, h, _) = Donnees.Reglages.Direct.Taille;
+            MyStream = new MyStreamMoteur(CameraVirtuelle, l, h);
+        }
+        catch (Exception ex) { Journal.Erreur("MyStream démarrage", ex); }
         Audio = new Audio.ChurchAudioService(Donnees.Reglages.Audio);
+        Direct = new Audio.DirectService(Audio, Donnees);
         var w = new MainWindow();
         MainWindow = w;
         w.Show();
@@ -211,10 +225,13 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         Journal.Info("fermeture de MyVerse");
+        try { Direct?.Dispose(); } catch (Exception x) { Journal.Erreur("fin du direct", x); }
         Audio?.Dispose();
         Sources?.Dispose();
         SourcesDuo?.Dispose();
         SourcesDefaut?.Dispose();
+        SourcesStream?.Dispose();
+        MyStream?.Dispose();
         CameraVirtuelle?.Dispose();
         try { Telephone?.Dispose(); } catch (Exception) { }
         Journal.Sauver();

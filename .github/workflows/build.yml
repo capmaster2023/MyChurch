@@ -158,6 +158,10 @@ jobs:
           }
 
       - name: Compilation de MyChurch.exe
+        env:
+          # 1.6.0 : « Connecter le compte YouTube » (identifiant Google de l'église, facultatif)
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
         run: |
           dotnet publish windows/MyVerse/MyVerse.csproj -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -p:Version=${{ steps.v.outputs.version }} -o out/MyChurch -v:m 2>&1 | Tee-Object -FilePath ci/windows-build.log
           if ($LASTEXITCODE -ne 0) { exit 1 }

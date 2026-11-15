@@ -45,6 +45,9 @@ public sealed class Palette : INotifyPropertyChanged
         // ce qui vient avec Suivant (1.5.0) : or, à côté du rouge du direct
         ["Ensuite"] = ("#D9981E", "#F2B33D"),
         ["SurEnsuite"] = ("#241804", "#231804"),
+        // MyStream (1.6.0) : l'écran envoyé sur Internet (Zoom, YouTube)
+        ["Stream"] = ("#4F46E5", "#9EA3FF"),
+        ["StreamLeger"] = ("#EEF0FF", "#1D1F3A"),
         // en direct, sourdine, erreurs
         ["Rouge"] = ("#E0312B", "#FF4D40"),
         ["Direct"] = ("#E0312B", "#FF4D40"),
@@ -139,6 +142,8 @@ public sealed class Palette : INotifyPropertyChanged
     public Color SurOr => C(nameof(SurOr));
     public Color OrDegrade => C(nameof(OrDegrade));
     public Color OrDegradeClair => C(nameof(OrDegradeClair));
+    public Color Stream => C(nameof(Stream));
+    public Color StreamLeger => C(nameof(StreamLeger));
     public Color Rouge => C(nameof(Rouge));
     public Color Direct => C(nameof(Direct));
     public Color RougeLeger => C(nameof(RougeLeger));

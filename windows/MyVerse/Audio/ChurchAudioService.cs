@@ -127,7 +127,7 @@ public sealed class ChurchAudioService : IDisposable
     {
         Config.Normalize();
         sauvegarde.Stop(); sauvegarde.Start();
-        try { Plan = Config.Planifier(videoProjetee, Recorder.Reserves.ToHashSet()); }
+        try { Plan = Config.Planifier(videoProjetee, Recorder.Reserves.Concat(DestinationsActives).ToHashSet()); }
         catch (Exception e) { Journal.Erreur("plan du son", e); }
         try { mixer.Apply(Plan.Moteur, Config.Eglise.Appareil, Config.Eglise.NomAppareil); }
         catch (Exception e) { Diagnostic = "Moteur du son : " + e.Message; Journal.Erreur("réglages du son (OBS)", e); }
@@ -142,6 +142,9 @@ public sealed class ChurchAudioService : IDisposable
         foreach (var id in suivis.Keys.Where(id => Config.Sons.All(s => s.Id != id)).ToList()) suivis.Remove(id);
         Changed?.Invoke();
     }
+
+    /// <summary>1.6.0 : les autres destinations qui tournent (le direct) : prioritaires pour leur piste, comme un enregistrement en cours.</summary>
+    public HashSet<string> DestinationsActives { get; } = new();
 
     /// <summary>La piste d'OBS d'une destination (enregistrement, envoi, casque), d'après le dernier plan.</summary>
     public int PisteDe(string destination) => Plan.PisteDe(destination);

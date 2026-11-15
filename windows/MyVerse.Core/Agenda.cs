@@ -49,12 +49,12 @@ public sealed record SourceDisplay
     [JsonIgnore] public bool EgliseSeulement => Diffusion == Eglise;
     [JsonIgnore] public bool StreamingSeulement => Diffusion == Streaming;
 
-    /// <summary>« Dans l'église seulement », « En streaming seulement » ou « Église et streaming ».</summary>
+    /// <summary>« Dans l'église seulement », « MyStream seulement » (Zoom, YouTube, OBS) ou « Église et MyStream ».</summary>
     public static string NomDiffusion(string? diffusion) => diffusion switch
     {
         Eglise => "Dans l'église seulement",
-        Streaming => "En streaming seulement",
-        _ => "Église et streaming",
+        Streaming => "MyStream seulement",
+        _ => "Église et MyStream",
     };
 }
 

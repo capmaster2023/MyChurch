@@ -113,8 +113,10 @@ public partial class MainWindow
         ApercuRendu.ImageDuo(b);
         CulteRendu.ImageDuo(b);
         ecran?.Rendu.ImageDuo(b);
-        // 1.3.1 : un contenu épinglé « Dans l'église » ne part pas vers MyVirtualCam
-        App.CameraVirtuelle?.MediaDuo(cameraDuo ? b : null);
+        EgliseRendu.ImageDuo(b);
+        // 1.3.1 : un contenu épinglé « Dans l'église » ne part pas vers MyStream (Zoom, YouTube)
+        StreamRendu.ImageDuo(streamDuo ? b : null);
+        App.MyStream?.MediaDuo(streamDuo ? b : null);
     }
 
     // ------------------------------------------------------------ pour le test automatique

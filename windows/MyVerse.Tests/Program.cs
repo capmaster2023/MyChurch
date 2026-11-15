@@ -967,7 +967,7 @@ if (Actif())
     Ok(relu.Annonces.First(a => a.Id == zoom.Id).Source == zoom.Source, "fenêtre : programme, classe, titre, zone client et diffusion conservés");
     Ok(relu.Annonces.First(a => a.Id == partout.Id).Source is { Diffusion: null, ZoneClient: false }, "les deux : réglage d'avant la 1.3.1");
     Egal(zoom.Description, "Capture de fenêtre · Dans l'église seulement", "description d'une fenêtre dans l'église");
-    Egal(SourceDisplay.NomDiffusion(null), "Église et streaming", "les deux, en mots");
+    Egal(SourceDisplay.NomDiffusion(null), "Église et MyStream", "les deux, en mots");
     var ancienne = System.Text.Json.JsonSerializer.Deserialize<SourceDisplay>("{\"type\":\"fenetre\",\"fenetre\":5,\"processus\":6}")!;
     Ok(ancienne is { Diffusion: null, ZoneClient: false, Exe: null } && !ancienne.EgliseSeulement && !ancienne.StreamingSeulement,
         "source d'avant la 1.3.1 : les deux, fenêtre entière");
@@ -1120,6 +1120,14 @@ if (Actif())
     rg.StreamPrincipale();
     Ok(rg.EtatStream(rg.Etat).Duo == null, "touche M : la source principale seule, sans le coin");
     rg.Desepingler();
+
+    // une fenêtre « Dans l'église » (Zoom projeté) : MyStream montre sa source principale, pas l'écran de repos de l'église
+    var zoomEglise = rg.NouveauDisplay("Zoom", new SourceDisplay { Type = "fenetre", Fenetre = 77, Processus = 7, Exe = "Zoom.exe", Titre = "Zoom Meeting", Diffusion = SourceDisplay.Eglise });
+    rg.AfficherAnnonce(zoomEglise);
+    Ok(rg.EtatSalle(rg.Etat).Media == zoomEglise.Source && rg.EtatStream(rg.Etat).Media == cam.Source, "une source « Dans l'église » : MyStream montre la source principale");
+    var dansStream = rg.NouveauDisplay("Diapos", new SourceDisplay { Type = "fenetre", Fenetre = 78, Processus = 8, Titre = "Annonces", Diffusion = SourceDisplay.Streaming });
+    rg.AfficherAnnonce(dansStream);
+    Ok(rg.EtatStream(rg.Etat).Media == dansStream.Source && rg.EtatSalle(rg.Etat).Media != dansStream.Source, "une source « MyStream seulement » : sur MyStream, pas dans l'église");
 
     // une source principale supprimée : MyStream suit l'église
     rg.SupprimerAnnonce(cam.Id);

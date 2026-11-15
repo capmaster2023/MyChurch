@@ -254,6 +254,12 @@
                             <TextBlock x:Name="TelTexte" Text="Téléphone" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
+                    <Button x:Name="DirectBtn" Style="{StaticResource PuceEtat}" Margin="8,0,0,0" ToolTip="Le direct sur YouTube : MyStream et le son partent sur Internet">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="DirectPoint" Width="8" Height="8" Fill="{StaticResource Brume2}" VerticalAlignment="Center" Margin="0,1,8,0" />
+                            <TextBlock x:Name="DirectTexte" Text="YouTube" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                     <TextBlock x:Name="SceneSep" Text="" Width="0" />
                     <Button x:Name="SceneBtn" Style="{StaticResource PuceEtat}" Margin="8,0,0,0" Content="Écran de scène"
                             ToolTip="Écran de scène : l'heure, ce qui est à l'écran et ce qui vient (pour le prédicateur et la chorale)" />
@@ -576,6 +582,55 @@
             <ScrollViewer x:Name="DefilColonne" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel x:Name="Colonne" Margin="16,20,18,20">
                     <StackPanel x:Name="ControleHaut" Visibility="Collapsed" />
+
+                    <!-- 1.6.0 : les deux écrans : l'église (le projecteur) et MyStream (Zoom et YouTube) -->
+                    <StackPanel x:Name="Ecrans" Margin="0,0,0,18">
+                        <DockPanel Margin="0,0,0,8">
+                            <TextBlock x:Name="EgliseEtat" DockPanel.Dock="Right" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource Brume}" VerticalAlignment="Center"
+                                       Text="Aperçu seulement" TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                            <TextBlock Text="Église" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Blanc}" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <Border x:Name="EgliseApercu" BorderBrush="{StaticResource Direct}" BorderThickness="2.5" CornerRadius="14" Background="Black"
+                                ToolTip="Ce qu'on voit dans l'église (l'écran de projection)">
+                            <Border CornerRadius="12" ClipToBounds="True">
+                                <Viewbox Stretch="Uniform">
+                                    <local:Rendu x:Name="EgliseRendu" Width="1920" Height="1080" Transitions="False" Leger="True" IsHitTestVisible="False" />
+                                </Viewbox>
+                            </Border>
+                        </Border>
+
+                        <DockPanel Margin="0,16,0,8">
+                            <Border x:Name="StreamPastille" DockPanel.Dock="Right" CornerRadius="10" Padding="9,3,10,4" Background="{StaticResource StreamLeger}" VerticalAlignment="Center">
+                                <TextBlock x:Name="StreamPastilleTexte" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Stream}" Text="Zoom · YouTube" />
+                            </Border>
+                            <TextBlock Text="MyStream" FontSize="15" FontWeight="Bold" Foreground="{StaticResource Blanc}" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <Border x:Name="StreamApercu" BorderBrush="{StaticResource Stream}" BorderThickness="2.5" CornerRadius="14" Background="Black"
+                                ToolTip="Ce qui part sur Zoom et sur YouTube">
+                            <Border CornerRadius="12" ClipToBounds="True">
+                                <Viewbox Stretch="Uniform">
+                                    <local:Rendu x:Name="StreamRendu" Width="1920" Height="1080" Transitions="False" Leger="True" IsHitTestVisible="False" />
+                                </Viewbox>
+                            </Border>
+                        </Border>
+                        <DockPanel Margin="0,10,0,0">
+                            <Button x:Name="StreamChoisir" DockPanel.Dock="Right" Style="{StaticResource BtnPetit}" Content="Source" FontSize="12.5" Padding="10,0" Height="40" Margin="8,0,0,0"
+                                    ToolTip="Choisir la source principale de MyStream, et les paroles en bandeau ou en plein écran" />
+                            <Button x:Name="StreamRetour" Style="{StaticResource BtnContour}" Height="40" Padding="0"
+                                    ToolTip="Touche M : MyStream revient sur sa source principale ; l'église garde ce qu'elle montre">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconeAnnuler}" Stroke="{StaticResource Stream}" StrokeThickness="2.2" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="Source principale" FontSize="13.5" VerticalAlignment="Center" />
+                                    <Border Style="{StaticResource Touche}" Margin="8,0,0,0">
+                                        <TextBlock Text="M" FontFamily="{StaticResource Mono}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Brume}" />
+                                    </Border>
+                                </StackPanel>
+                            </Button>
+                        </DockPanel>
+                        <TextBlock x:Name="StreamInfo" FontSize="12" Foreground="{StaticResource Brume}" TextWrapping="Wrap" Margin="2,7,0,0"
+                                   Text="Pas de source principale : MyStream montre comme l'église." />
+                    </StackPanel>
 
                     <DockPanel Margin="0,0,0,12">
                         <Button x:Name="Decouper" DockPanel.Dock="Right" Style="{StaticResource BtnPetit}" Content="Découper" FontSize="12" Padding="9,4" IsEnabled="False" VerticalAlignment="Center"

@@ -180,7 +180,7 @@ public partial class MainWindow
         {
             // 1.3.1 : « FENÊTRE · ÉGLISE » ou « FENÊTRE · STREAMING » pour une source qui ne va qu'à un endroit
             Text = ((type switch { "texte" => "Texte", "camera" => "Caméra", "mycam" => "MyCam", "fenetre" => "Fenêtre", "video" => "Vidéo", "duo" => "Duo", _ => "Image" })
-                + (a.Source?.Diffusion switch { SourceDisplay.Eglise => " · Église", SourceDisplay.Streaming => " · Streaming", _ => "" })).ToUpperInvariant(),
+                + (a.Source?.Diffusion switch { SourceDisplay.Eglise => " · Église", SourceDisplay.Streaming => " · MyStream", _ => "" })).ToUpperInvariant(),
             FontSize = 10.5, FontWeight = FontWeights.ExtraBold, Foreground = Pinceau("Brume"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0),
         });
         DockPanel.SetDock(tete, Dock.Top);

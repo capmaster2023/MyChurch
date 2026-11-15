@@ -67,10 +67,11 @@ public sealed class Rendu : Grid
         ClipToBounds = true;
         SnapsToDevicePixels = true;
         mediaFlou.Effect = flou;
+        // 1.6.0 : le texte au-dessus de l'image (MyStream : les paroles en bandeau sur la caméra)
         Children.Add(fond);
-        Children.Add(scene);
         Children.Add(mediaFlou);
         Children.Add(media);
+        Children.Add(scene);
         scene.Child = pile;
         pile.VerticalAlignment = VerticalAlignment.Center;
         pile.HorizontalAlignment = HorizontalAlignment.Center;
@@ -158,7 +159,7 @@ public sealed class Rendu : Grid
     /// <summary>Le fond flou ne sert qu'aux caméras (MyCam, caméra USB) plus étroites que l'écran : une image ou une vidéo garde ses bandes.</summary>
     void MajFlou()
     {
-        bool flou = FondFlou && etat.Mode == "media" && (etat.Media?.Type is "mycam" or "camera")
+        bool flou = FondFlou && (etat.Mode == "media" || Regie.TexteSurImage(etat)) && (etat.Media?.Type is "mycam" or "camera")
             && media.Source is { Width: > 0, Height: > 0 } b && b.Width / b.Height < 1.6;
         var source = flou ? media.Source : null;
         if (!ReferenceEquals(mediaFlou.Source, source)) mediaFlou.Source = source;
@@ -326,7 +327,9 @@ public sealed class Rendu : Grid
             pile.Effect = Clair(e.Theme) || leger ? null : ombre;
             Placer();
         }
-        media.Visibility = e.Mode == "media" ? Visibility.Visible : Visibility.Collapsed;
+        // MyStream (1.6.0) : les paroles en bandeau sur la source principale (l'image reste dessous)
+        bool surImage = Regie.TexteSurImage(e);
+        media.Visibility = e.Mode == "media" || surImage ? Visibility.Visible : Visibility.Collapsed;
         MajFlou();
         if (e.Mode == "media")
         {
@@ -335,7 +338,7 @@ public sealed class Rendu : Grid
             return;
         }
         // A live source may have temporarily replaced the theme background.
-        fond.Background = FondTheme(e.Theme);
+        fond.Background = surImage ? Brushes.Black : FondTheme(e.Theme);
         bool vide = e.Vide;
         // « fond » (écran par défaut « Fond seul », 3.3) : l'habillage reste, sans texte
         bool sansTexte = vide || e.Mode == "fond";

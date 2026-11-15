@@ -510,6 +510,108 @@ public static class AutoTest
         catch (Exception) { return false; }
     }
 
+    /// <summary>Le pixel (B, V, R) de MyVirtualCam au point (x, y) compté depuis le haut (la mémoire est en lignes de bas en haut).</summary>
+    static (byte B, byte G, byte R)? PixelCamera(int x, int y)
+    {
+        if (App.CameraVirtuelle == null) return null;
+        using var mm = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(@"Local\MyChurch.MyVirtualCam.frames.v1");
+        using var vue = mm.CreateViewAccessor();
+        int i = 64 + ((719 - y) * 1280 + x) * 3;
+        return (vue.ReadByte(i), vue.ReadByte(i + 1), vue.ReadByte(i + 2));
+    }
+
+    static string Png(string nom, byte r, byte g, byte b)
+    {
+        var chemin = Path.Combine(App.Donnees.Dossier, nom);
+        var dessin = new DrawingVisual();
+        using (var dc = dessin.RenderOpen()) dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(r, g, b)), null, new Rect(0, 0, 1280, 720));
+        var bmp = new RenderTargetBitmap(1280, 720, 96, 96, PixelFormats.Pbgra32); bmp.Render(dessin);
+        var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bmp));
+        using (var f = File.Create(chemin)) png.Save(f);
+        return chemin;
+    }
+
+    /// <summary>
+    /// MyChurch 1.6.0 : MyStream (l'écran de Zoom et de YouTube) a sa source principale ; les paroles passent en bandeau par-dessus ;
+    /// la touche M y ramène MyStream ; le direct part vraiment (vers un serveur RTMP local : ffmpeg en écoute, comme YouTube).
+    /// </summary>
+    static async Task TestMyStream(MainWindow w)
+    {
+        var R = App.Regie;
+        bool Vert((byte B, byte G, byte R)? p) => p is { } q && q.G > 130 && q.R < 70 && q.B < 100;
+        var cam = R.NouveauDisplay("Caméra de test", new SourceDisplay { Type = "image", Chemin = Png("mystream-camera.png", 20, 160, 60) });
+        R.ChoisirSourceStream(cam.Id);
+        R.ChoisirEcranDefaut("noir");
+        R.Effacer();
+        await Attendre(1500);
+        Ok(w.TestEtatStream is { Mode: "media" } s0 && s0.Media == cam.Source, "1.6.0 : l'église vide : MyStream montre sa source principale");
+        Ok(w.TestInfoStream.Contains("Caméra de test"), "1.6.0 : sous MyStream : " + w.TestInfoStream);
+        if (App.CameraVirtuelle != null)
+        {
+            var c = PixelCamera(640, 360);
+            Ok(Vert(c), $"1.6.0 : Zoom (MyVirtualCam) reçoit la source principale de MyStream ({c})");
+        }
+        R.AfficherVerset(42, 3, 16, 16);
+        await Attendre(1500);
+        var st = w.TestEtatStream;
+        Ok(st is { Mode: "verset", Presentation: "bandeau" } && Regie.TexteSurImage(st) && R.Etat.Presentation == "plein",
+            "1.6.0 : un verset : en bandeau sur la caméra pour MyStream, en plein écran dans l'église");
+        if (App.CameraVirtuelle != null)
+        {
+            var haut = PixelCamera(640, 200);
+            var bandeau = PixelCamera(90, 600);
+            Ok(Vert(haut) && bandeau is { } bd && !Vert(bd), $"1.6.0 : Zoom voit la caméra en haut et le bandeau des paroles en bas ({haut} / {bandeau})");
+        }
+        Capture(w, "64-v160-deux-ecrans.png");
+        w.TestRetourStream();
+        await Attendre(800);
+        Ok(R.StreamSurPrincipale && w.TestEtatStream is { Mode: "media" } && R.Etat.Mode == "verset", "1.6.0 : touche M : MyStream revient sur la caméra, l'église garde le verset");
+        R.Bouger(1);
+        await Attendre(800);
+        Ok(!R.StreamSurPrincipale && w.TestEtatStream.Mode == "verset", "1.6.0 : le verset suivant repart sur MyStream");
+        Ok(w.TestMenuStream() >= 8, "1.6.0 : le menu « Source » (sources, aucune, bandeau ou plein écran, le direct)");
+
+        // ------------------------------------------------------------ le direct, pour de vrai, vers un serveur RTMP local
+        w.TestOuvrirDirect();
+        await Attendre(800);
+        var fen = w.TestFenetreDirect;
+        Ok(fen != null && fen.TestBouton is "Connecter le compte YouTube" or "Créer et démarrer le direct" && fen.TestTitre.Length > 0,
+            $"1.6.0 : fenêtre du direct ouverte (« {fen?.TestBouton} », titre « {fen?.TestTitre} »)");
+        if (fen != null) Capture(fen, "65-v160-youtube.png");
+        string ffmpeg = App.Audio.Ffmpeg;
+        if (fen != null && File.Exists(ffmpeg) && App.Audio.Running && App.Audio.TracksActive)
+        {
+            var libre = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); libre.Start();
+            int port = ((System.Net.IPEndPoint)libre.LocalEndpoint).Port; libre.Stop();
+            string recu = Path.Combine(dossier, "direct-recu.flv");
+            var info = new System.Diagnostics.ProcessStartInfo(ffmpeg) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
+            foreach (var a in new[] { "-hide_banner", "-loglevel", "warning", "-y", "-listen", "1", "-i", $"rtmp://127.0.0.1:{port}/live/test", "-c", "copy", "-f", "flv", recu }) info.ArgumentList.Add(a);
+            using var serveur = System.Diagnostics.Process.Start(info)!;
+            var journalServeur = serveur.StandardError.ReadToEndAsync();
+            await Attendre(1500);
+            await fen.TestDemarrerAutre($"rtmp://127.0.0.1:{port}/live", "test");
+            for (int i = 0; i < 40 && App.Direct.Etat != Audio.EtatDirect.EnDirect; i++) await Attendre(250);
+            await Attendre(5000);
+            Ok(App.Direct.Etat == Audio.EtatDirect.EnDirect && w.TestDirectTexte.StartsWith("En direct"),
+                $"1.6.0 : le direct part (« {w.TestDirectTexte} », encodeur {App.Direct.Encodeur}) : {App.Direct.Message}");
+            Capture(fen, "66-v160-youtube-en-direct.png");
+            Capture(w, "67-v160-en-direct.png");
+            await App.Direct.ArreterAsync();
+            Ok(App.Direct.Etat == Audio.EtatDirect.Arrete && w.TestDirectTexte == "YouTube", "1.6.0 : Arrêter le direct : " + App.Direct.Message);
+            try { await serveur.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15)); } catch (Exception) { try { serveur.Kill(true); } catch (Exception) { } }
+            Note("serveur RTMP de test : " + (await journalServeur).Trim());
+            var (code, journal) = await Decrire(ffmpeg, recu);
+            Ok(File.Exists(recu) && new FileInfo(recu).Length > 50_000 && journal.Contains("Video: h264") && journal.Contains("Audio: aac") && journal.Contains("1280x720"),
+                $"1.6.0 : le serveur a reçu MyStream (H.264 1280 × 720) et le son (AAC) : {(File.Exists(recu) ? new FileInfo(recu).Length : 0)} octets");
+        }
+        else Note($"1.6.0 : direct réel non essayé (ffmpeg {File.Exists(ffmpeg)}, son {App.Audio.Running}/{App.Audio.TracksActive})");
+        fen?.Close();
+        R.ChoisirSourceStream(null);
+        R.SupprimerAnnonce(cam.Id);
+        await Attendre(500);
+        Ok(w.TestEtatStream.Mode == R.EtatCamera(R.Etat).Mode, "1.6.0 : sans source principale, MyStream suit de nouveau l'église");
+    }
+
     public static async void Lancer(MainWindow w, string sortie)
     {
         dossier = sortie;
@@ -968,7 +1070,7 @@ public static class AutoTest
                 R.ModifierSource(img.Id, "", sourceImage with { Diffusion = SourceDisplay.Streaming });
                 await Attendre(1300);
                 Ok(Rouge() && R.EtatSalle(R.Etat).Media?.Chemin == vertPath, "1.3.1 : source « En streaming » : MyVirtualCam la reçoit, l'écran de projection garde l'écran par défaut");
-                Ok(w.TestStatutProjection == "Streaming seulement", "1.3.1 : pastille « Streaming seulement » : " + w.TestStatutProjection);
+                Ok(w.TestStatutProjection == "MyStream seulement", "1.3.1 : pastille « MyStream seulement » : " + w.TestStatutProjection);
                 if (w.Ecran != null) Capture(w.Ecran, "26b-ecran-streaming-seulement.png");
                 R.ModifierSource(img.Id, "", sourceImage with { Diffusion = null });
                 await Attendre(1300);
@@ -1221,6 +1323,9 @@ public static class AutoTest
             });
             Ok(idEditeur != null && R.Trouver(idEditeur) != null, "1.5.1 : fermer l'éditeur garde le chant enregistré");
             if (idEditeur != null) R.SupprimerChant(idEditeur);
+            // 1.6.0 : MyStream (les deux écrans, la source principale, le bandeau, la touche M) et le direct
+            try { await TestMyStream(w); }
+            catch (Exception x) { Echec("1.6.0 : MyStream : " + x); }
             await Fenetre(w, () => new DecoupeWindow(new CibleVerset(42, 3, 16, 16)), "13-decoupe.png");
             await Fenetre(w, () => new ImportWindow(), "14-import.png");
             await Fenetre(w, () => new BiblesWindow(), "15-bibles.png");

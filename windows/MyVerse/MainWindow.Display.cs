@@ -30,16 +30,17 @@ public partial class MainWindow
         {
             var b = App.Sources.Image;
             ApercuRendu.ImageDisplay(b); CulteRendu.ImageDisplay(b);
-            // la salle (1.3.1) ou MyVirtualCam (1.3.2) montrent peut-être l'écran par défaut à la place du direct : il a sa capture
-            if (mediaSalle == null) ecran?.Rendu.ImageDisplay(b);
-            if (mediaCamera == null) App.CameraVirtuelle?.Media(cameraDirect ? b : null);
+            // la salle (1.3.1) montre peut-être l'écran par défaut à la place du direct : il a sa capture
+            if (mediaSalle == null) { ecran?.Rendu.ImageDisplay(b); EgliseRendu.ImageDisplay(b); }
+            // 1.6.0 : MyStream (Zoom, YouTube) suit le lecteur de son image : celui-ci, l'écran de repos ou sa source principale
+            if (lecteurStream == App.Sources) ImageStream();
             if (duoMemeSource) ImagesDuo();
             DisplaySourceInfo.Text = App.Sources.Statut;
         };
         App.SourcesDefaut.Change += () =>
         {
-            if (mediaSalle != null) ecran?.Rendu.ImageDisplay(App.SourcesDefaut.Image);
-            if (mediaCamera != null) App.CameraVirtuelle?.Media(App.SourcesDefaut.Image);
+            if (mediaSalle != null) { ecran?.Rendu.ImageDisplay(App.SourcesDefaut.Image); EgliseRendu.ImageDisplay(App.SourcesDefaut.Image); }
+            if (lecteurStream == App.SourcesDefaut) ImageStream();
         };
     }
 
@@ -49,8 +50,6 @@ public partial class MainWindow
     /// « Dans l'église » (1.3.2). Jamais les deux à la fois. Null : le direct.
     /// </summary>
     SourceDisplay? mediaSalle, mediaCamera;
-    /// <summary>MyVirtualCam montre le média en direct et le contenu épinglé (pas une source « Dans l'église »).</summary>
-    bool cameraDirect = true, cameraDuo = true;
 
     ContextMenu MenuAjouterSource()
     {
@@ -251,7 +250,7 @@ public partial class MainWindow
     MenuItem MenuDiffusion(Annonce a, SourceDisplay s)
     {
         var m = new MenuItem { Header = "Où va cette fenêtre" };
-        foreach (var (valeur, texte) in new (string?, string)[] { (SourceDisplay.Eglise, "Dans l'église seulement"), (SourceDisplay.Streaming, "En streaming seulement"), (null, "Les deux") })
+        foreach (var (valeur, texte) in new (string?, string)[] { (SourceDisplay.Eglise, "Dans l'église seulement"), (SourceDisplay.Streaming, "MyStream seulement"), (null, "Les deux") })
         {
             var v = valeur;
             var choix = Article(texte, () =>

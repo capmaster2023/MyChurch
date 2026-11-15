@@ -249,6 +249,7 @@ public partial class MainWindow : Window
         InitEcranDefaut();
         InitTelecommande();
         InitProjecteur();
+        InitMyStream();
         AgendaAjoutBible.Click += (_, _) =>
         {
             if (sel is Ref s && s.V1 > 0) Toast($"{R.AjouterBibleAgenda(s).Titre} ajouté au programme « {R.Agenda.Nom} ».");
@@ -448,6 +449,11 @@ public partial class MainWindow : Window
                 BasculerDuo();
                 e.Handled = true;
                 break;
+            case Key.M:
+                // 1.6.0 : MyStream revient sur sa source principale
+                RetourStream();
+                e.Handled = true;
+                break;
             case Key.Right or Key.Space or Key.PageDown:
                 R.Bouger(1);
                 e.Handled = true;
@@ -520,6 +526,7 @@ public partial class MainWindow : Window
         Ajout("retirer", "Échap");
         Ajout("écran noir", "B");
         Ajout("garder dans un coin", "P");
+        Ajout("MyStream : source principale", "M");
         Ajout("diapositive", "1–9");
     }
 
@@ -983,22 +990,26 @@ public partial class MainWindow : Window
         // remplacée par l'écran par défaut (Zoom projeté ne revient pas dans Zoom) ;
         // l'écran de projection (1.3.1) : tout, sauf une source « En streaming », remplacée par l'écran par défaut
         var diffusion = R.EtatDiffusion(e);
-        var camera = R.EtatCamera(e);
+        // 1.6.0 : MyStream (Zoom et YouTube) : sa source principale, les paroles en bandeau par-dessus (sans source principale : comme Zoom avant)
+        var stream = R.EtatStream(e);
         var salle = R.EtatSalle(e);
         mediaSalle = salle is { Mode: "media", Media: { } ms } && ms != e.Media ? ms : null;
-        mediaCamera = camera is { Mode: "media", Media: { } mc } && mc != e.Media ? mc : null;
-        cameraDirect = mediaCamera == null && camera.Mode == "media";
-        cameraDuo = camera.Duo != null;
+        var principale = R.SourcePrincipaleStream?.Source;
+        // l'image de MyStream qui n'est ni celle de l'église ni la source principale : l'écran de repos de l'église (sans source principale)
+        mediaCamera = stream.Media is { } mc && mc != e.Media && mc != principale ? mc : null;
         App.Sources.Choisir(e);
         App.SourcesDefaut.ChoisirSource(mediaSalle ?? mediaCamera);
+        ChoisirLecteurStream(stream);
         ChoisirSourceDuo(e);
         ApercuRendu.Afficher(e);
-        App.CameraVirtuelle?.Afficher(camera);
-        App.CameraVirtuelle?.Media(mediaCamera != null ? App.SourcesDefaut.Image : cameraDirect ? App.Sources.Image : null);
         ecran?.Rendu.Afficher(salle);
+        EgliseRendu.Afficher(salle);
         ApercuRendu.ImageDisplay(App.Sources.Image);
-        ecran?.Rendu.ImageDisplay(mediaSalle != null ? App.SourcesDefaut.Image : App.Sources.Image);
+        var imageSalle = mediaSalle != null ? App.SourcesDefaut.Image : App.Sources.Image;
+        ecran?.Rendu.ImageDisplay(imageSalle);
+        EgliseRendu.ImageDisplay(imageSalle);
         CulteRendu.ImageDisplay(App.Sources.Image);
+        MajStream(stream);
         ImagesDuo();
         App.SortieObs.Ecrire(diffusion);
         bool rien = e.Vide && e.Duo == null;
@@ -1036,15 +1047,19 @@ public partial class MainWindow : Window
         bool attente = !ouvert && AttenteProjecteur;
         // 1.3.1 : une source qui ne va qu'à un endroit le dit (« Streaming seulement », « Église seulement »)
         var dif = !noir && e.Mode == "media" ? e.Media?.Diffusion : null;
-        PastilleTexte.Text = noir ? "Écran noir" : dif == SourceDisplay.Streaming ? "Streaming seulement"
+        PastilleTexte.Text = noir ? "Écran noir" : dif == SourceDisplay.Streaming ? "MyStream seulement"
             : ouvert ? (R.Cible is CibleDefaut ? "Écran de repos" : e.Vide && e.Duo == null ? "Écran ouvert · vide" : dif == SourceDisplay.Eglise ? "Église seulement" : "À l'écran")
             : attente ? "Projecteur débranché" : "Aperçu seulement";
         // l'état s'affiche à droite d'« EN DIRECT » (« Aperçu seulement » tant qu'aucun écran n'est ouvert)
         var m = App.Donnees.Reglages.Ecran;
         EcranInfo.Text = PastilleTexte.Text;
         EcranInfo.Foreground = Pinceau(dif == SourceDisplay.Streaming ? "OrVif" : ouvert && !noir ? "Vert" : attente ? "OrVif" : "Brume");
-        EcranInfo.ToolTip = dif == SourceDisplay.Streaming ? "En streaming seulement : MyVirtualCam et OBS reçoivent cette source, l'écran de projection garde l'écran de repos"
-            : dif == SourceDisplay.Eglise ? "Dans l'église seulement : MyVirtualCam (Zoom) montre l'écran de repos à la place, OBS ne reçoit rien (pas d'effet miroir dans Zoom)"
+        // 1.6.0 : l'état de l'écran de l'église, au-dessus de son aperçu
+        EgliseEtat.Text = PastilleTexte.Text;
+        EgliseEtat.Foreground = EcranInfo.Foreground;
+        EgliseApercu.Background = R.EtatSalle(EtatProjete()) is { Vide: true, Duo: null } || R.Etat.Theme == "transparent" ? Pinceau("Damier") : Brushes.Black;
+        EcranInfo.ToolTip = dif == SourceDisplay.Streaming ? "MyStream seulement : Zoom, YouTube et OBS reçoivent cette source, l'écran de projection garde l'écran de repos"
+            : dif == SourceDisplay.Eglise ? "Dans l'église seulement : MyStream (Zoom, YouTube) montre sa source principale ou l'écran de repos à la place, OBS ne reçoit rien (pas d'effet miroir dans Zoom)"
             : ecran != null && m != null ? $"{m.Nom} · {m.W} × {m.H}"
             : attente ? $"Projecteur débranché ({m?.Nom}) : la projection se rouvrira toute seule dès qu'il sera branché"
             : "Aucun écran de projection : Projection, en haut à droite";

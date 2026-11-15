@@ -77,8 +77,8 @@ public sealed class CaptureFenetreWindow : FenetreDialogue
 
         corps.Children.Add(Libelle("Où va cette fenêtre ?"));
         eglise = Option("Dans l'église", "Seulement sur l'écran de projection. Zoom (MyVirtualCam) voit l'écran principal à la place, OBS rien : pour projeter Zoom dans l'église, sans effet miroir.", existante?.EgliseSeulement == true);
-        streaming = Option("En streaming", "Seulement vers MyVirtualCam et OBS (Zoom, YouTube, Facebook). Sur l'écran de projection, l'écran par défaut reste affiché.", existante?.StreamingSeulement == true);
-        lesDeux = Option("Les deux", "Sur l'écran de projection et en streaming, comme les autres sources.", existante != null && existante.Diffusion == null);
+        streaming = Option("Sur MyStream", "Seulement sur MyStream (Zoom, YouTube) et OBS. Sur l'écran de projection, l'écran de repos reste affiché.", existante?.StreamingSeulement == true);
+        lesDeux = Option("Les deux", "Sur l'écran de projection et sur MyStream, comme les autres sources.", existante != null && existante.Diffusion == null);
         foreach (var o in new[] { eglise, streaming, lesDeux })
         {
             o.Checked += (_, _) => { if (!remplissage) diffusionTouchee = true; MajConseil(); };
@@ -219,7 +219,7 @@ public sealed class CaptureFenetreWindow : FenetreDialogue
         bool appel = f != null && AppelVideo(f);
         bool risque = appel && eglise.IsChecked != true;
         conseil.Text = !appel ? ""
-            : risque ? $"{NomProgramme(f!)} reçoit sans doute l'image de MyVirtualCam : en streaming, il recevrait sa propre fenêtre (effet miroir à l'infini). Choisissez « Dans l'église »."
+            : risque ? $"{NomProgramme(f!)} reçoit sans doute l'image de MyVirtualCam : sur MyStream, il recevrait sa propre fenêtre (effet miroir à l'infini). Choisissez « Dans l'église »."
             : $"{NomProgramme(f!)} reste dans l'église : MyVirtualCam envoie l'écran principal à la place de sa fenêtre, Zoom ne se voit pas lui-même.";
         conseil.Foreground = Pinceau(risque ? "Danger" : "Brume");
         conseil.Visibility = appel ? Visibility.Visible : Visibility.Collapsed;

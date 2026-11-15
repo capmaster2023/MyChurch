@@ -78,14 +78,16 @@ public sealed partial class Regie
     /// </summary>
     public EtatEcran EtatStream(EtatEcran e)
     {
-        var r = EtatCamera(e);
         var p = SourcePrincipaleStream?.Source;
-        if (p == null) return r;
-        bool retour = StreamSurPrincipale;
+        if (p == null) return EtatCamera(e);
+        // un contenu épinglé « Dans l'église » ne part pas sur Internet
+        var r = e.Duo?.Etat.Media is { EgliseSeulement: true } ? e with { Duo = null } : e;
         var seule = r with { Mode = "media", Media = p, Lignes = Array.Empty<string>(), Ref = "", Second = null, Duo = null, Presentation = "plein" };
-        // rien à l'église (écran vide, noir, fond seul) ou son écran de repos : la source principale, comme l'écran de repos de l'église
-        if (retour) return seule;
-        if (Cible is CibleDefaut || r.Mode is "vide" or "fond") return r.Duo != null ? seule with { Duo = r.Duo } : seule;
+        if (StreamSurPrincipale) return seule;
+        // rien pour Internet (écran vide, noir, fond seul, l'écran de repos de l'église, une source « Dans l'église ») :
+        // la source principale, l'écran de repos de MyStream
+        if (Cible is CibleDefaut || r.Mode is "vide" or "fond" || r is { Mode: "media", Media.EgliseSeulement: true })
+            return r.Duo != null ? seule with { Duo = r.Duo } : seule;
         if (r.Mode is "verset" or "chant" && TexteStream == "bandeau") return r with { Media = p, Presentation = "bandeau" };
         return r;
     }

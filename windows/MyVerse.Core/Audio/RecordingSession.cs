@@ -102,14 +102,7 @@ public sealed class RecordingSession : IDisposable
             string k = profile.VideoKbps.ToString(), g = (2 * profile.Fps).ToString();
             args.AddRange(new[] { "-map", "0:v:0", "-map", "1:a:0", "-c:v", encoder, "-b:v", k + "k", "-maxrate", k + "k", "-bufsize", 2 * profile.VideoKbps + "k",
                 "-g", g, "-keyint_min", g, "-pix_fmt", "yuv420p" });
-            args.AddRange(encoder switch
-            {
-                "libx264" => new[] { "-preset", "veryfast", "-profile:v", "high", "-sc_threshold", "0" },
-                "h264_nvenc" => new[] { "-preset", "p5", "-rc", "cbr", "-profile:v", "high", "-forced-idr", "1" },
-                "h264_qsv" => new[] { "-preset", "veryfast", "-profile:v", "high" },
-                "h264_amf" => new[] { "-rc", "cbr", "-profile:v", "high" },
-                _ => Array.Empty<string>(),
-            });
+            args.AddRange(OptionsDirect(encoder));
             args.AddRange(new[] { "-c:a", "aac", "-b:a", profile.AudioKbps + "k", "-ar", AudioBlock.Rate.ToString(), "-ac", "2", "-f", "flv", "-flvflags", "no_duration_filesize" });
             args.Add(output); return args;
         }
@@ -127,6 +120,15 @@ public sealed class RecordingSession : IDisposable
         });
         args.Add(output); return args;
     }
+    /// <summary>Les réglages d'un encodeur pour le direct (essayés tels quels avant de démarrer).</summary>
+    public static string[] OptionsDirect(string encoder) => encoder switch
+    {
+        "libx264" => new[] { "-preset", "veryfast", "-profile:v", "high", "-sc_threshold", "0" },
+        "h264_nvenc" => new[] { "-preset", "p5", "-rc", "cbr", "-profile:v", "high", "-forced-idr", "1" },
+        "h264_qsv" => new[] { "-preset", "veryfast", "-profile:v", "high" },
+        "h264_amf" => new[] { "-rc", "cbr", "-profile:v", "high" },
+        _ => Array.Empty<string>(),
+    };
     public async Task PrepareAsync()
     {
         worker = Task.Run(WriteAsync);

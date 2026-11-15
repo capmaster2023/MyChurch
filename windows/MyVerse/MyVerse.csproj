@@ -11,8 +11,8 @@
     <AssemblyName>MyChurch</AssemblyName>
     <ApplicationIcon>myverse.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.5.1</Version>
-    <FileVersion>1.5.1.0</FileVersion>
+    <Version>1.6.0</Version>
+    <FileVersion>1.6.0.0</FileVersion>
     <Product>MyChurch</Product>
     <AssemblyTitle>MyChurch</AssemblyTitle>
     <Company>MEPC Montréal</Company>
@@ -28,6 +28,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyVerse.Core\MyVerse.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 1.6.0 : « Connecter le compte YouTube » : l'identifiant Google de l'église (programme installé), donné par les secrets
+       YOUTUBE_CLIENT_ID et YOUTUBE_CLIENT_SECRET du dépôt au moment de la compilation. Sans eux, la clé de stream marche quand même. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="YouTubeClientId" Value="$(YOUTUBE_CLIENT_ID)" />
+    <AssemblyMetadata Include="YouTubeClientSecret" Value="$(YOUTUBE_CLIENT_SECRET)" />
   </ItemGroup>
 
   <ItemGroup>
