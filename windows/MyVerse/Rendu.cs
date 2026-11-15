@@ -324,7 +324,8 @@ public sealed class Rendu : Grid
         bool sansTexte = vide || e.Mode == "fond";
         var deux = e.Mode == "verset" && e.Second != null ? e.Second.Texte : "";
         var nouvelle = string.Join("\u0001", new[] { e.Mode, string.Join("\n", e.Lignes), e.Ref, e.Taille.ToString(), e.Presentation, deux });
-        double dureeFond = Transitions ? 0.6 : 0;
+        // 1.5.0 : des fondus plus courts (le texte suivant arrive en un tiers de seconde au lieu de près d'une seconde)
+        double dureeFond = Transitions ? 0.35 : 0;
         Animer(fond, vide ? 0 : 1, dureeFond);
         if (nouvelle == cle) return;
         var avant = cle;
@@ -332,22 +333,22 @@ public sealed class Rendu : Grid
         int v = ++version;
         if (sansTexte)
         {
-            Animer(scene, 0, Transitions ? 0.45 : 0);
+            Animer(scene, 0, Transitions ? 0.25 : 0);
             return;
         }
         if (Transitions && avant.Length > 0 && scene.Opacity > 0.05)
         {
-            Animer(scene, 0, 0.38, () =>
+            Animer(scene, 0, 0.14, () =>
             {
                 if (v != version) return;
                 Remplir(e, deux);
-                Animer(scene, 1, 0.45);
+                Animer(scene, 1, 0.2);
             });
         }
         else
         {
             Remplir(e, deux);
-            Animer(scene, 1, Transitions ? 0.45 : 0);
+            Animer(scene, 1, Transitions ? 0.2 : 0);
         }
     }
 

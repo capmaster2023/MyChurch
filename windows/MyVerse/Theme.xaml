@@ -394,7 +394,7 @@
         </Setter>
     </Style>
     <!-- 1.5.0 : pastille d'état en haut à droite (projecteur, téléphone, écran de scène) -->
-    <Style x:Key="Puce" TargetType="Button">
+    <Style x:Key="PuceEtat" TargetType="Button">
         <Setter Property="Foreground" Value="{StaticResource Blanc}" />
         <Setter Property="Background" Value="{StaticResource Encre}" />
         <Setter Property="BorderBrush" Value="{StaticResource Nuit3}" />

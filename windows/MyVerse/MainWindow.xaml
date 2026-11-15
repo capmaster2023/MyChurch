@@ -242,20 +242,20 @@
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="MajBtn" Style="{StaticResource BtnPetitOr}" Margin="0,0,10,0" Visibility="Collapsed" Content="Mettre à jour" />
-                    <Button x:Name="ProjectionBtn" Style="{StaticResource Puce}" ToolTip="Choisir l'écran de projection">
+                    <Button x:Name="ProjectionBtn" Style="{StaticResource PuceEtat}" ToolTip="Choisir l'écran de projection">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse x:Name="ProjectionPoint" Width="8" Height="8" Fill="{StaticResource Brume2}" VerticalAlignment="Center" Margin="0,1,8,0" />
                             <TextBlock x:Name="ProjectionTexte" Text="Projection arrêtée" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button x:Name="TelBtn" Style="{StaticResource Puce}" Margin="8,0,0,0" ToolTip="Télécommande Android et MyCam">
+                    <Button x:Name="TelBtn" Style="{StaticResource PuceEtat}" Margin="8,0,0,0" ToolTip="Télécommande Android et MyCam">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse x:Name="TelPoint" Width="8" Height="8" Fill="{StaticResource Brume2}" VerticalAlignment="Center" Margin="0,1,8,0" Visibility="Collapsed" />
                             <TextBlock x:Name="TelTexte" Text="Téléphone" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <TextBlock x:Name="SceneSep" Text="" Width="0" />
-                    <Button x:Name="SceneBtn" Style="{StaticResource Puce}" Margin="8,0,0,0" Content="Écran de scène"
+                    <Button x:Name="SceneBtn" Style="{StaticResource PuceEtat}" Margin="8,0,0,0" Content="Écran de scène"
                             ToolTip="Écran de scène : l'heure, ce qui est à l'écran et ce qui vient (pour le prédicateur et la chorale)" />
                     <TextBlock x:Name="Horloge" FontSize="20" FontWeight="ExtraBold" Foreground="{StaticResource Blanc}" VerticalAlignment="Center" Margin="16,0,0,0" Text="00:00:00"
                                Typography.NumeralAlignment="Tabular" ToolTip="Heure de l'ordinateur" />
@@ -496,7 +496,7 @@
                                 ToolTip="Ce qui est à l'écran">
                             <Border CornerRadius="14" ClipToBounds="True">
                                 <Viewbox Stretch="Uniform">
-                                    <local:Rendu x:Name="CulteRendu" Width="1920" Height="1080" Transitions="True" IsHitTestVisible="False" />
+                                    <local:Rendu x:Name="CulteRendu" Width="1920" Height="1080" Transitions="False" IsHitTestVisible="False" />
                                 </Viewbox>
                             </Border>
                         </Border>
