@@ -615,7 +615,9 @@ public static class AutoTest
             Ok(App.Direct.Etat == Audio.EtatDirect.Arrete && w.TestDirectTexte == "YouTube", $"1.6.0 : Arrêter le direct (« {w.TestDirectTexte} ») : " + App.Direct.Message);
             await FinServeur(serveur, journalServeur);
             var (code, journal) = await Decrire(ffmpeg, recu);
-            Ok(File.Exists(recu) && new FileInfo(recu).Length > 50_000 && journal.Contains("Video: h264") && journal.Contains("Audio: aac") && journal.Contains("1280x720"),
+            Note("direct reçu : " + string.Join(" | ", journal.Split('\n').Where(l => l.Contains("Duration") || l.Contains("Stream #")).Select(l => l.Trim())));
+            // 1.6.4 : MyStream montre l'image fixe de la caméra de test (une couleur unie) : H.264 la compresse en très peu d'octets
+            Ok(File.Exists(recu) && new FileInfo(recu).Length > 8_000 && journal.Contains("Video: h264") && journal.Contains("Audio: aac") && journal.Contains("1280x720"),
                 $"1.6.0 : le serveur a reçu MyStream (H.264 1280 × 720) et le son (AAC) : {(File.Exists(recu) ? new FileInfo(recu).Length : 0)} octets");
         }
         else Note($"1.6.0 : direct réel non essayé (ffmpeg {File.Exists(ffmpeg)}, son {App.Audio.Running}/{App.Audio.TracksActive})");
@@ -660,7 +662,8 @@ public static class AutoTest
             Ok(!App.Direct.Actif && auto.Dernier != null, "1.6.4 : il ne repart pas le même jour");
             await FinServeur(serveur, journalServeur);
             var (code2, journal2) = await Decrire(ffmpeg, recu);
-            Ok(File.Exists(recu) && new FileInfo(recu).Length > 50_000 && journal2.Contains("Video: h264") && journal2.Contains("Audio: aac"),
+            Note("direct automatique reçu : " + string.Join(" | ", journal2.Split('\n').Where(l => l.Contains("Duration") || l.Contains("Stream #")).Select(l => l.Trim())));
+            Ok(File.Exists(recu) && new FileInfo(recu).Length > 8_000 && journal2.Contains("Video: h264") && journal2.Contains("Audio: aac") && journal2.Contains("1280x720"),
                 $"1.6.4 : le serveur a reçu le direct automatique (H.264 et AAC) : {(File.Exists(recu) ? new FileInfo(recu).Length : 0)} octets");
             fen2?.Close();
             D.Programmes.Remove(auto);
