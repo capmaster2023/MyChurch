@@ -115,6 +115,7 @@ private fun Principal(remote: Remote) {
     Box(Modifier.fillMaxSize().background(if (sombre) C.CamFond else C.Page)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
             BandeauMiseAJour(remote)
+            BandeauMyChurchFerme(remote)
             Box(Modifier.weight(1f).fillMaxWidth().then(if (clavier) Modifier.imePadding() else Modifier)) {
                 when (onglet) {
                     0 -> RegieOnglet(remote) { reglages = true }
@@ -191,6 +192,34 @@ private fun BandeauMiseAJour(remote: Remote) {
     }
 }
 
+/**
+ * MyChurch 1.7.0 : par Internet, MyChurch est fermé sur le PC de l'église (l'agent répond) : un bouton le démarre ;
+ * pendant le démarrage, on patiente (le téléphone se reconnecte tout seul quand il est prêt).
+ */
+@Composable
+private fun BandeauMyChurchFerme(remote: Remote) {
+    val app by remote.appPc.collectAsState()
+    val link by remote.link.collectAsState()
+    val pc by remote.pcName.collectAsState()
+    if (link != Link.CONNECTED || app !in setOf("ferme", "demarrage", "ouvert")) return
+    Column(
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp).clip(RoundedCornerShape(14.dp)).background(C.AmbrePale)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Ico(I.ecran, C.AmbreTexte, 20.dp)
+            T(
+                if (app == "ferme") "MyChurch est fermé sur « ${pc.ifBlank { "le PC" }} »" else "Démarrage de MyChurch sur le PC…",
+                taille = 13.5.sp, poids = FontWeight.ExtraBold, couleur = C.AmbreTexte, modifier = Modifier.weight(1f), lignes = 2,
+            )
+        }
+        if (app == "ferme") Touche(onClick = { if (remote.demarrerMyChurch()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), fond = C.Ambre) {
+            T("Démarrer MyChurch", couleur = Color.White, poids = FontWeight.ExtraBold)
+        }
+    }
+}
+
 /** Réglages de la télécommande (volet plein écran). */
 @Composable
 private fun Reglages(remote: Remote, fermer: () -> Unit) {
@@ -202,6 +231,10 @@ private fun Reglages(remote: Remote, fermer: () -> Unit) {
     var bip by remember { mutableStateOf(store.couperBip) }
     var journal by remember { mutableStateOf(false) }
     var oublier by remember { mutableStateOf(false) }
+    var fermerPc by remember { mutableStateOf(false) }
+    val app by remote.appPc.collectAsState()
+    val route by remote.route.collectAsState()
+    val link by remote.link.collectAsState()
     val context = LocalContext.current
     val version = remember {
         try {
@@ -211,6 +244,14 @@ private fun Reglages(remote: Remote, fermer: () -> Unit) {
         }
     }
     if (journal) JournalDialog(remote) { journal = false }
+    if (fermerPc) AlertDialog(
+        onDismissRequest = { fermerPc = false },
+        title = { Text("Fermer MyChurch sur « $pc » ?", fontFamily = Manrope, fontWeight = FontWeight.ExtraBold) },
+        text = { Text("L'écran de l'église et MyStream s'arrêtent. Vous pourrez le redémarrer d'ici (bouton « Démarrer MyChurch »).", fontFamily = Manrope) },
+        confirmButton = { TextButton(onClick = { fermerPc = false; if (!remote.fermerMyChurch()) Bulles.dire("PC injoignable.") }) { Text("Fermer", color = C.RougeTexte, fontFamily = Manrope, fontWeight = FontWeight.Bold) } },
+        dismissButton = { TextButton(onClick = { fermerPc = false }) { Text("Annuler", color = C.Encre, fontFamily = Manrope) } },
+        containerColor = C.Carte,
+    )
     if (oublier) AlertDialog(
         onDismissRequest = { oublier = false },
         title = { Text("Oublier « $pc » ?", fontFamily = Manrope, fontWeight = FontWeight.ExtraBold) },
@@ -245,7 +286,24 @@ private fun Reglages(remote: Remote, fermer: () -> Unit) {
                         Column(Modifier.weight(1f)) {
                             T(pc.ifBlank { "PC" }, taille = 15.sp, poids = FontWeight.ExtraBold, lignes = 1)
                             T(if (proto >= 2) "MyChurch 4.0 ou plus" else "MyChurch 3.3 ou avant : mettez le PC à jour pour le déroulé, Noir et MyCam", taille = 12.5.sp, couleur = C.Encre2)
+                            // 1.7.0 : par où passe la connexion
+                            if (link == Link.CONNECTED) T(
+                                if (route == "internet") "Relié par Internet (relais MyChurch)" + (if (app == "ferme") " · MyChurch fermé sur le PC" else "")
+                                else "Relié par le Wi-Fi de l'église",
+                                taille = 12.5.sp, couleur = C.Brume,
+                            )
                         }
+                    }
+                    // 1.7.0 : démarrer / fermer MyChurch sur le PC, de n'importe où
+                    if (link == Link.CONNECTED && app == "ferme") Touche(onClick = { if (remote.demarrerMyChurch()) remote.appPc.value = "demarrage" }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
+                        Ico(I.ecran, C.Or, 18.dp)
+                        Spacer(Modifier.width(8.dp))
+                        T("Démarrer MyChurch sur le PC", couleur = C.Or, poids = FontWeight.ExtraBold)
+                    }
+                    if (link == Link.CONNECTED && app.isEmpty() && proto >= 2) Touche(onClick = { fermerPc = true }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
+                        Ico(I.sortir, C.Encre2, 18.dp)
+                        Spacer(Modifier.width(8.dp))
+                        T("Fermer MyChurch sur le PC", couleur = C.Encre2, poids = FontWeight.ExtraBold)
                     }
                     Touche(onClick = { oublier = true }, modifier = Modifier.fillMaxWidth(), bord = C.RougeBord) {
                         Ico(I.sortir, C.RougeTexte, 18.dp)
@@ -312,8 +370,11 @@ private class Pastille(val fond: Color, val texte: Color, val point: Color, val 
 fun PastilleConnexion(remote: Remote) {
     val link by remote.link.collectAsState()
     val pc by remote.pcName.collectAsState()
+    val app by remote.appPc.collectAsState()
     val e = when (link) {
-        Link.CONNECTED -> Pastille(C.VertFond, C.VertTexte, C.VertPoint, pc.ifBlank { "PC" })
+        // 1.7.0 : par Internet, le PC répond mais MyChurch y est fermé
+        Link.CONNECTED -> if (app.isNotEmpty() && app != "fermeture") Pastille(C.AmbrePale, C.AmbreTexte, C.Ambre, if (app == "demarrage") "Démarrage…" else "MyChurch fermé")
+            else Pastille(C.VertFond, C.VertTexte, C.VertPoint, pc.ifBlank { "PC" })
         Link.CONNECTING -> Pastille(C.AmbrePale, C.AmbreTexte, C.Ambre, "Connexion…")
         else -> Pastille(Color(0xFFFDECEA), C.RougeTexte, C.Rouge, "Hors ligne")
     }

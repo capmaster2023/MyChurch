@@ -20,6 +20,10 @@ data class Pairing(
     val port: Int,
     val lastHost: String?,
     val lastPort: Int,
+    /** MyChurch 1.7.0 : le relais par Internet (« 2-25-216-99.sslip.io »), appris du code QR ou du PC sur le Wi-Fi. */
+    val relay: String? = null,
+    /** La dernière connexion est passée par le relais (on le réessaie d'abord). */
+    val viaRelay: Boolean = false,
 )
 
 class Store(context: Context) {
@@ -110,6 +114,8 @@ class Store(context: Context) {
             port = prefs.getInt("port", 47900),
             lastHost = prefs.getString("lastHost", null),
             lastPort = prefs.getInt("lastPort", 47900),
+            relay = prefs.getString("relay", null)?.ifBlank { null },
+            viaRelay = prefs.getBoolean("viaRelay", false),
         )
     }
 
@@ -122,6 +128,8 @@ class Store(context: Context) {
             .putInt("port", p.port)
             .putString("lastHost", p.lastHost)
             .putInt("lastPort", p.lastPort)
+            .putString("relay", p.relay)
+            .putBoolean("viaRelay", p.viaRelay)
             .apply()
     }
 
@@ -131,7 +139,7 @@ class Store(context: Context) {
 
     fun forget() {
         prefs.edit().remove("pcId").remove("pcName").remove("key").remove("ips")
-            .remove("port").remove("lastHost").remove("lastPort")
+            .remove("port").remove("lastHost").remove("lastPort").remove("relay").remove("viaRelay")
             .remove("obsActif").remove("obsPort").remove("obsMdp").remove("obsDirect").remove("reglages").remove("chantsStamp").apply()
     }
 

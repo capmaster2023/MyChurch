@@ -38,6 +38,9 @@ import javax.crypto.spec.SecretKeySpec
 
 enum class Link { NOT_PAIRED, PAIRING, CONNECTING, CONNECTED, OFFLINE }
 
+/** MyChurch 1.7.0 : le relais MyChurch (VPS de l'église) quand le PC ne l'a pas encore donné. */
+const val RELAIS_DEFAUT = "2-25-216-99.sslip.io"
+
 /** Connexion au bridge VerseLight : jumelage, authentification HMAC, reconnexion automatique. */
 class Remote(private val context: Context, val store: Store) {
     val link = MutableStateFlow(if (store.pairing() == null) Link.NOT_PAIRED else Link.OFFLINE)
@@ -62,6 +65,13 @@ class Remote(private val context: Context, val store: Store) {
     val temoin = MutableStateFlow("off")
     /** MyCam : messages de la régie au caméraman (les plus récents en dernier). */
     val messagesCam = MutableStateFlow<List<JSONObject>>(emptyList())
+    /**
+     * MyChurch 1.7.0 : par Internet, MyChurch peut être fermé sur le PC (l'agent répond) : « ferme », « demarrage »,
+     * « fermeture » ; vide quand MyChurch lui-même est relié.
+     */
+    val appPc = MutableStateFlow("")
+    /** Par où passe la connexion : « wifi » (réseau de l'église) ou « internet » (relais MyChurch). */
+    val route = MutableStateFlow("")
     private var agendaVu = -1
     private val clock = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.FRANCE)
 
@@ -253,7 +263,10 @@ class Remote(private val context: Context, val store: Store) {
         }
     }
 
-    /** Dernière IP connue, puis découverte UDP (même pcId), puis les IP du code QR. */
+    /**
+     * Dernière IP connue, puis découverte UDP (même pcId), puis les IP du code QR ; enfin (MyChurch 1.7.0) le relais par
+     * Internet. Si la dernière connexion est passée par le relais (à la maison), il est essayé dès que le Wi-Fi ne répond pas.
+     */
     private suspend fun tryAll(p: Pairing, pairing: ByteArray?): Result {
         val tried = mutableSetOf<String>()
         suspend fun attempt(host: String, port: Int): Result? {
@@ -261,18 +274,40 @@ class Remote(private val context: Context, val store: Store) {
             val r = session(host, port, p, pairing != null)
             return if (r == Result.FAILED) null else r
         }
-        p.lastHost?.let { attempt(it, p.lastPort)?.let { r -> return r } }
+        val relais = p.relay ?: RELAIS_DEFAUT
+        suspend fun parInternet(): Result? {
+            // le jumelage (code QR) se fait sur le Wi-Fi de l'église
+            if (pairing != null || !tried.add("relais")) return null
+            val r = session(relais, 0, p, false, viaRelais = true)
+            return if (r == Result.FAILED) null else r
+        }
+        if (!p.viaRelay) p.lastHost?.let { attempt(it, p.lastPort)?.let { r -> return r } }
         val found = discover(p.pcId)
         log(if (found.isEmpty()) "recherche du PC sur le Wi-Fi : aucune réponse" else "recherche du PC sur le Wi-Fi : trouvé " + found.joinToString { "${it.first}:${it.second}" })
         for ((host, port) in found) attempt(host, port)?.let { return it }
+        if (p.viaRelay) parInternet()?.let { return it }
+        p.lastHost?.let { attempt(it, p.lastPort)?.let { r -> return r } }
         for (host in sortBySubnet(p.ips)) attempt(host, p.port)?.let { return it }
+        parInternet()?.let { return it }
         log("PC introuvable (essayé : ${tried.joinToString(", ")})")
         return Result.FAILED
     }
 
-    private suspend fun session(host: String, port: Int, p: Pairing, pair: Boolean): Result {
+    /** MyChurch 1.7.0 : démarrer MyChurch sur le PC de l'église (l'agent le lance). */
+    fun demarrerMyChurch(): Boolean = send("app.start")
+
+    /** MyChurch 1.7.0 : fermer MyChurch sur le PC de l'église (refusé pendant un direct ou un enregistrement). */
+    fun fermerMyChurch(): Boolean = send("app.quit")
+
+    private suspend fun session(host: String, port: Int, p: Pairing, pair: Boolean, viaRelais: Boolean = false): Result {
         val inbox = Channel<String>(Channel.UNLIMITED)
-        val ws = client.newWebSocket(Request.Builder().url("ws://$host:$port/").build(), object : WebSocketListener() {
+        val url = when {
+            !viaRelais -> "ws://$host:$port/"
+            host.contains("://") -> "${host.trimEnd('/')}/telephone/${p.pcId}"
+            else -> "wss://$host/telephone/${p.pcId}"
+        }
+        val ou = if (viaRelais) "Internet ($host)" else "$host:$port"
+        val ws = client.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) { inbox.trySend("{\"t\":\"_open\"}") }
             override fun onMessage(webSocket: WebSocket, text: String) {
                 // MyCam (MyChurch 1.2) : le PC mesure l'aller-retour pour dater les images ; réponse immédiate, hors de la file des messages
@@ -285,6 +320,11 @@ class Remote(private val context: Context, val store: Store) {
                 }
                 inbox.trySend(text)
             }
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                // le PC (ou l'agent : « MyChurch ouvert ») ferme : on répond tout de suite et on se reconnecte
+                webSocket.close(1000, null)
+                inbox.trySend(JSONObject().put("t", "_closed").put("err", "fermée par le PC ($code${if (reason.isNotEmpty()) " · $reason" else ""})").toString())
+            }
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 inbox.trySend(JSONObject().put("t", "_closed").put("err", "fermée par le PC ($code)").toString())
             }
@@ -293,11 +333,11 @@ class Remote(private val context: Context, val store: Store) {
             }
         })
         suspend fun next(ms: Long): JSONObject? = withTimeoutOrNull(ms) { JSONObject(inbox.receive()) }
-        log("connexion à $host:$port…")
+        log("connexion à $ou…")
         try {
             val first = next(4000)
             if (first?.optString("t") != "_open") {
-                log("$host:$port : " + (first?.optString("err")?.ifEmpty { null } ?: "pas de réponse en 4 s (pare-feu du PC, mauvais Wi-Fi ou MyChurch fermé)"))
+                log("$ou : " + (first?.optString("err")?.ifEmpty { null } ?: if (viaRelais) "pas de réponse en 4 s (pas d'Internet, ou relais éteint)" else "pas de réponse en 4 s (pare-feu du PC, mauvais Wi-Fi ou MyChurch fermé)"))
                 return Result.FAILED
             }
             val cnonce = b64(ByteArray(16).also { random.nextBytes(it) })
@@ -308,28 +348,36 @@ class Remote(private val context: Context, val store: Store) {
             val ch = next(5000) ?: return Result.FAILED
             if (ch.optString("t") == "auth.fail") throw Rejected(ch.optString("code"), ch.optString("message"))
             if (ch.optString("t") != "challenge") {
-                log("$host:$port : réponse inattendue (${ch.optString("t")} ${ch.optString("err")})")
+                log("$ou : réponse inattendue (${ch.optString("t")} ${ch.optString("err")})")
                 return Result.FAILED
             }
             val nonce = ch.getString("nonce")
             // le PC prouve qu'il connaît la clé avant qu'on réponde
             val proof = hmac(p.key, "verselight-srv|$cnonce|$nonce")
             if (!MessageDigest.isEqual(proof.toByteArray(), ch.optString("proof").toByteArray())) {
-                log("$host:$port : ce PC n'a pas la bonne clé (autre PC ou jumelage refait ailleurs)")
+                log("$ou : ce PC n'a pas la bonne clé (autre PC ou jumelage refait ailleurs)")
                 return Result.FAILED
             }
             ws.send(JSONObject().put("t", "auth").put("mac", hmac(p.key, nonce + store.deviceId)).toString())
             val w = next(5000) ?: return Result.FAILED
             if (w.optString("t") == "auth.fail") throw Rejected(w.optString("code"), w.optString("message"))
             if (w.optString("t") != "welcome") {
-                log("$host:$port : authentification sans réponse")
+                log("$ou : authentification sans réponse")
                 return Result.FAILED
             }
 
             // connecté
             val name = w.optString("pcName", p.pcName)
-            log("connecté à « $name » ($host:$port)" + if (pair) " · jumelage réussi" else "")
-            store.save(p.copy(pcName = name, lastHost = host, lastPort = port))
+            val agent = w.optBoolean("agent", false)
+            log("connecté à « $name » ($ou)" + (if (pair) " · jumelage réussi" else "") + (if (agent) " · MyChurch fermé sur le PC" else ""))
+            // 1.7.0 : le PC donne son relais (contrôle à distance actif) : ce téléphone le joindra aussi par Internet
+            val relaisPc = w.optString("relay", "").ifBlank { null }
+            store.save(
+                if (viaRelais) p.copy(pcName = name, viaRelay = true, relay = relaisPc ?: p.relay)
+                else p.copy(pcName = name, lastHost = host, lastPort = port, viaRelay = false, relay = relaisPc ?: p.relay)
+            )
+            route.value = if (viaRelais) "internet" else "wifi"
+            appPc.value = if (agent) w.optString("app", "ferme") else ""
             pcName.value = name
             info.value = ""
             proto.value = w.optInt("proto", 1)
@@ -380,6 +428,14 @@ class Remote(private val context: Context, val store: Store) {
                             events.tryEmit(m)
                         }
                         "auth.fail" -> throw Rejected(m.optString("code"), m.optString("message"))
+                        // 1.7.0 : MyChurch démarre, s'ouvre ou se ferme sur le PC (demandé de ce téléphone)
+                        "app.etat" -> {
+                            appPc.value = m.optString("app")
+                            when (m.optString("app")) {
+                                "ouvert" -> Bulles.dire("MyChurch est ouvert sur le PC : connexion…")
+                                "fermeture" -> Bulles.dire("MyChurch se ferme sur le PC.")
+                            }
+                        }
                         "obs" -> {} // ancien relais des réglages OBS : ignoré
                         "sync" -> scope.launch {
                             try {
@@ -395,7 +451,10 @@ class Remote(private val context: Context, val store: Store) {
                                 log("Bible reçue illisible : ${e.javaClass.simpleName} ${e.message ?: ""}")
                             }
                         }
-                        else -> events.tryEmit(m)
+                        else -> {
+                            if (m.optString("t") == "error" && appPc.value.isNotEmpty()) Bulles.dire(m.optString("message"))
+                            events.tryEmit(m)
+                        }
                     }
                 }
             } finally {
@@ -410,7 +469,7 @@ class Remote(private val context: Context, val store: Store) {
                 else -> Result.FAILED
             }
         } catch (e: Exception) {
-            log("$host:$port : erreur ${e.javaClass.simpleName} ${e.message ?: ""}")
+            log("$ou : erreur ${e.javaClass.simpleName} ${e.message ?: ""}")
             return Result.FAILED
         } finally {
             if (socket === ws) {
@@ -442,6 +501,7 @@ class Remote(private val context: Context, val store: Store) {
             port = u.getQueryParameter("port")?.toIntOrNull() ?: 47900,
             lastHost = null,
             lastPort = 47900,
+            relay = u.getQueryParameter("relay")?.ifBlank { null },
         )
         job?.cancel()
         running = true

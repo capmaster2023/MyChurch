@@ -725,6 +725,7 @@ public static class AutoTest
     /// </summary>
     static async Task TestTuilesEtDistance(MainWindow w)
     {
+        var R = App.Regie;
         var h = new System.Windows.Interop.WindowInteropHelper(w).Handle;
         int lecteursAvant = w.TestLecteursTuiles, vivantesAvant = w.TestTuilesVivantes;
         var fen = R.NouveauDisplay("Régie MyChurch", new SourceDisplay { Type = "fenetre", Fenetre = h.ToInt64(), Processus = Environment.ProcessId, Titre = w.Title });
