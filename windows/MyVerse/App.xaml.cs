@@ -159,7 +159,7 @@ public partial class App : Application
         });
 
         // 1.8.0 : les caméras ne fabriquent pas d'images plus grandes que l'écran de l'église ou le direct (4K seulement si utile)
-        Audio.CameraFrames.LargeurMax = () =>
+        MyVerse.Ui.Audio.CameraFrames.LargeurMax = () =>
         {
             var (l, _, _) = Donnees.Reglages.Direct.Taille;
             return Math.Clamp(Math.Max(l, Donnees.Reglages.Ecran?.W ?? 1920), 1920, 3840);
