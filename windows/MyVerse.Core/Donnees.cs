@@ -81,8 +81,10 @@ public sealed class Reglages
     /// « fond » (l'habillage sans texte) ou l'id d'un écran principal du déroulé.
     /// </summary>
     [JsonPropertyName("ecranDefaut")] public string EcranDefaut { get; set; } = "noir";
-    /// <summary>MyStream (1.6.0) : la source principale, sur Zoom et YouTube quoi que montre l'église (id d'une source Display). Vide : MyStream montre comme l'église.</summary>
+    /// <summary>MyStream (1.6.0) : la source principale, sur Zoom et YouTube quoi que montre l'église (id d'une source Display). Vide : MyStream reste noir (1.6.6).</summary>
     [JsonPropertyName("myStreamSource")] public string MyStreamSource { get; set; } = "";
+    /// <summary>MyStream (1.6.6) : « Aucune » choisie exprès : une caméra montrée ne devient pas la source principale toute seule.</summary>
+    [JsonPropertyName("myStreamAucune")] public bool MyStreamAucune { get; set; }
     /// <summary>Le direct (1.6.0) : YouTube (compte connecté ou clé de stream) ou un autre service.</summary>
     [JsonPropertyName("direct")] public ReglagesDirect Direct { get; set; } = new();
 }

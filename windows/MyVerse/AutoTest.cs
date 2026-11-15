@@ -565,6 +565,18 @@ public static class AutoTest
             Ok(Vert(haut) && Vert(bas), $"1.6.4 : Zoom voit la caméra seule, sans bandeau de paroles ({haut} / {bas})");
         }
         Capture(w, "64-v164-mystream-camera.png");
+        // 1.6.6 : le texte prend tout l'écran, sans jamais être coupé (même avec « Taille du texte » au plus grand)
+        var zone = w.TestZoneTexteEglise;
+        Ok(!zone.IsEmpty && zone.Left >= 0 && zone.Top >= 0 && zone.Right <= 1920.5 && zone.Bottom <= 1080.5 && zone.Width >= 0.6 * 1920,
+            $"1.6.6 : le verset prend tout l'écran sans être coupé ({zone.Left:0},{zone.Top:0} — {zone.Width:0} × {zone.Height:0})");
+        double tailleAvant = App.Donnees.Reglages.Taille;
+        R.Taille(1.6);
+        await Attendre(600);
+        var zone2 = w.TestZoneTexteEglise;
+        Ok(!zone2.IsEmpty && zone2.Left >= 0 && zone2.Top >= 0 && zone2.Right <= 1920.5 && zone2.Bottom <= 1080.5,
+            $"1.6.6 : « Taille du texte » à 160 % : le texte reste dans l'écran ({zone2.Left:0},{zone2.Top:0} — {zone2.Width:0} × {zone2.Height:0})");
+        R.Taille(tailleAvant);
+        await Attendre(300);
         // « Envoyer dans le stream » (touche S) : le verset part sur MyStream, et la suite aussi
         w.TestEnvoyerStream();
         await Attendre(1500);
@@ -676,7 +688,14 @@ public static class AutoTest
         R.ChoisirSourceStream(null);
         R.SupprimerAnnonce(cam.Id);
         await Attendre(500);
-        Ok(w.TestEtatStream.Mode == R.EtatCamera(R.Etat).Mode, "1.6.0 : sans source principale, MyStream suit de nouveau l'église");
+        Ok(w.TestEtatStream.Mode == "vide" && R.Etat.Mode != "vide" && w.TestInfoStream.Contains("noir"), "1.6.6 : « Aucune » : MyStream reste noir, l'église garde le verset : " + w.TestInfoStream);
+        Capture(w, "64c-v166-mystream-noir.png");
+        w.TestEnvoyerStream();
+        await Attendre(500);
+        Ok(w.TestEtatStream.Mode == R.EtatCamera(R.Etat).Mode, "1.6.6 : sans source principale, « Envoyer dans le stream » : MyStream montre l'église");
+        w.TestRetourStream();
+        await Attendre(300);
+        Ok(!R.StreamSuitEglise && w.TestEtatStream.Mode == "vide", "1.6.6 : M : MyStream ne suit plus l'église (noir)");
     }
 
     /// <summary>
@@ -705,8 +724,12 @@ public static class AutoTest
             }
             Ok(lease.Error == null && images >= 5, $"1.6.5 : les images arrivent dès qu'elles sont prêtes ({images} en 2 s)");
         }
-        await Attendre(500);
-        Ok(Audio.CameraFrames.Info(vcam.Id) == "", "1.6.5 : la caméra est rendue quand plus personne ne s'en sert");
+        await Attendre(800);
+        // 1.6.6 : elle reste ouverte, prête (une image fraîche) : elle revient tout de suite
+        Ok(Audio.CameraFrames.Info(vcam.Id) != "", "1.6.6 : la caméra reste ouverte, prête, quand plus personne ne s'en sert : " + Audio.CameraFrames.Info(vcam.Id));
+        var t0 = DateTime.Now;
+        using (var reprise = Audio.CameraFrames.Acquire(vcam.Id, source))
+            Ok(reprise.Image != null && reprise.Error == null, $"1.6.6 : elle revient tout de suite ({(DateTime.Now - t0).TotalMilliseconds:0} ms, image prête)");
     }
 
     /// <summary>Un serveur RTMP local (ffmpeg en écoute, comme YouTube) qui garde ce qu'il reçoit dans <paramref name="nom"/>.</summary>
@@ -742,6 +765,11 @@ public static class AutoTest
             Ok(App.Donnees.Chants.Count == 0 && App.Audio.Config.Sons.Count == 1 && App.Audio.Config.Sons[0].Genre == GenreSon.Video && App.Donnees.Annonces.Count == 0,
                 $"4.2 : premier lancement vide ({App.Donnees.Chants.Count} chants, {App.Audio.Config.Sons.Count} son : le son des vidéos)");
             Ok(App.Bibles.Toutes().Select(b => b.Id).SequenceEqual(new[] { "lsg", "kjv" }), "4.2 : Bibles livrées : " + string.Join(", ", App.Bibles.Toutes().Select(b => b.Nom)));
+            // 1.6.6 : sans source principale, MyStream reste noir ; les essais d'avant (MyVirtualCam = ce que montre l'église) le font
+            // suivre l'église (« Envoyer dans le stream ») ; « Aucune » choisie exprès : une caméra montrée ne devient pas sa source principale
+            Ok(R.SourcePrincipaleStream == null && !R.StreamSuitEglise && R.EtatStream(R.Etat).Mode == "vide", "1.6.6 : premier lancement : MyStream noir (rien de choisi)");
+            R.ChoisirSourceStream(null);
+            R.EnvoyerDansStream();
             // des chants pour la suite du test (comme un recueil importé par l'utilisateur)
             R.AjouterChants(new[]
             {

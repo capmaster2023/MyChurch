@@ -15,6 +15,10 @@ namespace MyVerse.Ui.Audio;
 /// et mesure ce qui arrive vraiment. Si l'appareil n'y arrive pas en 1080p, il essaie 720p (les images par seconde d'abord),
 /// sinon il garde le meilleur essai. Ce qui a marché est retenu pour la prochaine ouverture. Les images partent dès qu'elles arrivent.
 /// </para>
+/// <para>
+/// 1.6.6 : quand plus personne ne s'en sert (un verset à l'écran), l'appareil reste ouvert 10 minutes, prêt (deux images par seconde
+/// gardées fraîches) : la caméra revient tout de suite, sans écran noir ni attente.
+/// </para>
 /// </summary>
 public static class CameraFrames
 {
@@ -24,6 +28,8 @@ public static class CameraFrames
     static readonly Dictionary<string, Reglage> trouves = new();
     /// <summary>Les appareils dont on a déjà dit qu'ils donnent moins d'images que demandé (une fois par ouverture de MyChurch).</summary>
     static readonly HashSet<string> dits = new();
+    /// <summary>Combien de temps un appareil reste ouvert, prêt, après sa dernière utilisation.</summary>
+    const long Garde = 10 * 60 * 1000;
 
     /// <summary>Un réglage de l'appareil : la taille, le format compressé MJPG ou non, les images par seconde demandées et mesurées.</summary>
     public sealed record Reglage(int Largeur, int Hauteur, bool Mjpg, int Demande, double Mesure)
@@ -45,7 +51,8 @@ public static class CameraFrames
             lock (gate)
             {
                 if (disposed) return; disposed = true;
-                if (--capture.Users == 0) { captures.Remove(capture.Id); try { capture.Cancel.Cancel(); } catch (ObjectDisposedException) { } }
+                // l'appareil reste ouvert, prêt, pendant la garde (il revient tout de suite)
+                if (--capture.Users == 0) capture.Libere = Environment.TickCount64;
             }
         }
     }
@@ -64,6 +71,10 @@ public static class CameraFrames
         public int Version;
         /// <summary>Ce que donne l'appareil en ce moment (« 1280 × 720 · MJPG · 60 i/s »).</summary>
         public volatile string Info = "";
+        /// <summary>Quand la dernière part a été rendue (l'appareil reste ouvert pendant la garde).</summary>
+        public long Libere;
+        /// <summary>Le fil de l'appareil est fini (garde passée, erreur) : une nouvelle demande rouvre l'appareil.</summary>
+        public bool Fini;
     }
 
     /// <summary>Ce que donne l'appareil en ce moment (« 1920 × 1080 · MJPG · 60 i/s ») ; vide s'il n'est pas ouvert.</summary>
@@ -79,7 +90,7 @@ public static class CameraFrames
         {
             int ips = source?.IpsVoulues ?? 60;
             string taille = source?.TailleVoulue ?? "1080p";
-            if (captures.TryGetValue(id, out var capture))
+            if (captures.TryGetValue(id, out var capture) && !capture.Fini)
             {
                 // la source a changé ses images par seconde ou sa taille : l'appareil se rouvre avec (les autres parts suivent)
                 if (source != null && (capture.Ips != ips || capture.Taille != taille)) { capture.Ips = ips; capture.Taille = taille; capture.Version++; }
@@ -129,7 +140,16 @@ public static class CameraFrames
         }
         catch (OperationCanceledException) { }
         catch (Exception e) { state.Error = e.Message; Journal.Erreur("caméra partagée", e); }
-        finally { state.Info = ""; state.Cancel.Dispose(); }
+        finally
+        {
+            state.Info = "";
+            lock (gate)
+            {
+                state.Fini = true;
+                if (captures.TryGetValue(state.Id, out var c) && c == state) captures.Remove(state.Id);
+            }
+            state.Cancel.Dispose();
+        }
     }
 
     /// <summary>Lit les images et les publie, au plus <paramref name="ips"/> par seconde (40 d'une caméra à 60 : une sur trois est sautée).</summary>
@@ -140,8 +160,22 @@ public static class CameraFrames
         double intervalle = 1000.0 / ips, tolerance = intervalle * 0.25, prochain = 0;
         var horloge = Stopwatch.StartNew();
         int ratees = 0;
+        double libreDepuis = -1000;
         while (!state.Cancel.IsCancellationRequested && Volatile.Read(ref state.Version) == version)
         {
+            // personne ne s'en sert : l'appareil est rendu après la garde (sous le verrou : une demande peut arriver en même temps)
+            bool libre;
+            lock (gate)
+            {
+                libre = state.Users == 0;
+                if (libre && Environment.TickCount64 - state.Libere > Garde)
+                {
+                    state.Fini = true;
+                    if (captures.TryGetValue(state.Id, out var c) && c == state) captures.Remove(state.Id);
+                    Journal.Info($"caméra rendue après {Garde / 60000} minutes sans utilisation");
+                    throw new OperationCanceledException();
+                }
+            }
             // Read attend l'image suivante de l'appareil (une seconde au plus)
             if (!camera.Read(frame) || frame.Empty())
             {
@@ -151,6 +185,14 @@ public static class CameraFrames
             }
             ratees = 0;
             double t = horloge.Elapsed.TotalMilliseconds;
+            // en garde : deux images par seconde, pour qu'elle soit fraîche quand la caméra revient
+            if (libre)
+            {
+                if (t - libreDepuis < 500) continue;
+                libreDepuis = t;
+                Publier(state, frame, bgra);
+                continue;
+            }
             if (t < prochain - tolerance) continue;
             prochain = Math.Max(prochain + intervalle, t);
             Publier(state, frame, bgra);

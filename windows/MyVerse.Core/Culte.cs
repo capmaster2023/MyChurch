@@ -234,6 +234,8 @@ public sealed partial class Regie
         Oeil?.Invoke(true);
         Etat = Etat with { Mode = "media", Media = source, Lignes = Array.Empty<string>(), Ref = titre, Second = null };
         Noter("d:" + id, titre, source.Type);
+        // 1.6.6 : MyStream sans source principale : la première caméra montrée le devient
+        AdopterCameraStream(id, titre, source);
         Signaler();
     }
 

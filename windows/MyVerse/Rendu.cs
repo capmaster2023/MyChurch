@@ -388,7 +388,10 @@ public sealed class Rendu : Grid
 
     double Rem => Math.Max(1, ActualHeight) / 108.0;
 
-    /// <summary>Plein écran (marges 6 % / 7 %) ou bandeau en bas (30 % de la hauteur).</summary>
+    /// <summary>Pour le test automatique (1.6.6) : où est le texte dans le dessin (vide s'il n'y en a pas).</summary>
+    public Rect TestZoneTexte => texte.IsVisible && texte.ActualWidth > 0 ? texte.TransformToAncestor(this).TransformBounds(new Rect(texte.RenderSize)) : Rect.Empty;
+
+    /// <summary>Plein écran (1.6.6 : marges 4 % / 3,5 %, tout l'écran pour le texte) ou bandeau en bas (30 % de la hauteur).</summary>
     void Placer()
     {
         double W = ActualWidth, H = ActualHeight;
@@ -406,7 +409,7 @@ public sealed class Rendu : Grid
         }
         else
         {
-            scene.Margin = new Thickness(0.07 * W, 0.06 * H, 0.07 * W, 0.06 * H);
+            scene.Margin = new Thickness(0.035 * W, 0.04 * H, 0.035 * W, 0.04 * H);
             scene.VerticalAlignment = VerticalAlignment.Stretch;
             scene.Height = double.NaN;
             scene.Background = null;
@@ -436,7 +439,11 @@ public sealed class Rendu : Grid
         return t.DesiredSize;
     }
 
-    /// <summary>La plus grande taille de texte qui tient dans l'écran, puis des lignes de longueurs voisines.</summary>
+    /// <summary>
+    /// La plus grande taille de texte qui tient dans l'écran, puis des lignes de longueurs voisines. 1.6.6 : le texte prend tout l'écran
+    /// (jusqu'à 20 % de la hauteur par ligne) ; « Taille du texte » change ce plafond, mais le texte n'est jamais coupé : il tient
+    /// toujours dans l'écran, quitte à être plus petit.
+    /// </summary>
     void Ajuster()
     {
         double W = ActualWidth, H = ActualHeight;
@@ -449,8 +456,9 @@ public sealed class Rendu : Grid
         bool avec2 = texte2.Visibility == Visibility.Visible;
         double maxH = hauteur;
         if (refT.Visibility == Visibility.Visible) maxH -= Mesure(refT, largeur).Height + refT.Margin.Top + 40 * H / 1080;
-        double lo = 2, hi = 11, best = 2;
-        for (int i = 0; i < 14; i++)
+        double plafond = 20 * (etat.Taille > 0 ? etat.Taille : 1);
+        double lo = 1, hi = plafond, best = 1;
+        for (int i = 0; i < 16; i++)
         {
             double mid = (lo + hi) / 2;
             Taille(mid, avec2);
@@ -465,8 +473,7 @@ public sealed class Rendu : Grid
             }
             if (haut <= maxH + 2 && ok) { best = mid; lo = mid; } else hi = mid;
         }
-        double t = best * (etat.Taille > 0 ? etat.Taille : 1);
-        Taille(t, avec2);
+        Taille(best, avec2);
         Equilibrer(texte, largeur);
         if (avec2) Equilibrer(texte2, largeur);
     }

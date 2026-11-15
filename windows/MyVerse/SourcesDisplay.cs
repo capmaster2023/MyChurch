@@ -49,9 +49,10 @@ public sealed class SourcesDisplay : IDisposable
         var token = new CancellationTokenSource();
         fin = token;
         int g = ++generation;
-        Image = null;
+        // 1.6.6 : la dernière image de cette source, tout de suite (au lieu d'un écran noir) ; la capture reprend derrière
+        Image = Derniere(nouvelle);
         ViderExport();
-        Statut = nouvelle == null ? "" : "Connexion à la source…";
+        Statut = nouvelle == null ? "" : Image != null ? "En direct" : "Connexion à la source…";
         Change?.Invoke();
         travail = Task.Run(async () =>
         {
@@ -248,13 +249,48 @@ public sealed class SourcesDisplay : IDisposable
         }
     }
 
+    /// <summary>
+    /// 1.6.6 : la dernière image des dernières sources montrées (caméra, MyCam, fenêtre, image ; pas les vidéos, qui repartent du début),
+    /// pour tous les lecteurs (église, MyStream, Duo…) : une source montrée de nouveau apparaît tout de suite. Six sources au plus
+    /// (une image 1080p pèse 8 Mo). Sur le fil de l'interface seulement.
+    /// </summary>
+    static readonly List<(string Cle, BitmapSource Image)> dernieres = new();
+
+    static string? CleDerniere(SourceDisplay? s) => s?.Type switch
+    {
+        "camera" => "c:" + s.Peripherique,
+        "mycam" => "m:" + s.Peripherique,
+        "fenetre" => $"f:{s.Fenetre}:{s.Processus}:{s.ZoneClient}",
+        "image" => "i:" + s.Chemin,
+        _ => null,
+    };
+
+    static BitmapSource? Derniere(SourceDisplay? s)
+    {
+        if (CleDerniere(s) is not { } cle) return null;
+        foreach (var (c, image) in dernieres) if (c == cle) return image;
+        return null;
+    }
+
+    static void Garder(SourceDisplay s, BitmapSource b)
+    {
+        if (CleDerniere(s) is not { } cle) return;
+        int i = dernieres.FindIndex(x => x.Cle == cle);
+        if (i == 0) { dernieres[0] = (cle, b); return; }
+        if (i > 0) dernieres.RemoveAt(i);
+        dernieres.Insert(0, (cle, b));
+        if (dernieres.Count > 6) dernieres.RemoveAt(dernieres.Count - 1);
+    }
+
     async Task Publier(BitmapSource b, int g, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         await Application.Current.Dispatcher.InvokeAsync(() =>
         {
             if (g != generation) return;
-            Image = b; Statut = "En direct"; Change?.Invoke();
+            Image = b; Statut = "En direct";
+            if (source != null) Garder(source, b);
+            Change?.Invoke();
         });
         // 1.3.1 : une source « Dans l'église » ne part pas vers la page OBS
         if (export.Length == 0 || g != generation || source?.EgliseSeulement == true || !App.SortieObs.Prete || Environment.TickCount64 - dernierExport < 100) return;

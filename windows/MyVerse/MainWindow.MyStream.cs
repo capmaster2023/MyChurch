@@ -78,22 +78,23 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Sous MyStream : ce qu'il montre (« Caméra · source principale » ou « suit l'église ») ; les boutons « Envoyer dans le stream »
+    /// Sous MyStream : ce qu'il montre (« Caméra · source principale », « suit l'église » ou noir) ; les boutons « Envoyer dans le stream »
     /// (allumé quand MyStream suit l'église) et « Source principale ».
     /// </summary>
     void MajInfoStream()
     {
         var p = R.SourcePrincipaleStream;
-        bool suit = p != null && R.StreamSuitEglise;
-        StreamRetour.IsEnabled = p != null;
-        EnvoyerStream.IsEnabled = p != null;
+        bool suit = R.StreamSuitEglise;
+        StreamRetour.IsEnabled = p != null || suit;
+        EnvoyerStream.IsEnabled = true;
+        string retour = p != null ? "revenir sur " + p.Titre : "arrêter (MyStream noir)";
         if (suit)
         {
             EnvoyerStream.Background = Pinceau("StreamLeger");
             EnvoyerStream.BorderBrush = Pinceau("Stream");
             EnvoyerStreamTexte.Text = "MyStream suit l'église";
             EnvoyerStreamTexte.Foreground = Pinceau("Stream");
-            EnvoyerStream.ToolTip = "MyStream montre ce que montre l'église et le suit. « Source principale » (M) pour revenir sur " + p!.Titre + ".";
+            EnvoyerStream.ToolTip = "MyStream montre ce que montre l'église et le suit. « Source principale » (M) pour " + retour + ".";
             StreamRetour.BorderBrush = Pinceau("Stream");
         }
         else
@@ -102,39 +103,49 @@ public partial class MainWindow
             EnvoyerStream.ClearValue(BorderBrushProperty);
             EnvoyerStreamTexte.Text = "Envoyer dans le stream";
             EnvoyerStreamTexte.ClearValue(TextBlock.ForegroundProperty);
-            EnvoyerStream.ToolTip = p == null
-                ? "Sans source principale, MyStream montre déjà ce que montre l'église. Choisissez une source avec « Source »."
-                : "Touche S : MyStream montre aussi ce que montre l'église (paroles, versets, images…) et le suit, jusqu'à « Source principale » (M)";
+            EnvoyerStream.ToolTip = "Touche S : MyStream montre aussi ce que montre l'église (paroles, versets, images…) et le suit, jusqu'à « Source principale » (M)";
             StreamRetour.ClearValue(BorderBrushProperty);
+        }
+        if (suit)
+        {
+            StreamInfo.Text = $"MyStream suit l'église : ce qu'elle montre part sur Zoom et YouTube. M : {retour}.";
+            return;
         }
         if (p == null)
         {
-            StreamInfo.Text = R.SourcesStreamPossibles.Count == 0
-                ? "Pas de source principale : MyStream montre comme l'église. Ajoutez une caméra ou MyCam (Bibliothèque › Médias), puis « Source »."
-                : "Pas de source principale : MyStream montre comme l'église. « Source » pour en choisir une.";
+            // 1.6.6 : rien de choisi pour Internet : MyStream reste noir (les paroles et les versets restent dans l'église)
+            StreamInfo.Text = etatStream is { Mode: "media", Media: not null }
+                ? "MyStream montre une source « MyStream seulement ». Sans source principale, il est noir le reste du temps."
+                : R.AucuneSourceStream
+                    ? "Aucune source : MyStream reste noir. « Source » pour en choisir une, ou « Envoyer dans le stream »."
+                    : R.SourcesStreamPossibles.Count == 0
+                        ? "Pas de source : MyStream reste noir. Ajoutez une caméra (Bibliothèque › Médias) : montrée, elle devient sa source principale."
+                        : "Pas de source principale : MyStream reste noir. Montrez une caméra (elle le devient), ou « Source ».";
             return;
         }
         string statut = App.SourcesStream.Statut is { Length: > 0 } s && App.SourcesStream.Image == null ? " (" + s.TrimEnd('.') + ")" : "";
-        StreamInfo.Text = suit
-            ? $"MyStream suit l'église : ce qu'elle montre part sur Zoom et YouTube. M : revenir sur {p.Titre}."
-            : etatStream is { Mode: "media" } e && e.Media != null && e.Media != p.Source
-                ? $"MyStream montre une source « MyStream seulement ». Source principale : {p.Titre}{statut}."
-                : $"MyStream montre {p.Titre}{statut}, quoi que montre l'église.";
+        StreamInfo.Text = etatStream is { Mode: "media" } e && e.Media != null && e.Media != p.Source
+            ? $"MyStream montre une source « MyStream seulement ». Source principale : {p.Titre}{statut}."
+            : $"MyStream montre {p.Titre}{statut}, quoi que montre l'église.";
     }
 
-    /// <summary>Touche M ou « Source principale » : MyStream revient sur sa source principale, l'église garde ce qu'elle montre.</summary>
+    /// <summary>
+    /// Touche M ou « Source principale » : MyStream ne suit plus l'église et revient sur sa source principale (noir sans source
+    /// principale) ; l'église garde ce qu'elle montre. Sans source principale ni église suivie : le menu « Source ».
+    /// </summary>
     void RetourStream()
     {
-        if (R.SourcePrincipaleStream == null)
+        bool suivait = R.StreamSuitEglise;
+        if (!suivait && R.SourcePrincipaleStream == null)
         {
             Ouvrir(MenuStream(), StreamChoisir, PlacementMode.Bottom);
             return;
         }
-        bool suivait = R.StreamSuitEglise;
-        if (R.StreamPrincipale())
-            Toast(suivait
-                ? $"MyStream : « {R.SourcePrincipaleStream?.Titre} ». L'église garde ce qu'elle montre ; MyStream ne la suit plus."
-                : $"MyStream montre déjà « {R.SourcePrincipaleStream?.Titre} ».");
+        if (!R.StreamPrincipale()) return;
+        var p = R.SourcePrincipaleStream;
+        Toast(!suivait ? $"MyStream montre déjà « {p?.Titre} »."
+            : p != null ? $"MyStream : « {p.Titre} ». L'église garde ce qu'elle montre ; MyStream ne la suit plus."
+            : "MyStream ne suit plus l'église : sans source principale, il reste noir.");
     }
 
     /// <summary>
@@ -142,16 +153,12 @@ public partial class MainWindow
     /// </summary>
     void EnvoyerDansStream()
     {
-        if (R.SourcePrincipaleStream == null)
-        {
-            Toast("Sans source principale, MyStream montre déjà ce que montre l'église. « Source » pour en choisir une.");
-            return;
-        }
-        if (R.StreamSuitEglise) { Toast("MyStream suit déjà l'église. « Source principale » (M) pour revenir sur " + R.SourcePrincipaleStream.Titre + "."); return; }
+        string retour = R.SourcePrincipaleStream is { } p ? "revenir sur " + p.Titre : "arrêter";
+        if (R.StreamSuitEglise) { Toast($"MyStream suit déjà l'église. « Source principale » (M) pour {retour}."); return; }
         if (R.EnvoyerDansStream())
             Toast(R.Etat is { Mode: "vide" or "fond" } || R.Cible is CibleDefaut
-                ? "MyStream suit l'église : ce que vous montrerez partira aussi sur Zoom et YouTube. M pour revenir sur la source principale."
-                : "Envoyé dans le stream : MyStream montre ce que montre l'église, et la suit. M pour revenir sur la source principale.");
+                ? $"MyStream suit l'église : ce que vous montrerez partira aussi sur Zoom et YouTube. M pour {retour}."
+                : $"Envoyé dans le stream : MyStream montre ce que montre l'église, et la suit. M pour {retour}.");
     }
 
     /// <summary>Le menu « Source » : la source principale de MyStream (ce qu'il montre), aucune, le direct.</summary>
@@ -171,9 +178,9 @@ public partial class MainWindow
             menu.Items.Add(item);
         }
         if (possibles.Count == 0) menu.Items.Add(new MenuItem { Header = "Aucune caméra : ajoutez-en une dans Bibliothèque › Médias", IsEnabled = false });
-        var aucune = Article("Aucune (MyStream montre comme l'église)", () => R.ChoisirSourceStream(null));
+        var aucune = Article("Aucune (MyStream reste noir)", () => { R.ChoisirSourceStream(null); Toast("MyStream reste noir : « Envoyer dans le stream » pour y mettre l'église, ou choisissez une source."); });
         aucune.IsCheckable = true;
-        aucune.IsChecked = actuelle == null;
+        aucune.IsChecked = actuelle == null && R.AucuneSourceStream;
         menu.Items.Add(aucune);
         menu.Items.Add(new Separator());
         menu.Items.Add(Article("Le direct sur YouTube…", OuvrirDirect));
@@ -229,6 +236,8 @@ public partial class MainWindow
 
     // ------------------------------------------------------------ pour le test automatique
     public EtatEcran TestEtatStream => etatStream;
+    /// <summary>1.6.6 : où est le texte sur l'écran de l'église (dessin 1920 × 1080).</summary>
+    public Rect TestZoneTexteEglise => EgliseRendu.TestZoneTexte;
     public string TestInfoStream => StreamInfo.Text;
     public string TestDirectTexte => DirectTexte.Text;
     public void TestRetourStream() => RetourStream();

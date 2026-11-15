@@ -1055,7 +1055,7 @@ if (Actif())
     Ok(rg.Cible is CibleDefaut && rg.EtatSalle(rg.Etat).Media == zoom.Source && rg.EtatCamera(rg.Etat).Vide, "… même affiché comme écran par défaut");
 }
 
-Groupe("MyStream (1.6.4) : indépendant de l'église");
+Groupe("MyStream (1.6.4 / 1.6.6) : indépendant de l'église");
 if (Actif())
 {
     var don = Donnees.Charger(Temp(), res);
@@ -1065,10 +1065,14 @@ if (Actif())
     var texte = rg.NouveauDisplay("Bienvenue", new SourceDisplay { Type = "image", Chemin = "x.png" });
     texte.Source = null; texte.Texte = "Bienvenue à tous";
 
-    // sans source principale : comme MyVirtualCam jusqu'à la 1.5
+    // 1.6.6 : sans source principale, MyStream reste noir (les paroles et les versets ne partent jamais tout seuls)
     rg.AfficherVerset(43, 3, 16, 16);
-    Ok(rg.SourcePrincipaleStream == null && rg.EtatStream(rg.Etat) == rg.EtatCamera(rg.Etat), "sans source principale : MyStream montre comme l'église (comme Zoom avant)");
-    Ok(!rg.EnvoyerDansStream() && !rg.StreamSuitEglise, "sans source principale : « Envoyer dans le stream » ne change rien (il suit déjà l'église)");
+    Ok(rg.SourcePrincipaleStream == null && rg.EtatStream(rg.Etat) is { Mode: "vide", Media: null } && rg.EtatStream(rg.Etat).Lignes.Count == 0,
+        "1.6.6 : sans source principale, un verset reste dans l'église : MyStream noir");
+    Ok(rg.EnvoyerDansStream() && rg.StreamSuitEglise && rg.EtatStream(rg.Etat) == rg.EtatCamera(rg.Etat),
+        "1.6.6 : sans source principale, « Envoyer dans le stream » : MyStream montre l'église (comme Zoom avant)");
+    Ok(rg.StreamPrincipale() && !rg.StreamSuitEglise && rg.EtatStream(rg.Etat).Mode == "vide", "1.6.6 : M : MyStream ne suit plus l'église (noir)");
+    Ok(!rg.StreamPrincipale(), "1.6.6 : M sans source principale (et sans suivre l'église) : rien à faire");
 
     // une source principale : MyStream la montre, quoi que montre l'église
     rg.ChoisirSourceStream(texte.Id);
@@ -1134,10 +1138,38 @@ if (Actif())
     rg.AfficherVerset(43, 3, 16, 16);
     Ok(rg.EtatStream(rg.Etat).Media == cam.Source, "… le verset suivant (dans l'église) : MyStream revient sur la caméra");
 
-    // une source principale supprimée : MyStream suit l'église
+    // une source principale supprimée : MyStream noir
     rg.SupprimerAnnonce(cam.Id);
     rg.AfficherVerset(43, 3, 16, 16);
-    Ok(rg.SourcePrincipaleStream == null && rg.EtatStream(rg.Etat) == rg.EtatCamera(rg.Etat) && !rg.StreamPrincipale(), "source principale supprimée : MyStream suit l'église, M ne fait rien");
+    Ok(rg.SourcePrincipaleStream == null && rg.EtatStream(rg.Etat).Mode == "vide" && !rg.StreamPrincipale(), "source principale supprimée : MyStream noir, M ne fait rien");
+
+    // 1.6.6 : la première caméra montrée devient la source principale (les paroles restent ensuite dans l'église)
+    string? dit = null;
+    rg.Message += m => dit = m;
+    var usb = rg.NouveauDisplay("USB Video", new SourceDisplay { Type = "camera", Peripherique = "@device:usb" });
+    rg.AfficherAnnonce(image);
+    Ok(rg.SourcePrincipaleStream == null, "1.6.6 : une image montrée ne devient pas la source principale");
+    rg.AfficherAnnonce(usb);
+    Ok(rg.SourcePrincipaleStream?.Id == usb.Id && dit != null && dit.Contains("USB Video") && Donnees.Charger(don.Dossier, res).Reglages.MyStreamSource == usb.Id,
+        "1.6.6 : une caméra montrée sans source principale le devient : « " + dit + " »");
+    rg.AfficherVerset(43, 3, 16, 16);
+    Ok(rg.EtatStream(rg.Etat).Media == usb.Source && rg.Etat.Mode == "verset", "1.6.6 : ensuite, le verset reste dans l'église : MyStream garde la caméra");
+    // « Aucune » choisie exprès : plus d'adoption
+    rg.ChoisirSourceStream(null);
+    Ok(rg.AucuneSourceStream && rg.EtatStream(rg.Etat).Mode == "vide", "1.6.6 : « Aucune » : MyStream noir");
+    rg.AfficherAnnonce(usb);
+    Ok(rg.SourcePrincipaleStream == null && Donnees.Charger(don.Dossier, res).Reglages.MyStreamAucune, "1.6.6 : « Aucune » choisie exprès : la caméra montrée ne devient pas la source principale");
+    rg.ChoisirSourceStream(usb.Id);
+    Ok(!rg.AucuneSourceStream && rg.SourcePrincipaleStream?.Id == usb.Id, "1.6.6 : une source choisie de nouveau");
+    // une caméra « Dans l'église seulement » ne devient pas la source principale
+    var don2 = Donnees.Charger(Temp(), res);
+    var rg2 = new Regie(don2, new Bibles(don2));
+    var chaire = rg2.NouveauDisplay("Caméra chaire", new SourceDisplay { Type = "camera", Peripherique = "@device:x", Diffusion = SourceDisplay.Eglise });
+    rg2.AfficherAnnonce(chaire);
+    Ok(rg2.SourcePrincipaleStream == null, "1.6.6 : une caméra « Dans l'église seulement » ne devient pas la source principale");
+    var tel = rg2.NouveauDisplay("MyCam", new SourceDisplay { Type = "mycam", Peripherique = "tel" });
+    rg2.AfficherAnnonce(tel);
+    Ok(rg2.SourcePrincipaleStream?.Id == tel.Id, "1.6.6 : MyCam montrée : elle devient la source principale");
 }
 
 Groupe("Dossiers Duo");
