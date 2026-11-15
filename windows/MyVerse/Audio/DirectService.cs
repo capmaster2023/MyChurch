@@ -87,6 +87,8 @@ public sealed class DirectService : IDisposable
         {
             if (Actif) return null;
             Statut(EtatDirect.Preparation, "Création du direct sur YouTube…");
+            // YouTube ne diffuse le 4K qu'en latence normale (sinon il le ramène à 1080p)
+            if (R.EnQuatreK && m.Latence != "normal") { m.Latence = "normal"; Journal.Info("direct : 4K, latence mise à normale"); }
             var id = await Compte.CreerDirectAsync(m, plusTard ?? DateTimeOffset.Now);
             var avertissements = new List<string>();
             try { await Compte.CategorieAsync(id, m); } catch (ErreurYouTube e) { avertissements.Add("catégorie : " + e.Message); }
@@ -176,6 +178,8 @@ public sealed class DirectService : IDisposable
             moteur.Direct(true);
             moteur.Attendre();
             Encodeur = await EncodeurAsync(audio.Ffmpeg, l, h);
+            if (R.EnQuatreK && Encodeur == "libx264")
+                throw new IOException("le 4K demande une carte graphique capable d'encoder (NVIDIA, Intel Quick Sync ou AMD) : choisissez 1080p dans « Image et son du direct »");
             profil = new RecordingProfile
             {
                 Id = AudioConfiguration.IdDirect, Name = "Direct", Format = RecordingProfile.FormatDirect, AudioOnly = false, Directory = "",

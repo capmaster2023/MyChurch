@@ -234,6 +234,8 @@ public static class YouTubeTests
         var rd = new ReglagesDirect { Mode = "n'importe", Qualite = "4k", Modele = null! };
         rd.Normaliser();
         ok(rd.Mode == ReglagesDirect.Compte && rd.Qualite == "720p" && rd.Modele.Confidentialite == "public" && rd.Taille == (1280, 720, 4500), "réglages du direct remis en ordre", null);
+        var r4 = new ReglagesDirect { Qualite = "2160p" }; r4.Normaliser();
+        ok(r4.Qualite == "2160p" && r4.EnQuatreK && r4.Taille == (3840, 2160, 30000) && !new ReglagesDirect { Qualite = "1080p" }.EnQuatreK, "direct en 4K : 3840 × 2160, 30 Mb/s", null);
         try { Directory.Delete(dossier, true); } catch (Exception) { }
     }
 }

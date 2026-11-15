@@ -28,7 +28,7 @@ public sealed class ReglagesDirect
     [JsonPropertyName("mode")] public string Mode { get; set; } = Compte;
     /// <summary>« Autre service » : l'adresse du serveur (rtmp:// ou rtmps://).</summary>
     [JsonPropertyName("serveur")] public string Serveur { get; set; } = "";
-    /// <summary>« 720p » (conseillé, 4,5 Mb/s) ou « 1080p » (6 Mb/s).</summary>
+    /// <summary>« 720p » (conseillé, 4,5 Mb/s), « 1080p » (6 Mb/s) ou « 2160p » (4K, 30 Mb/s, carte graphique obligatoire).</summary>
     [JsonPropertyName("qualite")] public string Qualite { get; set; } = "720p";
     /// <summary>Le nom de la chaîne connectée (pour l'afficher).</summary>
     [JsonPropertyName("chaine")] public string Chaine { get; set; } = "";
@@ -40,12 +40,14 @@ public sealed class ReglagesDirect
     [JsonPropertyName("retenir")] public bool Retenir { get; set; } = true;
     [JsonPropertyName("modele")] public ModeleDirect Modele { get; set; } = new();
 
-    public (int L, int H, int Kbps) Taille => Qualite == "1080p" ? (1920, 1080, 6000) : (1280, 720, 4500);
+    public (int L, int H, int Kbps) Taille => Qualite switch { "2160p" => (3840, 2160, 30000), "1080p" => (1920, 1080, 6000), _ => (1280, 720, 4500) };
+    /// <summary>Le direct en 4K : YouTube ne le traite qu'en latence normale.</summary>
+    public bool EnQuatreK => Qualite == "2160p";
 
     public void Normaliser()
     {
         if (Mode is not (Compte or Cle or Autre)) Mode = Compte;
-        if (Qualite is not ("720p" or "1080p")) Qualite = "720p";
+        if (Qualite is not ("720p" or "1080p" or "2160p")) Qualite = "720p";
         Serveur ??= ""; Chaine ??= ""; Flux ??= ""; DernierDirect ??= "";
         Modele ??= new ModeleDirect();
         Modele.Normaliser();

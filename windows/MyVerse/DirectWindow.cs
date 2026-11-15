@@ -52,7 +52,7 @@ public sealed class DirectWindow : FenetreDialogue
     List<DirectPrevu> prevus = new();
     DirectPrevu? choisi;
     // image et son
-    readonly RadioButton q720, q1080;
+    readonly RadioButton q720, q1080, q2160;
     readonly ChoixSons sons;
     // bas
     readonly TextBlock message = new();
@@ -295,10 +295,13 @@ public sealed class DirectWindow : FenetreDialogue
         image.Margin = new Thickness(0, 18, 0, 0);
         pileImage.Children.Add(Note("L'image : MyStream, à droite dans MyChurch (sa source principale, les paroles en bandeau…). La même que Zoom.", 0));
         pileImage.Children.Add(Petit("Qualité"));
-        q720 = new RadioButton { Content = "720p, 4,5 Mb/s (conseillé)", GroupName = "qualite", IsChecked = R.Qualite != "1080p", FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
-        q1080 = new RadioButton { Content = "1080p, 6 Mb/s (Internet rapide : 10 Mb/s d'envoi au moins)", GroupName = "qualite", IsChecked = R.Qualite == "1080p", FontSize = 14 };
+        q720 = new RadioButton { Content = "720p, 4,5 Mb/s (conseillé)", GroupName = "qualite", IsChecked = R.Qualite is not ("1080p" or "2160p"), FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
+        q1080 = new RadioButton { Content = "1080p, 6 Mb/s (Internet rapide : 10 Mb/s d'envoi au moins)", GroupName = "qualite", IsChecked = R.Qualite == "1080p", FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
+        q2160 = new RadioButton { Content = "4K (2160p), 30 Mb/s (Internet très rapide : 40 Mb/s d'envoi ; carte graphique ; latence normale)", GroupName = "qualite", IsChecked = R.Qualite == "2160p", FontSize = 14 };
         pileImage.Children.Add(q720);
         pileImage.Children.Add(q1080);
+        pileImage.Children.Add(q2160);
+        pileImage.Children.Add(Note("Pour une vraie image 4K, la source principale de MyStream doit être en 4K (caméra par Cam Link 4K réglée en 2160p, ou MyCam 4K).", 6));
         pileImage.Children.Add(Petit("Ce qu'on entend"));
         sons = new ChoixSons(App.Audio.Config.Direct.ChoixSons);
         pileImage.Children.Add(sons);
@@ -374,7 +377,7 @@ public sealed class DirectWindow : FenetreDialogue
     /// <summary>Garde la qualité, les sons, le serveur et les clés.</summary>
     void Garder()
     {
-        if (!D.Actif) R.Qualite = q1080.IsChecked == true ? "1080p" : "720p";
+        if (!D.Actif) R.Qualite = q2160.IsChecked == true ? "2160p" : q1080.IsChecked == true ? "1080p" : "720p";
         R.Serveur = serveur.Text.Trim();
         R.Retenir = retenir.IsChecked == true;
         App.Donnees.SauverReglages();

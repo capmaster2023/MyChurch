@@ -59,7 +59,14 @@ public static class CameraFrames
                     {
                         using var camera = new VideoCapture(device.Index, VideoCaptureAPIs.DSHOW);
                         if (!camera.IsOpened()) throw new IOException("Caméra occupée ou indisponible.");
-                        camera.Set(VideoCaptureProperties.FrameWidth, 1280); camera.Set(VideoCaptureProperties.FrameHeight, 720); camera.Set(VideoCaptureProperties.Fps, 30);
+                        // la plus grande taille que la caméra accepte (Cam Link 4K : 4K si la caméra sort du 2160p), sinon 1080p, sinon 720p
+                        foreach (var (l, h) in new[] { (3840, 2160), (1920, 1080), (1280, 720) })
+                        {
+                            camera.Set(VideoCaptureProperties.FrameWidth, l); camera.Set(VideoCaptureProperties.FrameHeight, h);
+                            if ((int)camera.Get(VideoCaptureProperties.FrameWidth) == l && (int)camera.Get(VideoCaptureProperties.FrameHeight) == h) break;
+                        }
+                        camera.Set(VideoCaptureProperties.Fps, 30);
+                        Journal.Info($"caméra « {device.Nom} » : {(int)camera.Get(VideoCaptureProperties.FrameWidth)} × {(int)camera.Get(VideoCaptureProperties.FrameHeight)}");
                         using var frame = new Mat(); using var bgra = new Mat();
                         while (!state.Cancel.IsCancellationRequested)
                         {
