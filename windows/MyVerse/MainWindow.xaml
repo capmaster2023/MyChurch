@@ -161,9 +161,8 @@
         <Border Grid.RowSpan="3" Background="{StaticResource Rail}" BorderBrush="{StaticResource Nuit3}" BorderThickness="0,0,1,0">
             <DockPanel Margin="0,10,0,12">
                 <StackPanel DockPanel.Dock="Top">
-                    <Border x:Name="LogoCompact" Width="46" Height="46" CornerRadius="14" Background="{StaticResource Primaire}" HorizontalAlignment="Center" ToolTip="MyChurch">
-                        <Path Data="{StaticResource IconeLogo}" Stroke="{StaticResource SurPrimaire}" StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Width="27" Height="27" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Border x:Name="LogoCompact" Width="46" Height="46" HorizontalAlignment="Center" ToolTip="MyChurch">
+                        <Image Source="/logo-icone.png" Width="46" Height="46" RenderOptions.BitmapScalingMode="HighQuality" />
                     </Border>
                     <Button x:Name="VersionBtn" Style="{StaticResource BtnPlat}" Padding="6,2" Margin="0,5,0,16" FontSize="10.5" Foreground="{StaticResource Brume2}" HorizontalAlignment="Center"
                             HorizontalContentAlignment="Center" ToolTip="Vérifier les mises à jour" Content="v3" />
