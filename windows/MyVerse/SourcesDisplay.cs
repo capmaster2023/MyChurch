@@ -72,16 +72,31 @@ public sealed class SourcesDisplay : IDisposable
                 }
                 else if (nouvelle.Type == "camera")
                 {
-                    // 1.6.5 : la source dit ses images par seconde et sa taille ; chaque image est montrée dès qu'elle arrive
-                    using var lease = Audio.CameraFrames.Acquire(nouvelle.Peripherique, nouvelle);
-                    BitmapSource? previous = null;
+                    // 1.6.5 : la source dit ses images par seconde et sa taille ; chaque image est montrée dès qu'elle arrive.
+                    // 1.6.7 : une caméra occupée, débranchée ou qui hésite à l'ouverture n'arrête plus la source : MyChurch le dit et
+                    // réessaie toutes les 2 secondes (MyStream restait noir pour toujours si sa première ouverture avait raté)
+                    string attente = "";
                     while (!token.IsCancellationRequested)
                     {
-                        if (lease.Error is { } error) throw new IOException(error);
-                        var prochaine = lease.Prochaine;
-                        if (lease.Image is { } b && !ReferenceEquals(b, previous)) { await Publier(b, g, token.Token); previous = b; continue; }
-                        await Task.WhenAny(prochaine, Task.Delay(500, token.Token));
-                        token.Token.ThrowIfCancellationRequested();
+                        try
+                        {
+                            using var lease = Audio.CameraFrames.Acquire(nouvelle.Peripherique, nouvelle);
+                            BitmapSource? previous = null;
+                            while (!token.IsCancellationRequested)
+                            {
+                                if (lease.Error is { } error) throw new IOException(error);
+                                var prochaine = lease.Prochaine;
+                                if (lease.Image is { } b && !ReferenceEquals(b, previous)) { await Publier(b, g, token.Token); previous = b; attente = ""; continue; }
+                                await Task.WhenAny(prochaine, Task.Delay(500, token.Token));
+                                token.Token.ThrowIfCancellationRequested();
+                            }
+                        }
+                        catch (IOException ex)
+                        {
+                            Journal.Info($"caméra « {nouvelle.Peripherique} » : {ex.Message} (nouvel essai dans 2 s)");
+                            attente = await Attendre(g, attente, ex.Message.TrimEnd('.') + " : MyChurch réessaie toutes les 2 secondes.", false);
+                            await Task.Delay(2000, token.Token);
+                        }
                     }
                 }
                 else if (nouvelle.Type == "mycam")

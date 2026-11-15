@@ -704,6 +704,17 @@ public static class AutoTest
     /// </summary>
     static async Task TestCameraUsb()
     {
+        // 1.6.7 : une caméra qui ne s'ouvre pas (ici : absente) n'arrête pas la source : un message, et un nouvel essai toutes les 2 secondes
+        using (var lecteur = new SourcesDisplay(""))
+        {
+            int changements = 0;
+            lecteur.Change += () => changements++;
+            lecteur.ChoisirSource(new SourceDisplay { Type = "camera", Peripherique = "@device:absente-autotest" });
+            await Attendre(4800);
+            Ok(lecteur.Statut.Contains("réessaie") && lecteur.Image == null, "1.6.7 : caméra introuvable : la source attend et réessaie (« " + lecteur.Statut + " »)");
+            Ok(Journal.Lignes().Count(l => l.Contains("@device:absente-autotest") && l.Contains("nouvel essai")) >= 2, "1.6.7 : plusieurs essais en 5 secondes (la source ne s'arrête pas)");
+            lecteur.ChoisirSource(null);
+        }
         var appareils = SourcesDisplay.Peripheriques();
         Note("caméras DirectShow : " + (appareils.Count == 0 ? "aucune" : string.Join(", ", appareils.Select(d => d.Nom))));
         var vcam = appareils.FirstOrDefault(d => d.Nom.Contains("MyVirtualCam", StringComparison.OrdinalIgnoreCase)) ?? appareils.FirstOrDefault();

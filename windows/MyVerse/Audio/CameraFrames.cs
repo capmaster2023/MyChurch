@@ -254,6 +254,7 @@ public static class CameraFrames
                         return cam;
                     }
                     cam.Dispose();
+                    Thread.Sleep(150);
                     if (mieux == null || Meilleur(r, mieux)) mieux = r;
                 }
         // rien d'assez rapide : le meilleur essai ; sinon l'appareil comme il vient (sans rien demander)
@@ -263,8 +264,7 @@ public static class CameraFrames
             reglage = mieux;
             return meilleur;
         }
-        var brut = new VideoCapture(device.Index, VideoCaptureAPIs.DSHOW);
-        if (!brut.IsOpened()) { brut.Dispose(); throw new IOException("Caméra occupée ou indisponible."); }
+        var brut = OuvrirAppareil(device.Index);
         reglage = new Reglage((int)brut.Get(VideoCaptureProperties.FrameWidth), (int)brut.Get(VideoCaptureProperties.FrameHeight), false, 0, brut.Get(VideoCaptureProperties.Fps));
         return brut;
     }
@@ -284,8 +284,7 @@ public static class CameraFrames
     /// </summary>
     static VideoCapture? Configurer(int index, int l, int h, bool mjpg, int demande)
     {
-        var cam = new VideoCapture(index, VideoCaptureAPIs.DSHOW);
-        if (!cam.IsOpened()) { cam.Dispose(); throw new IOException("Caméra occupée ou indisponible."); }
+        var cam = OuvrirAppareil(index);
         try
         {
             if (demande > 0) cam.Set(VideoCaptureProperties.Fps, demande);
@@ -299,6 +298,22 @@ public static class CameraFrames
         catch (Exception e) when (e is not OperationCanceledException) { Journal.Info($"caméra : réglage {l} × {h} refusé ({e.Message})"); }
         cam.Dispose();
         return null;
+    }
+
+    /// <summary>
+    /// 1.6.7 : ouvre l'appareil ; juste après une fermeture (les essais de réglage), certains pilotes refusent un instant :
+    /// trois essais espacés avant de dire « occupée ».
+    /// </summary>
+    static VideoCapture OuvrirAppareil(int index)
+    {
+        for (int essai = 1; ; essai++)
+        {
+            var cam = new VideoCapture(index, VideoCaptureAPIs.DSHOW);
+            if (cam.IsOpened()) return cam;
+            cam.Dispose();
+            if (essai >= 4) throw new IOException("Caméra occupée ou indisponible (une autre application s'en sert peut-être)");
+            Thread.Sleep(400 * essai);
+        }
     }
 
     /// <summary>Les images par seconde qui arrivent vraiment (les 3 premières ne comptent pas : l'appareil démarre), en 0,7 seconde.</summary>
