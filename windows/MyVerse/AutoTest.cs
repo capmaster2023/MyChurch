@@ -1144,6 +1144,44 @@ public static class AutoTest
                 tCmd.Stop();
                 Note($"1.5.0 : recherche complète « je lava vers dieu » : {tCmd.Elapsed.TotalMilliseconds:0} ms ({resCmd.Count} résultats)");
                 w.TestCommande("");
+
+                // 1.5.1 : un vrai culte (une quarantaine de diapositives), puis le temps de chaque page et de chaque bouton,
+                // jusqu'à l'image affichée (deux images de rendu après le changement)
+                Perf.Vider();
+                R.AjouterBibleAgenda(new Ref(42, 1, 1, 14));
+                R.AjouterBibleAgenda(new Ref(18, 23, 1, 6));
+                R.AjouterBibleAgenda(new Ref(44, 8, 28, 39));
+                await Attendre(800);
+                Note($"1.5.1 : programme de test : {R.Agenda.Elements.Count} moments, {w.TestVignettes} diapositives");
+                async Task<double> Mesurer(Action action)
+                {
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    action();
+                    await w.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    var images = new TaskCompletionSource();
+                    int n = 0;
+                    EventHandler? h = null;
+                    h = (_, _) => { if (++n >= 2) { CompositionTarget.Rendering -= h; images.TrySetResult(); } };
+                    CompositionTarget.Rendering += h;
+                    await images.Task;
+                    return sw.Elapsed.TotalMilliseconds;
+                }
+                var temps = new List<string>();
+                foreach (var page in new[] { "bible", "chants", "annonces", "duo", "son", "reglages", "agenda", "bible", "agenda" })
+                    temps.Add($"{page} {await Mesurer(() => w.TestPage(page)):0} ms");
+                Note("1.5.1 : changements de page (jusqu'à l'image affichée) : " + string.Join(", ", temps));
+                var boutons = new List<string>();
+                boutons.Add($"Suivant {await Mesurer(() => R.Bouger(1)):0} ms");
+                boutons.Add($"Précédent {await Mesurer(() => R.Bouger(-1)):0} ms");
+                boutons.Add($"Noir {await Mesurer(() => w.TestNoir()):0} ms");
+                boutons.Add($"Noir (rallumer) {await Mesurer(() => w.TestNoir()):0} ms");
+                boutons.Add($"outil Style {await Mesurer(() => w.TestTiroir("style", true)):0} ms");
+                boutons.Add($"outil fermé {await Mesurer(() => w.TestTiroir("style", false)):0} ms");
+                if (c != null) boutons.Add($"ouvrir un chant {await Mesurer(() => { w.TestPage("chants"); w.OuvrirChant(c.Id); }):0} ms");
+                boutons.Add($"Bible : chapitre {await Mesurer(() => { w.TestPage("bible"); w.TestRecherche("ps 119"); }):0} ms");
+                boutons.Add($"retour au Culte {await Mesurer(() => w.TestPage("agenda")):0} ms");
+                Note("1.5.1 : boutons (jusqu'à l'image affichée) : " + string.Join(", ", boutons));
+                Note("1.5.1 : mesures :\n" + Perf.Resume());
             }
             R.SupprimerAnnonce(anG.Id);
             R.Effacer();
