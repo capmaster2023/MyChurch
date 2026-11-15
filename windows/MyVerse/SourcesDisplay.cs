@@ -71,13 +71,16 @@ public sealed class SourcesDisplay : IDisposable
                 }
                 else if (nouvelle.Type == "camera")
                 {
-                    using var lease = Audio.CameraFrames.Acquire(nouvelle.Peripherique);
+                    // 1.6.5 : la source dit ses images par seconde et sa taille ; chaque image est montrée dès qu'elle arrive
+                    using var lease = Audio.CameraFrames.Acquire(nouvelle.Peripherique, nouvelle);
                     BitmapSource? previous = null;
                     while (!token.IsCancellationRequested)
                     {
                         if (lease.Error is { } error) throw new IOException(error);
-                        if (lease.Image is { } b && !ReferenceEquals(b, previous)) { await Publier(b, g, token.Token); previous = b; }
-                        await Task.Delay(15, token.Token);
+                        var prochaine = lease.Prochaine;
+                        if (lease.Image is { } b && !ReferenceEquals(b, previous)) { await Publier(b, g, token.Token); previous = b; continue; }
+                        await Task.WhenAny(prochaine, Task.Delay(500, token.Token));
+                        token.Token.ThrowIfCancellationRequested();
                     }
                 }
                 else if (nouvelle.Type == "mycam")

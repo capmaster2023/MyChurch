@@ -135,6 +135,8 @@ public partial class MainWindow
     /// <summary>« Reconnecter » : relance les captures en cours (écran principal et Duo).</summary>
     void ReconnecterSources()
     {
+        // 1.6.5 : les caméras USB cherchent de nouveau leur meilleur réglage (images par seconde, taille)
+        MyVerse.Ui.Audio.CameraFrames.Oublier();
         var e = EtatProjete();
         App.Sources.Reconnecter(e);
         if (!duoMemeSource && e.Duo?.Etat is { Mode: "media", Media: { } m }) App.SourcesDuo.ReconnecterSource(m);

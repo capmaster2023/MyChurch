@@ -43,7 +43,7 @@ public sealed class MyStreamMoteur : IRecordingFrameProvider, IDisposable
     BitmapSource? imageVue, imageDuoVue;
     (int L, int H)? tailleImage, tailleDuo;
     bool sale = true, aComposer;
-    long dernierDessin, dernierBattement;
+    long dernierDessin, dernierBattement, derniereComposition;
 
     // le calque : clé noire (C1), différence (D) et la place de chaque image vivante
     sealed record Trou(bool Duo, bool Flou, Point O, Point X, Point Y, OpenCvSharp.Rect Rognage);
@@ -182,9 +182,11 @@ public sealed class MyStreamMoteur : IRecordingFrameProvider, IDisposable
                 Perf.Ajouter("MyStream : dessin (sur son fil)", Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
                 aComposer = true;
             }
-            if (aComposer)
+            // 1.6.5 : une caméra à 60 images par seconde : MyStream en compose au plus une toutes les 30 ms (Zoom et le direct sont à 30)
+            if (aComposer && maintenant - derniereComposition >= 30)
             {
                 aComposer = false;
+                derniereComposition = maintenant;
                 Composer();
                 dernierBattement = maintenant;
                 return;

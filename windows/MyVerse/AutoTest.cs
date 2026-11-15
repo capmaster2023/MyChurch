@@ -679,6 +679,36 @@ public static class AutoTest
         Ok(w.TestEtatStream.Mode == R.EtatCamera(R.Etat).Mode, "1.6.0 : sans source principale, MyStream suit de nouveau l'église");
     }
 
+    /// <summary>
+    /// MyChurch 1.6.5 : une caméra USB (ici MyVirtualCam elle-même, une vraie caméra DirectShow quand elle est installée) : MyChurch
+    /// essaie MJPG puis le format non compressé, aux images par seconde voulues, mesure, garde le meilleur ; les images arrivent.
+    /// </summary>
+    static async Task TestCameraUsb()
+    {
+        var appareils = SourcesDisplay.Peripheriques();
+        Note("caméras DirectShow : " + (appareils.Count == 0 ? "aucune" : string.Join(", ", appareils.Select(d => d.Nom))));
+        var vcam = appareils.FirstOrDefault(d => d.Nom.Contains("MyVirtualCam", StringComparison.OrdinalIgnoreCase)) ?? appareils.FirstOrDefault();
+        if (vcam == null) { Note("1.6.5 : pas de caméra DirectShow sur cet ordinateur : réglage non essayé"); return; }
+        var source = new SourceDisplay { Type = "camera", Peripherique = vcam.Id, Ips = 30 };
+        Ok(source.IpsVoulues == 30 && source.TailleVoulue == "1080p" && new SourceDisplay { Type = "camera" }.IpsVoulues == 60, "1.6.5 : 60 images par seconde par défaut, 30 au choix");
+        var debut = DateTime.Now;
+        using (var lease = Audio.CameraFrames.Acquire(vcam.Id, source))
+        {
+            for (int i = 0; i < 100 && lease.Image == null && lease.Error == null; i++) await Attendre(200);
+            Ok(lease.Image != null, $"1.6.5 : « {vcam.Nom} » ouverte en {(DateTime.Now - debut).TotalSeconds:0.0} s : {Audio.CameraFrames.Info(vcam.Id)} {lease.Error}");
+            int images = 0;
+            var fin = DateTime.Now.AddSeconds(2);
+            while (DateTime.Now < fin && lease.Error == null)
+            {
+                var prochaine = lease.Prochaine;
+                if (await Task.WhenAny(prochaine, Task.Delay(600)) == prochaine) images++;
+            }
+            Ok(lease.Error == null && images >= 5, $"1.6.5 : les images arrivent dès qu'elles sont prêtes ({images} en 2 s)");
+        }
+        await Attendre(500);
+        Ok(Audio.CameraFrames.Info(vcam.Id) == "", "1.6.5 : la caméra est rendue quand plus personne ne s'en sert");
+    }
+
     /// <summary>Un serveur RTMP local (ffmpeg en écoute, comme YouTube) qui garde ce qu'il reçoit dans <paramref name="nom"/>.</summary>
     static async Task<(System.Diagnostics.Process Serveur, string Recu, int Port, Task<string> Journal)> ServeurRtmp(string ffmpeg, string nom, string cle)
     {
@@ -1414,6 +1444,9 @@ public static class AutoTest
             // 1.6.0 / 1.6.4 : MyStream (les deux écrans, la source principale, « Envoyer dans le stream », la touche M), le direct, le direct automatique
             try { await TestMyStream(w); }
             catch (Exception x) { Echec("1.6.0 : MyStream : " + x); }
+            // 1.6.5 : une vraie caméra DirectShow (MyVirtualCam, si elle est installée) : réglage trouvé, images qui arrivent
+            try { await TestCameraUsb(); }
+            catch (Exception x) { Echec("1.6.5 : caméra USB : " + x); }
             await Fenetre(w, () => new DecoupeWindow(new CibleVerset(42, 3, 16, 16)), "13-decoupe.png");
             await Fenetre(w, () => new ImportWindow(), "14-import.png");
             await Fenetre(w, () => new BiblesWindow(), "15-bibles.png");

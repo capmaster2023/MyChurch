@@ -1843,6 +1843,24 @@ if (Actif())
 Groupe("YouTube (1.6.0)");
 if (Actif()) MyVerse.Tests.YouTubeTests.RunAsync(Ok).GetAwaiter().GetResult();
 
+Groupe("Caméras USB fluides (1.6.5)");
+if (Actif())
+{
+    var cam = new SourceDisplay { Type = "camera", Peripherique = "@device:pnp:usb-video" };
+    Ok(cam.IpsVoulues == 60 && cam.TailleVoulue == "1080p", "caméra USB : 60 images par seconde en 1080p par défaut");
+    Ok((cam with { Ips = 40 }).IpsVoulues == 40 && (cam with { Ips = 30 }).IpsVoulues == 30 && (cam with { Ips = 25 }).IpsVoulues == 60, "60, 40 ou 30 (autre chose : 60)");
+    Ok((cam with { Taille = "4k" }).TailleVoulue == "4k" && (cam with { Taille = "720p" }).TailleVoulue == "720p" && (cam with { Taille = "8k" }).TailleVoulue == "1080p", "1080p, 4K ou 720p (autre chose : 1080p)");
+    Ok(cam != cam with { Ips = 30 }, "changer les images par seconde change la source (la caméra se rouvre)");
+    var don = Donnees.Charger(Temp(), res);
+    var rg = new Regie(don, new Bibles(don));
+    var a = rg.NouveauDisplay("USB Video", cam);
+    Ok(rg.ModifierSource(a.Id, "", cam with { Ips = 40, Taille = "720p" }), "réglage changé (clic droit › Images par seconde)");
+    var relu = Donnees.Charger(don.Dossier, res).Annonces.First(x => x.Id == a.Id);
+    Ok(relu.Source is { Ips: 40, TailleVoulue: "720p" } && relu.Description.Contains("40 images/s") && relu.Description.Contains("720p"), "gardé : " + relu.Description);
+    var json = System.Text.Json.JsonSerializer.Serialize(new SourceDisplay { Type = "camera", Peripherique = "x" }, Donnees.Json);
+    Ok(!json.Contains("ips") && !json.Contains("taille"), "réglages par défaut : rien d'écrit en plus (" + json + ")");
+}
+
 Groupe("Directs automatiques (1.6.4)");
 if (Actif())
 {

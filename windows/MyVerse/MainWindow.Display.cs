@@ -264,6 +264,49 @@ public partial class MainWindow
         }
         return m;
     }
+    /// <summary>
+    /// 1.6.5 : clic droit › Images par seconde d'une caméra USB ou d'une carte de capture : 60 (fluide, par défaut), 40 ou 30.
+    /// La caméra se rouvre avec ; en haut, ce qu'elle donne vraiment en ce moment.
+    /// </summary>
+    MenuItem MenuIpsCamera(Annonce a, SourceDisplay s)
+    {
+        var m = new MenuItem { Header = $"Images par seconde : {s.IpsVoulues}" };
+        var info = MyVerse.Ui.Audio.CameraFrames.Info(s.Peripherique);
+        if (info.Length > 0) m.Items.Add(new MenuItem { Header = "En ce moment : " + info, IsEnabled = false });
+        foreach (var (valeur, texte) in new[] { (60, "60 : fluide (conseillé)"), (40, "40"), (30, "30 : plus léger pour l'ordinateur") })
+        {
+            int ips = valeur;
+            var choix = Article(texte, () =>
+            {
+                if (s.IpsVoulues == ips || !R.ModifierSource(a.Id, "", s with { Ips = ips })) return;
+                if (annonceChoisie?.Id == a.Id) ChoisirDisplay(a);
+                Toast($"« {a.Titre} » : {ips} images par seconde. La caméra se rouvre (une ou deux secondes).");
+            });
+            choix.IsChecked = s.IpsVoulues == ips;
+            m.Items.Add(choix);
+        }
+        return m;
+    }
+
+    /// <summary>1.6.5 : clic droit › Taille de l'image d'une caméra USB : 1080p (par défaut), 4K (pour le direct en 4K) ou 720p.</summary>
+    MenuItem MenuTailleCamera(Annonce a, SourceDisplay s)
+    {
+        var m = new MenuItem { Header = "Taille de l'image : " + (s.TailleVoulue == "4k" ? "4K" : s.TailleVoulue) };
+        foreach (var (valeur, texte) in new[] { ("1080p", "1080p (conseillé)"), ("4k", "4K : pour le direct en 4K (30 images par seconde au plus)"), ("720p", "720p : plus léger") })
+        {
+            string taille = valeur;
+            var choix = Article(texte, () =>
+            {
+                if (s.TailleVoulue == taille || !R.ModifierSource(a.Id, "", s with { Taille = taille == "1080p" ? null : taille })) return;
+                if (annonceChoisie?.Id == a.Id) ChoisirDisplay(a);
+                Toast($"« {a.Titre} » : {(taille == "4k" ? "4K" : taille)}. La caméra se rouvre (une ou deux secondes).");
+            });
+            choix.IsChecked = s.TailleVoulue == taille;
+            m.Items.Add(choix);
+        }
+        return m;
+    }
+
     T? ChoisirSource<T>(string titre, string aide, List<T> items, Func<T, string> nom) where T : class
     {
         var list = new ListBox { ItemsSource = items.Select(nom).ToList(), SelectedIndex = 0, MinHeight = 160, Margin = new Thickness(0, 12, 0, 12) };

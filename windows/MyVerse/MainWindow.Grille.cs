@@ -91,6 +91,7 @@ public partial class MainWindow
                     Toast($"« {el.Titre} » ajouté au programme comme écran principal : il reste à l'écran quand il passe. Choisis-le aussi dans « Écran de repos », à droite.");
             }));
         if (a.Source is { Type: "fenetre" } sf) m.Items.Add(MenuDiffusion(a, sf));
+        if (a.Source is { Type: "camera" } sc) { m.Items.Add(MenuIpsCamera(a, sc)); m.Items.Add(MenuTailleCamera(a, sc)); }
         if (a.Source?.Type is "camera" or "fenetre") m.Items.Add(Article("Reconnecter la source", ReconnecterSources));
         if (a.Source?.Type == "mycam") m.Items.Add(MenuMessageCam(a));
         m.Items.Add(new Separator());

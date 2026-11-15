@@ -45,6 +45,15 @@ public sealed record SourceDisplay
     /// </summary>
     [JsonPropertyName("diffusion"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Diffusion { get; init; }
 
+    /// <summary>
+    /// Caméra USB ou carte de capture (1.6.5) : les images par seconde voulues (60, 40 ou 30 ; 0 = 60) et la taille (« 1080p », « 4k »,
+    /// « 720p » ; vide = 1080p). MyChurch demande le format compressé MJPG et mesure ce qui arrive vraiment.
+    /// </summary>
+    [JsonPropertyName("ips"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public int Ips { get; init; }
+    [JsonPropertyName("taille"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Taille { get; init; }
+    [JsonIgnore] public int IpsVoulues => Ips is 30 or 40 or 60 ? Ips : 60;
+    [JsonIgnore] public string TailleVoulue => Taille == "4k" ? "4k" : Taille == "720p" ? "720p" : "1080p";
+
     public const string Eglise = "eglise", Streaming = "streaming";
     [JsonIgnore] public bool EgliseSeulement => Diffusion == Eglise;
     [JsonIgnore] public bool StreamingSeulement => Diffusion == Streaming;
@@ -68,7 +77,7 @@ public sealed class Annonce
     [JsonPropertyName("source"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SourceDisplay? Source { get; set; }
     /// <summary>Dans la grille de Display (un clic = en direct).</summary>
     [JsonPropertyName("grille")] public bool Grille { get; set; }
-    [JsonIgnore] public string Description => Source?.Type switch { "duo" => "Duo · 2 éléments ensemble", "camera" => "Périphérique de capture vidéo · " + Source.Peripherique, "mycam" => "Téléphone MyCam", "fenetre" => "Capture de fenêtre · " + SourceDisplay.NomDiffusion(Source.Diffusion), "image" => "Image · " + Path.GetFileName(Source.Chemin), "video" => "Vidéo · " + Path.GetFileName(Source.Chemin), _ => Texte };
+    [JsonIgnore] public string Description => Source?.Type switch { "duo" => "Duo · 2 éléments ensemble", "camera" => $"Caméra USB · {(Source.TailleVoulue == "4k" ? "4K" : Source.TailleVoulue)} · {Source.IpsVoulues} images/s (clic droit pour changer)", "mycam" => "Téléphone MyCam", "fenetre" => "Capture de fenêtre · " + SourceDisplay.NomDiffusion(Source.Diffusion), "image" => "Image · " + Path.GetFileName(Source.Chemin), "video" => "Vidéo · " + Path.GetFileName(Source.Chemin), _ => Texte };
 }
 
 /// <summary>Un agenda (comme dans VideoPsalm) : la liste préparée d'un culte.</summary>
