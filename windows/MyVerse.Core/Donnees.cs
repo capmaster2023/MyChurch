@@ -81,10 +81,8 @@ public sealed class Reglages
     /// « fond » (l'habillage sans texte) ou l'id d'un écran principal du déroulé.
     /// </summary>
     [JsonPropertyName("ecranDefaut")] public string EcranDefaut { get; set; } = "noir";
-    /// <summary>MyStream (1.6.0) : la source principale, toujours sur Zoom et YouTube (id d'une source Display). Vide : MyStream montre comme l'église.</summary>
+    /// <summary>MyStream (1.6.0) : la source principale, sur Zoom et YouTube quoi que montre l'église (id d'une source Display). Vide : MyStream montre comme l'église.</summary>
     [JsonPropertyName("myStreamSource")] public string MyStreamSource { get; set; } = "";
-    /// <summary>MyStream : les paroles et les versets « bandeau » (par-dessus la source principale) ou « plein » (plein écran, comme l'église).</summary>
-    [JsonPropertyName("myStreamTexte")] public string MyStreamTexte { get; set; } = "bandeau";
     /// <summary>Le direct (1.6.0) : YouTube (compte connecté ou clé de stream) ou un autre service.</summary>
     [JsonPropertyName("direct")] public ReglagesDirect Direct { get; set; } = new();
 }
@@ -169,7 +167,6 @@ public sealed class Donnees
         r.Bibles.Importees ??= new List<BibleImportee>();
         r.Obs ??= new ReglagesObs();
         r.MyStreamSource ??= "";
-        if (r.MyStreamTexte is not ("bandeau" or "plein")) r.MyStreamTexte = "bandeau";
         r.Direct ??= new ReglagesDirect();
         r.Direct.Normaliser();
         if (string.IsNullOrEmpty(r.Bibles.Principale)) r.Bibles.Principale = "lsg";

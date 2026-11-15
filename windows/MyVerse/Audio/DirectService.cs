@@ -72,15 +72,20 @@ public sealed class DirectService : IDisposable
 
     // ------------------------------------------------------------ démarrer
     /// <summary>Clé de stream ou autre service : l'adresse vient des réglages et du coffre.</summary>
-    public Task DemarrerAvecCleAsync()
+    /// <param name="qualite">« 720p », « 1080p », « 2160p » ; null : celle des réglages (un direct automatique peut avoir la sienne).</param>
+    public Task DemarrerAvecCleAsync(string? qualite = null)
     {
         var a = AdresseDirect.Construire(R, Coffre);
         if (a == null) { Statut(EtatDirect.Erreur, R.Mode == ReglagesDirect.Autre ? "Donnez l'adresse du serveur (rtmp:// ou rtmps://) et la clé." : "Collez d'abord la clé de stream de YouTube Studio."); return Task.CompletedTask; }
-        return DemarrerAsync(a, null, null);
+        return DemarrerAsync(a, null, null, qualite);
     }
 
-    /// <summary>« Créer et démarrer le direct » (ou seulement le créer, pour plus tard) : rend l'identifiant du direct YouTube.</summary>
-    public async Task<string?> CreerAsync(ModeleDirect m, DateTimeOffset? plusTard)
+    /// <summary>
+    /// « Créer et démarrer le direct » (ou seulement le créer, pour plus tard) : rend l'identifiant du direct YouTube.
+    /// <paramref name="qualite"/> : celle d'un direct automatique (null : celle des réglages) ; <paramref name="garder"/> : faux pour
+    /// un direct automatique (ses réglages ne remplacent pas ceux retenus dans la fenêtre du direct).
+    /// </summary>
+    public async Task<string?> CreerAsync(ModeleDirect m, DateTimeOffset? plusTard, string? qualite = null, bool garder = true)
     {
         if (!await operation.WaitAsync(0)) return null;
         try
@@ -88,7 +93,7 @@ public sealed class DirectService : IDisposable
             if (Actif) return null;
             Statut(EtatDirect.Preparation, "Création du direct sur YouTube…");
             // YouTube ne diffuse le 4K qu'en latence normale (sinon il le ramène à 1080p)
-            if (R.EnQuatreK && m.Latence != "normal") { m.Latence = "normal"; Journal.Info("direct : 4K, latence mise à normale"); }
+            if ((qualite ?? R.Qualite) == "2160p" && m.Latence != "normal") { m.Latence = "normal"; Journal.Info("direct : 4K, latence mise à normale"); }
             var id = await Compte.CreerDirectAsync(m, plusTard ?? DateTimeOffset.Now);
             var avertissements = new List<string>();
             try { await Compte.CategorieAsync(id, m); } catch (ErreurYouTube e) { avertissements.Add("catégorie : " + e.Message); }
@@ -100,7 +105,7 @@ public sealed class DirectService : IDisposable
             R.Flux = f.Id;
             await Compte.LierAsync(id, f.Id);
             R.DernierDirect = id;
-            if (R.Retenir)
+            if (garder && R.Retenir)
             {
                 var garde = AudioConfiguration.Copy(m);
                 R.Modele = garde;
@@ -114,7 +119,7 @@ public sealed class DirectService : IDisposable
                 return id;
             }
             operation.Release();
-            try { await DemarrerAsync(AdresseDirect.Pour(f), id, f.Id); }
+            try { await DemarrerAsync(AdresseDirect.Pour(f), id, f.Id, qualite); }
             finally { await operation.WaitAsync(); }
             if (avertissements.Count > 0 && EnDirect) Statut(Etat, Message + " · " + string.Join(" ", avertissements));
             return id;
@@ -128,8 +133,8 @@ public sealed class DirectService : IDisposable
         finally { operation.Release(); }
     }
 
-    /// <summary>Démarre un direct déjà prévu sur YouTube (lié au flux de MyChurch).</summary>
-    public async Task DemarrerPrevuAsync(DirectPrevu d)
+    /// <summary>Démarre un direct déjà prévu sur YouTube (lié au flux de MyChurch) ; <paramref name="qualite"/> : null pour celle des réglages.</summary>
+    public async Task DemarrerPrevuAsync(DirectPrevu d, string? qualite = null)
     {
         if (!await operation.WaitAsync(0)) return;
         FluxYouTube f;
@@ -150,7 +155,7 @@ public sealed class DirectService : IDisposable
             return;
         }
         finally { operation.Release(); }
-        await DemarrerAsync(AdresseDirect.Pour(f), d.Id, f.Id);
+        await DemarrerAsync(AdresseDirect.Pour(f), d.Id, f.Id, qualite);
     }
 
     static string Simple(Exception e) => e switch
@@ -160,8 +165,8 @@ public sealed class DirectService : IDisposable
         _ => e.Message,
     };
 
-    /// <summary>Envoie MyStream et le son vers <paramref name="vers"/> (RTMP ou RTMPS).</summary>
-    public async Task DemarrerAsync(string vers, string? video, string? idFlux)
+    /// <summary>Envoie MyStream et le son vers <paramref name="vers"/> (RTMP ou RTMPS) ; <paramref name="qualite"/> : null pour celle des réglages.</summary>
+    public async Task DemarrerAsync(string vers, string? video, string? idFlux, string? qualite = null)
     {
         if (!await operation.WaitAsync(0)) return;
         try
@@ -173,12 +178,13 @@ public sealed class DirectService : IDisposable
             if (!audio.TracksActive) throw new IOException("cet ordinateur ne peut pas mélanger le son pour le direct (pilote de la carte graphique).");
             if (!File.Exists(audio.Ffmpeg)) throw new IOException("le programme d'envoi (dossier « ffmpeg » de MyChurch) est introuvable : réinstallez MyChurch.");
             var moteur = App.MyStream ?? throw new IOException("MyStream n'a pas démarré (voir Réglages › Journal).");
-            var (l, h, kbps) = R.Taille;
+            var q = qualite ?? R.Qualite;
+            var (l, h, kbps) = ReglagesDirect.TailleDe(q);
             moteur.ChangerTaille(l, h);
             moteur.Direct(true);
             moteur.Attendre();
             Encodeur = await EncodeurAsync(audio.Ffmpeg, l, h);
-            if (R.EnQuatreK && Encodeur == "libx264")
+            if (q == "2160p" && Encodeur == "libx264")
                 throw new IOException("le 4K demande une carte graphique capable d'encoder (NVIDIA, Intel Quick Sync ou AMD) : choisissez 1080p dans « Image et son du direct »");
             profil = new RecordingProfile
             {

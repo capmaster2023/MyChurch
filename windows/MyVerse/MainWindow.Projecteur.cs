@@ -169,17 +169,20 @@ public partial class MainWindow
     public bool AttenteProjecteur => ecran == null && attenteProjecteur;
 
     /// <summary>
-    /// Pas de veille tant que la projection est ouverte (l'écran reste allumé, le PC éveillé) ; pendant un enregistrement,
-    /// le PC reste éveillé. Sinon, Windows reprend ses réglages d'alimentation.
+    /// Pas de veille tant que la projection est ouverte (l'écran reste allumé, le PC éveillé) ; pendant un enregistrement, un direct,
+    /// ou dans les 3 heures avant un direct automatique (1.6.4), le PC reste éveillé. Sinon, Windows reprend ses réglages d'alimentation.
     /// </summary>
     void MajVeille()
     {
         bool projection = ecran != null, enregistrement = App.Audio?.Recorder.AnyBusy == true;
-        int v = (projection ? 1 : 0) | (enregistrement ? 2 : 0);
+        bool direct = App.Direct?.Actif == true || App.Planificateur?.GarderEveille == true;
+        bool systeme = enregistrement || direct;
+        int v = (projection ? 1 : 0) | (systeme ? 2 : 0);
         if (v == veille) return;
         veille = v;
-        if (!Natif.Eveil(projection, enregistrement)) Journal.Erreur("anti-veille : SetThreadExecutionState refusé");
-        Journal.Info(projection ? "anti-veille : projection ouverte, l'écran reste allumé" : enregistrement ? "anti-veille : enregistrement, le PC reste éveillé" : "anti-veille : arrêtée");
+        if (!Natif.Eveil(projection, systeme)) Journal.Erreur("anti-veille : SetThreadExecutionState refusé");
+        Journal.Info(projection ? "anti-veille : projection ouverte, l'écran reste allumé" : enregistrement ? "anti-veille : enregistrement, le PC reste éveillé"
+            : direct ? "anti-veille : direct (en cours ou automatique bientôt), le PC reste éveillé" : "anti-veille : arrêtée");
     }
 
     // ------------------------------------------------------------ pour le test automatique

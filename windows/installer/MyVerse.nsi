@@ -165,6 +165,8 @@ Section "Uninstall"
   RMDir "$INSTDIR"
   DeleteRegKey HKCU "${UNINST_KEY}"
   DeleteRegKey HKCU "Software\MyVerse"
+  ; 1.6.4 : « Ouvrir MyChurch au démarrage de Windows » (directs automatiques)
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "MyChurch"
 SectionEnd
 
 Function un.FermerMyVerse

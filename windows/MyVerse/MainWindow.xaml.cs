@@ -454,6 +454,11 @@ public partial class MainWindow : Window
                 RetourStream();
                 e.Handled = true;
                 break;
+            case Key.S when Keyboard.Modifiers == ModifierKeys.None:
+                // 1.6.4 : ce que montre l'église part aussi sur MyStream (et le suit)
+                EnvoyerDansStream();
+                e.Handled = true;
+                break;
             case Key.Right or Key.Space or Key.PageDown:
                 R.Bouger(1);
                 e.Handled = true;
@@ -526,6 +531,7 @@ public partial class MainWindow : Window
         Ajout("retirer", "Échap");
         Ajout("écran noir", "B");
         Ajout("garder dans un coin", "P");
+        Ajout("envoyer dans le stream", "S");
         Ajout("MyStream : source principale", "M");
         Ajout("diapositive", "1–9");
     }
@@ -990,7 +996,8 @@ public partial class MainWindow : Window
         // remplacée par l'écran par défaut (Zoom projeté ne revient pas dans Zoom) ;
         // l'écran de projection (1.3.1) : tout, sauf une source « En streaming », remplacée par l'écran par défaut
         var diffusion = R.EtatDiffusion(e);
-        // 1.6.0 : MyStream (Zoom et YouTube) : sa source principale, les paroles en bandeau par-dessus (sans source principale : comme Zoom avant)
+        // 1.6.4 : MyStream (Zoom et YouTube) : sa source principale, quoi que montre l'église ; ce que montre l'église après
+        // « Envoyer dans le stream » (sans source principale : comme Zoom avant)
         var stream = R.EtatStream(e);
         var salle = R.EtatSalle(e);
         mediaSalle = salle is { Mode: "media", Media: { } ms } && ms != e.Media ? ms : null;

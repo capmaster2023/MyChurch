@@ -40,9 +40,14 @@ public sealed class ReglagesDirect
     [JsonPropertyName("retenir")] public bool Retenir { get; set; } = true;
     [JsonPropertyName("modele")] public ModeleDirect Modele { get; set; } = new();
 
-    public (int L, int H, int Kbps) Taille => Qualite switch { "2160p" => (3840, 2160, 30000), "1080p" => (1920, 1080, 6000), _ => (1280, 720, 4500) };
+    /// <summary>Les directs automatiques (1.6.4) : chaque semaine, les jours choisis à l'heure dite, avec leurs réglages.</summary>
+    [JsonPropertyName("programmes")] public List<DirectProgramme> Programmes { get; set; } = new();
+
+    public (int L, int H, int Kbps) Taille => TailleDe(Qualite);
     /// <summary>Le direct en 4K : YouTube ne le traite qu'en latence normale.</summary>
     public bool EnQuatreK => Qualite == "2160p";
+    /// <summary>La taille et le débit d'une qualité (« 720p », « 1080p », « 2160p »).</summary>
+    public static (int L, int H, int Kbps) TailleDe(string? qualite) => qualite switch { "2160p" => (3840, 2160, 30000), "1080p" => (1920, 1080, 6000), _ => (1280, 720, 4500) };
 
     public void Normaliser()
     {
@@ -51,6 +56,11 @@ public sealed class ReglagesDirect
         Serveur ??= ""; Chaine ??= ""; Flux ??= ""; DernierDirect ??= "";
         Modele ??= new ModeleDirect();
         Modele.Normaliser();
+        Programmes = (Programmes ?? new()).Where(p => p != null).ToList();
+        foreach (var p in Programmes) p.Normaliser();
+        // identifiants en double (copie des réglages) : on les sépare
+        var vus = new HashSet<string>();
+        foreach (var p in Programmes) if (!vus.Add(p.Id)) { p.Id = DirectProgramme.NouvelId(); vus.Add(p.Id); }
     }
 }
 

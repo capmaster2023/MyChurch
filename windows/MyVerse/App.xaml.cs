@@ -53,6 +53,8 @@ public partial class App : Application
     public static SourcesDisplay SourcesStream { get; private set; } = null!;
     /// <summary>Le direct (YouTube ou un autre service).</summary>
     public static Audio.DirectService Direct { get; private set; } = null!;
+    /// <summary>Les directs automatiques (1.6.4) : chaque semaine, à l'heure dite, le direct démarre tout seul.</summary>
+    public static Audio.PlanificateurDirect Planificateur { get; private set; } = null!;
     public static Audio.ChurchAudioService Audio { get; private set; } = null!;
     public static Telephone Telephone { get; private set; } = null!;
     /// <summary>Dossier du test automatique (« MyChurch.exe --autotest dossier »), sinon null.</summary>
@@ -164,6 +166,8 @@ public partial class App : Application
         catch (Exception ex) { Journal.Erreur("MyStream démarrage", ex); }
         Audio = new Audio.ChurchAudioService(Donnees.Reglages.Audio);
         Direct = new Audio.DirectService(Audio, Donnees);
+        // le test automatique fait tourner les directs automatiques lui-même (heure simulée)
+        Planificateur = new Audio.PlanificateurDirect(Direct, Donnees, Regie, AutoTest == null);
         var w = new MainWindow();
         MainWindow = w;
         w.Show();
@@ -225,6 +229,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         Journal.Info("fermeture de MyVerse");
+        try { Planificateur?.Dispose(); } catch (Exception x) { Journal.Erreur("fin des directs automatiques", x); }
         try { Direct?.Dispose(); } catch (Exception x) { Journal.Erreur("fin du direct", x); }
         Audio?.Dispose();
         Sources?.Dispose();

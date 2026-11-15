@@ -1055,7 +1055,7 @@ if (Actif())
     Ok(rg.Cible is CibleDefaut && rg.EtatSalle(rg.Etat).Media == zoom.Source && rg.EtatCamera(rg.Etat).Vide, "… même affiché comme écran par défaut");
 }
 
-Groupe("MyStream (1.6.0)");
+Groupe("MyStream (1.6.4) : indépendant de l'église");
 if (Actif())
 {
     var don = Donnees.Charger(Temp(), res);
@@ -1068,66 +1068,71 @@ if (Actif())
     // sans source principale : comme MyVirtualCam jusqu'à la 1.5
     rg.AfficherVerset(43, 3, 16, 16);
     Ok(rg.SourcePrincipaleStream == null && rg.EtatStream(rg.Etat) == rg.EtatCamera(rg.Etat), "sans source principale : MyStream montre comme l'église (comme Zoom avant)");
+    Ok(!rg.EnvoyerDansStream() && !rg.StreamSuitEglise, "sans source principale : « Envoyer dans le stream » ne change rien (il suit déjà l'église)");
 
-    // une source principale : toujours là quand l'église ne montre rien
+    // une source principale : MyStream la montre, quoi que montre l'église
     rg.ChoisirSourceStream(texte.Id);
     Ok(rg.SourcePrincipaleStream == null, "un texte ne peut pas être la source principale");
     rg.ChoisirSourceStream(cam.Id);
     Ok(rg.SourcePrincipaleStream?.Id == cam.Id && Donnees.Charger(don.Dossier, res).Reglages.MyStreamSource == cam.Id, "la source principale est choisie et gardée");
     Ok(rg.SourcesStreamPossibles.Select(a => a.Id).SequenceEqual(new[] { cam.Id, image.Id }), "les sources possibles : MyCam d'abord, pas les textes");
-    rg.Effacer();
-    Ok(rg.EtatStream(rg.Etat) is { Mode: "media" } s0 && s0.Media == cam.Source, "l'église vide : MyStream montre la source principale");
-
-    // les paroles et les versets passent par-dessus, en bandeau
-    rg.AfficherVerset(43, 3, 16, 16);
+    Ok(rg.StreamSurPrincipale && !rg.StreamSuitEglise, "MyStream sur sa source principale");
     var s1 = rg.EtatStream(rg.Etat);
-    Ok(s1.Mode == "verset" && s1.Media == cam.Source && s1.Presentation == "bandeau" && Regie.TexteSurImage(s1) && s1.Lignes.SequenceEqual(rg.Etat.Lignes),
-        "un verset : en bandeau sur la source principale");
-    Ok(rg.Etat.Presentation == "plein" && rg.Etat.Media == null, "l'église garde son verset en plein écran");
-    Ok(!Regie.TexteSurImage(rg.Etat), "l'église : pas de texte sur image");
-    rg.ChoisirTexteStream("plein");
-    Ok(rg.EtatStream(rg.Etat) == rg.EtatCamera(rg.Etat) && Donnees.Charger(don.Dossier, res).Reglages.MyStreamTexte == "plein", "« plein écran » : le verset comme dans l'église (gardé)");
-    rg.ChoisirTexteStream("bandeau");
-
-    // une image montrée à l'église passe en grand
+    Ok(s1 is { Mode: "media", Presentation: "plein" } && s1.Media == cam.Source && s1.Lignes.Count == 0 && !Regie.TexteSurImage(s1),
+        "un verset à l'église : MyStream garde la caméra, sans paroles par-dessus");
     rg.AfficherAnnonce(image);
-    Ok(rg.EtatStream(rg.Etat) is { Mode: "media" } s2 && s2.Media == image.Source, "une image à l'église : en grand sur MyStream");
+    Ok(rg.EtatStream(rg.Etat).Media == cam.Source && rg.Etat.Media == image.Source, "une image à l'église : MyStream garde la caméra");
+    rg.Effacer();
+    Ok(rg.EtatStream(rg.Etat) is { Mode: "media" } s0 && s0.Media == cam.Source, "l'église vide : MyStream montre la caméra");
 
-    // touche M : retour à la source principale, l'église garde l'image
-    Ok(rg.StreamPrincipale() && rg.StreamSurPrincipale, "touche M : MyStream revient sur la source principale");
-    Ok(rg.EtatStream(rg.Etat).Media == cam.Source && rg.Etat.Media == image.Source, "… l'église garde l'image");
-    rg.Theme("aube");
-    Ok(rg.StreamSurPrincipale && rg.EtatStream(rg.Etat).Media == cam.Source, "changer le style ne ramène pas l'image sur MyStream");
-    rg.AfficherAnnonce(image);
-    Ok(!rg.StreamSurPrincipale && rg.EtatStream(rg.Etat).Media == image.Source, "la même image remontrée repart sur MyStream");
-    rg.StreamPrincipale();
+    // « Envoyer dans le stream » : MyStream montre ce que montre l'église et la suit
+    rg.AfficherVerset(43, 3, 16, 16);
+    Ok(rg.EnvoyerDansStream() && rg.StreamSuitEglise && !rg.StreamSurPrincipale, "« Envoyer dans le stream » : MyStream suit l'église");
+    Ok(rg.EtatStream(rg.Etat) == rg.EtatCamera(rg.Etat) && rg.EtatStream(rg.Etat).Mode == "verset", "… le verset part sur MyStream, comme à l'église (plein écran)");
     rg.AfficherVerset(43, 3, 17, 17);
-    Ok(!rg.StreamSurPrincipale && rg.EtatStream(rg.Etat) is { Mode: "verset", Presentation: "bandeau" }, "le verset suivant repart sur MyStream (en bandeau)");
-
-    // écran noir (rien à l'écran) : la source principale
-    var noir = rg.Etat with { Mode = "vide", Media = null, Lignes = Array.Empty<string>(), Ref = "", Second = null, Duo = null };
-    Ok(rg.EtatStream(noir).Media == cam.Source, "écran noir : MyStream montre la source principale");
-
-    // l'écran de repos de l'église (fond seul) : MyStream montre la source principale
+    Ok(rg.EtatStream(rg.Etat) is { Mode: "verset" } v17 && v17.Ref.Contains("3:17"), "le verset suivant part aussi sur MyStream");
+    rg.AfficherAnnonce(image);
+    Ok(rg.EtatStream(rg.Etat).Media == image.Source, "une image montrée ensuite : sur MyStream aussi");
+    Ok(rg.EnvoyerDansStream() && rg.StreamSuitEglise, "« Envoyer » une 2e fois : MyStream suit toujours");
+    // l'église n'a rien pour Internet : la source principale, et MyStream suit toujours l'église
     rg.ChoisirEcranDefaut("fond");
     rg.Effacer();
-    Ok(rg.Cible is CibleDefaut && rg.EtatSalle(rg.Etat).Mode == "fond" && rg.EtatStream(rg.Etat).Media == cam.Source, "l'église sur son écran de repos : MyStream sur la source principale");
-
-    // un contenu gardé dans un coin reste sur MyStream (sauf après la touche M)
+    Ok(rg.Cible is CibleDefaut && rg.EtatSalle(rg.Etat).Mode == "fond" && rg.EtatStream(rg.Etat).Media == cam.Source && rg.StreamSuitEglise,
+        "l'église sur son écran de repos : MyStream sur la caméra (et suit toujours l'église)");
+    var noir = rg.Etat with { Mode = "vide", Media = null, Lignes = Array.Empty<string>(), Ref = "", Second = null, Duo = null };
+    Ok(rg.EtatStream(noir).Media == cam.Source, "écran noir : MyStream montre la caméra");
     rg.AfficherVerset(43, 3, 16, 16);
+    Ok(rg.EtatStream(rg.Etat).Mode == "verset", "… et le verset suivant repart sur MyStream");
+    // un contenu gardé dans un coin
     rg.Epingler("Jean 3:16");
-    Ok(rg.EtatStream(rg.Etat) is { Mode: "media" } s3 && s3.Media == cam.Source && s3.Duo?.Libelle == "Jean 3:16", "un verset dans le coin : la source principale avec le coin");
-    rg.StreamPrincipale();
-    Ok(rg.EtatStream(rg.Etat).Duo == null, "touche M : la source principale seule, sans le coin");
-    rg.Desepingler();
+    Ok(rg.EtatStream(rg.Etat) is { Mode: "media" } s3 && s3.Media == cam.Source && s3.Duo?.Libelle == "Jean 3:16", "un verset dans le coin (MyStream suit l'église) : la caméra avec le coin");
 
-    // une fenêtre « Dans l'église » (Zoom projeté) : MyStream montre sa source principale, pas l'écran de repos de l'église
+    // « Source principale » (touche M) : MyStream revient sur la caméra, l'église garde ce qu'elle montre
+    Ok(rg.StreamPrincipale() && rg.StreamSurPrincipale && !rg.StreamSuitEglise, "touche M : MyStream revient sur sa source principale");
+    Ok(rg.EtatStream(rg.Etat) is { Mode: "media", Duo: null } s4 && s4.Media == cam.Source, "… la caméra seule, sans le coin");
+    rg.Desepingler();
+    rg.AfficherVerset(43, 3, 17, 17);
+    Ok(rg.EtatStream(rg.Etat).Media == cam.Source && rg.Etat.Mode == "verset", "le verset suivant reste dans l'église : MyStream garde la caméra");
+    Ok(rg.StreamPrincipale() && rg.StreamSurPrincipale, "touche M déjà sur la source principale : rien ne change");
+    // choisir une autre source principale : MyStream la montre (et ne suit plus l'église)
+    rg.EnvoyerDansStream();
+    rg.ChoisirSourceStream(image.Id);
+    Ok(!rg.StreamSuitEglise && rg.EtatStream(rg.Etat).Media == image.Source, "une autre source principale : MyStream la montre aussitôt");
+    rg.ChoisirSourceStream(cam.Id);
+
+    // une fenêtre « Dans l'église » (Zoom projeté) : jamais sur MyStream
     var zoomEglise = rg.NouveauDisplay("Zoom", new SourceDisplay { Type = "fenetre", Fenetre = 77, Processus = 7, Exe = "Zoom.exe", Titre = "Zoom Meeting", Diffusion = SourceDisplay.Eglise });
     rg.AfficherAnnonce(zoomEglise);
-    Ok(rg.EtatSalle(rg.Etat).Media == zoomEglise.Source && rg.EtatStream(rg.Etat).Media == cam.Source, "une source « Dans l'église » : MyStream montre la source principale");
+    Ok(rg.EtatSalle(rg.Etat).Media == zoomEglise.Source && rg.EtatStream(rg.Etat).Media == cam.Source, "une source « Dans l'église » : MyStream montre la caméra");
+    rg.EnvoyerDansStream();
+    Ok(rg.EtatStream(rg.Etat).Media == cam.Source, "… même quand MyStream suit l'église");
+    rg.StreamPrincipale();
+    // une source « MyStream seulement » : faite pour Internet, elle y part toujours
     var dansStream = rg.NouveauDisplay("Diapos", new SourceDisplay { Type = "fenetre", Fenetre = 78, Processus = 8, Titre = "Annonces", Diffusion = SourceDisplay.Streaming });
     rg.AfficherAnnonce(dansStream);
     Ok(rg.EtatStream(rg.Etat).Media == dansStream.Source && rg.EtatSalle(rg.Etat).Media != dansStream.Source, "une source « MyStream seulement » : sur MyStream, pas dans l'église");
+    rg.AfficherVerset(43, 3, 16, 16);
+    Ok(rg.EtatStream(rg.Etat).Media == cam.Source, "… le verset suivant (dans l'église) : MyStream revient sur la caméra");
 
     // une source principale supprimée : MyStream suit l'église
     rg.SupprimerAnnonce(cam.Id);
@@ -1837,6 +1842,73 @@ if (Actif())
 
 Groupe("YouTube (1.6.0)");
 if (Actif()) MyVerse.Tests.YouTubeTests.RunAsync(Ok).GetAwaiter().GetResult();
+
+Groupe("Directs automatiques (1.6.4)");
+if (Actif())
+{
+    // les heures comme on les écrit
+    Ok(DirectProgramme.LireHeure("10:00") == new TimeSpan(10, 0, 0) && DirectProgramme.LireHeure("17h40") == new TimeSpan(17, 40, 0)
+        && DirectProgramme.LireHeure("10h") == new TimeSpan(10, 0, 0) && DirectProgramme.LireHeure("9 h 05") == new TimeSpan(9, 5, 0)
+        && DirectProgramme.LireHeure("9.30") == new TimeSpan(9, 30, 0), "heures : « 10:00 », « 17h40 », « 10h », « 9 h 05 », « 9.30 »");
+    Ok(DirectProgramme.LireHeure("25:00") == null && DirectProgramme.LireHeure("abc") == null && DirectProgramme.LireHeure("") == null && DirectProgramme.LireHeure("10:75") == null,
+        "pas une heure : « 25:00 », « abc », vide, « 10:75 »");
+
+    // chaque dimanche à 10:00 (le 15 novembre 2026 est un dimanche)
+    var dim = new DirectProgramme { Jours = new() { 0 }, Heure = "10h" };
+    dim.Normaliser();
+    var dimanche = new DateTime(2026, 11, 15);
+    Ok(dimanche.DayOfWeek == DayOfWeek.Sunday && dim.Heure == "10:00", "heure normalisée : 10:00");
+    Ok(dim.Prochain(dimanche.AddHours(8)) == dimanche.AddHours(10), "dimanche 8 h : prochain direct à 10:00 le jour même");
+    Ok(dim.Prochain(dimanche.AddHours(10)) == dimanche.AddHours(10), "dimanche 10:00 pile : c'est maintenant");
+    Ok(dim.Prochain(dimanche.AddHours(11)) == dimanche.AddDays(7).AddHours(10), "dimanche 11 h : le prochain, dimanche suivant");
+    Ok(dim.Prochain(new DateTime(2026, 11, 18, 12, 0, 0)) == new DateTime(2026, 11, 22, 10, 0, 0), "mercredi : le prochain, dimanche 22 novembre");
+    Ok(dim.AFaire(dimanche.AddHours(9).AddMinutes(59)) == null, "9:59 : pas encore");
+    Ok(dim.AFaire(dimanche.AddHours(10)) == dimanche.AddHours(10), "10:00 : le direct démarre");
+    Ok(dim.AFaire(dimanche.AddHours(10).AddMinutes(14)) == dimanche.AddHours(10), "10:14 (MyChurch ouvert en retard) : il démarre encore");
+    Ok(dim.AFaire(dimanche.AddHours(10).AddMinutes(16)) == null, "10:16 : trop tard, il ne démarre plus tout seul");
+    dim.Dernier = dimanche.AddHours(10);
+    Ok(dim.AFaire(dimanche.AddHours(10).AddMinutes(5)) == null, "déjà démarré ce dimanche : il ne repart pas");
+    Ok(dim.AFaire(dimanche.AddDays(7).AddHours(10).AddMinutes(1)) == dimanche.AddDays(7).AddHours(10), "le dimanche suivant : il repart");
+    dim.Actif = false;
+    Ok(dim.AFaire(dimanche.AddDays(7).AddHours(10)) == null, "désactivé : il ne démarre pas");
+
+    // chaque vendredi et dimanche à 17:40
+    var deux = new DirectProgramme { Jours = new() { 5, 0, 5, 9 }, Heure = "17h40", Duree = 150 };
+    deux.Normaliser();
+    Ok(deux.Jours.SequenceEqual(new[] { 0, 5 }), "jours : sans double ni jour impossible");
+    Ok(deux.Quand == "Chaque vendredi et dimanche à 17:40" && deux.Fin == "arrêt après 2 h 30", "en mots : " + deux.Quand + ", " + deux.Fin);
+    Ok(deux.Prochain(new DateTime(2026, 11, 20, 17, 0, 0)) == new DateTime(2026, 11, 20, 17, 40, 0), "vendredi 17:00 : à 17:40 le jour même");
+    Ok(deux.Prochain(new DateTime(2026, 11, 20, 18, 0, 0)) == new DateTime(2026, 11, 22, 17, 40, 0), "vendredi 18:00 : dimanche à 17:40");
+    Ok(new DirectProgramme { Jours = new() { 0, 1, 2, 3, 4, 5, 6 }, Heure = "9:00" }.Quand == "Tous les jours à 09:00", "tous les jours");
+    Ok(new DirectProgramme { Jours = new() { 0, 1, 3 }, Heure = "19:30" }.Quand == "Chaque lundi, mercredi et dimanche à 19:30", "lundi d'abord, dimanche à la fin");
+    Ok(new DirectProgramme { Jours = new() }.Prochain(dimanche) == null && new DirectProgramme { Jours = new() }.Quand == "Aucun jour choisi", "aucun jour : jamais");
+    Ok(DirectProgramme.DureeTexte(45) == "45 min" && DirectProgramme.DureeTexte(120) == "2 h" && DirectProgramme.DureeTexte(90) == "1 h 30", "durées en mots");
+
+    // le titre du jour
+    Ok(DirectProgramme.DateLongue(dimanche) == "dimanche 15 novembre 2026", "date en français : " + DirectProgramme.DateLongue(dimanche));
+    var p = DirectProgramme.Nouveau(new ModeleDirect { Description = "Culte de {jour} à {heure}", Confidentialite = "unlisted", Enfants = null, Latence = "low" });
+    var m = p.ModelePour(dimanche.AddHours(10));
+    Ok(p.Modele.Titre == "Culte du {date}" && m.Titre == "Culte du dimanche 15 novembre 2026" && m.Description == "Culte de dimanche à 10:00"
+        && m.Confidentialite == "unlisted" && m.Enfants == false && m.Latence == "low", "« {date} » remplacé : « " + m.Titre + " »");
+    p.Modele.Titre = new string('x', 120);
+    Ok(p.ModelePour(dimanche).Titre.Length == 100, "titre coupé à 100 caractères (limite de YouTube)");
+    p.Modele.Titre = "  ";
+    Ok(p.ModelePour(dimanche).Titre == "Culte du dimanche 15 novembre 2026", "titre vide : « Culte du … »");
+    Ok(DirectProgramme.Moment(dimanche.AddHours(10), dimanche.AddHours(8)) == "aujourd'hui à 10:00"
+        && DirectProgramme.Moment(dimanche.AddDays(1).AddHours(10), dimanche) == "demain à 10:00"
+        && DirectProgramme.Moment(new DateTime(2026, 11, 22, 10, 0, 0), dimanche) == "dimanche 22 novembre à 10:00", "moment en mots");
+
+    // gardés dans les réglages
+    var don = Donnees.Charger(Temp(), res);
+    don.Reglages.Direct.Programmes.Add(deux);
+    don.Reglages.Direct.Programmes.Add(new DirectProgramme { Id = deux.Id, Jours = new() { 6 }, Heure = "08:00", Qualite = "8k", Duree = -5 });
+    don.SauverReglages();
+    var relu = Donnees.Charger(don.Dossier, res).Reglages.Direct.Programmes;
+    Ok(relu.Count == 2 && relu[0].Quand == deux.Quand && relu[0].Duree == 150 && relu[1].Id != relu[0].Id && relu[1].Qualite == "" && relu[1].Duree == 0,
+        "directs automatiques gardés (identifiants séparés, réglages impossibles corrigés)");
+    Ok(ReglagesDirect.TailleDe("2160p") == (3840, 2160, 30000) && ReglagesDirect.TailleDe("1080p") == (1920, 1080, 6000) && ReglagesDirect.TailleDe("") == (1280, 720, 4500),
+        "qualités : 4K, 1080p, 720p");
+}
 
 Groupe("Enregistrement");
 if (Actif()) MyVerse.Tests.RecordingIntegrationTests.RunAsync(Ok).GetAwaiter().GetResult();

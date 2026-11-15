@@ -532,8 +532,10 @@ public static class AutoTest
     }
 
     /// <summary>
-    /// MyChurch 1.6.0 : MyStream (l'écran de Zoom et de YouTube) a sa source principale ; les paroles passent en bandeau par-dessus ;
-    /// la touche M y ramène MyStream ; le direct part vraiment (vers un serveur RTMP local : ffmpeg en écoute, comme YouTube).
+    /// MyChurch 1.6.4 : MyStream (l'écran de Zoom et de YouTube) montre sa source principale, quoi que montre l'église ;
+    /// « Envoyer dans le stream » (S) : il montre ce que montre l'église et la suit ; « Source principale » (M) l'y ramène.
+    /// Le direct part vraiment (vers un serveur RTMP local : ffmpeg en écoute, comme YouTube), à la main, puis tout seul
+    /// (direct automatique, à l'heure dite, arrêté après sa durée).
     /// </summary>
     static async Task TestMyStream(MainWindow w)
     {
@@ -545,31 +547,48 @@ public static class AutoTest
         R.Effacer();
         await Attendre(1500);
         Ok(w.TestEtatStream is { Mode: "media" } s0 && s0.Media == cam.Source, "1.6.0 : l'église vide : MyStream montre sa source principale");
-        Ok(w.TestInfoStream.Contains("Caméra de test"), "1.6.0 : sous MyStream : " + w.TestInfoStream);
+        Ok(w.TestInfoStream.Contains("Caméra de test"), "1.6.4 : sous MyStream : " + w.TestInfoStream);
         if (App.CameraVirtuelle != null)
         {
             var c = PixelCamera(640, 360);
             Ok(Vert(c), $"1.6.0 : Zoom (MyVirtualCam) reçoit la source principale de MyStream ({c})");
         }
+        // un verset à l'église : MyStream garde la caméra, sans paroles par-dessus
         R.AfficherVerset(42, 3, 16, 16);
         await Attendre(1500);
-        var st = w.TestEtatStream;
-        Ok(st is { Mode: "verset", Presentation: "bandeau" } && Regie.TexteSurImage(st) && R.Etat.Presentation == "plein",
-            "1.6.0 : un verset : en bandeau sur la caméra pour MyStream, en plein écran dans l'église");
+        Ok(w.TestEtatStream is { Mode: "media" } s1 && s1.Media == cam.Source && R.Etat.Mode == "verset",
+            "1.6.4 : un verset à l'église : MyStream garde la caméra (sans les paroles)");
         if (App.CameraVirtuelle != null)
         {
             var haut = PixelCamera(640, 200);
-            var bandeau = PixelCamera(90, 600);
-            Ok(Vert(haut) && bandeau is { } bd && !Vert(bd), $"1.6.0 : Zoom voit la caméra en haut et le bandeau des paroles en bas ({haut} / {bandeau})");
+            var bas = PixelCamera(90, 600);
+            Ok(Vert(haut) && Vert(bas), $"1.6.4 : Zoom voit la caméra seule, sans bandeau de paroles ({haut} / {bas})");
         }
-        Capture(w, "64-v160-deux-ecrans.png");
-        w.TestRetourStream();
-        await Attendre(800);
-        Ok(R.StreamSurPrincipale && w.TestEtatStream is { Mode: "media" } && R.Etat.Mode == "verset", "1.6.0 : touche M : MyStream revient sur la caméra, l'église garde le verset");
+        Capture(w, "64-v164-mystream-camera.png");
+        // « Envoyer dans le stream » (touche S) : le verset part sur MyStream, et la suite aussi
+        w.TestEnvoyerStream();
+        await Attendre(1500);
+        Ok(R.StreamSuitEglise && w.TestEtatStream.Mode == "verset" && w.TestEnvoyerTexte == "MyStream suit l'église",
+            $"1.6.4 : « Envoyer dans le stream » : le verset part sur MyStream (« {w.TestEnvoyerTexte} »)");
+        if (App.CameraVirtuelle != null)
+        {
+            var c2 = PixelCamera(640, 360);
+            Ok(!Vert(c2), $"1.6.4 : Zoom voit le verset envoyé dans le stream ({c2})");
+        }
+        Capture(w, "64b-v164-envoye-dans-le-stream.png");
         R.Bouger(1);
         await Attendre(800);
-        Ok(!R.StreamSurPrincipale && w.TestEtatStream.Mode == "verset", "1.6.0 : le verset suivant repart sur MyStream");
-        Ok(w.TestMenuStream() >= 8, "1.6.0 : le menu « Source » (sources, aucune, bandeau ou plein écran, le direct)");
+        Ok(R.StreamSuitEglise && w.TestEtatStream is { Mode: "verset" } s2 && s2.Ref.Contains("3:17"), "1.6.4 : le verset suivant part aussi sur MyStream : " + w.TestEtatStream.Ref);
+        // « Source principale » (touche M) : MyStream revient sur la caméra, l'église garde le verset
+        w.TestRetourStream();
+        await Attendre(800);
+        Ok(R.StreamSurPrincipale && w.TestEtatStream is { Mode: "media" } && R.Etat.Mode == "verset" && w.TestEnvoyerTexte == "Envoyer dans le stream",
+            "1.6.4 : « Source principale » : MyStream revient sur la caméra, l'église garde le verset");
+        R.Bouger(1);
+        await Attendre(800);
+        Ok(R.StreamSurPrincipale && w.TestEtatStream is { Mode: "media" } && R.Etat.Ref.Contains("3:18"), "1.6.4 : le verset suivant reste dans l'église, MyStream garde la caméra");
+        int lignes = w.TestMenuStream();
+        Ok(lignes == R.SourcesStreamPossibles.Count + 4, $"1.6.4 : le menu « Source » sans les options des paroles ({lignes} lignes)");
 
         // ------------------------------------------------------------ le direct, pour de vrai, vers un serveur RTMP local
         w.TestOuvrirDirect();
@@ -579,38 +598,103 @@ public static class AutoTest
             $"1.6.0 : fenêtre du direct ouverte (« {fen?.TestBouton} », titre « {fen?.TestTitre} »)");
         if (fen != null) Capture(fen, "65-v160-youtube.png");
         string ffmpeg = App.Audio.Ffmpeg;
-        if (fen != null && File.Exists(ffmpeg) && App.Audio.Running && App.Audio.TracksActive)
+        bool directPossible = fen != null && File.Exists(ffmpeg) && App.Audio.Running && App.Audio.TracksActive;
+        if (directPossible)
         {
-            var libre = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); libre.Start();
-            int port = ((System.Net.IPEndPoint)libre.LocalEndpoint).Port; libre.Stop();
-            string recu = Path.Combine(dossier, "direct-recu.flv");
-            var info = new System.Diagnostics.ProcessStartInfo(ffmpeg) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
-            foreach (var a in new[] { "-hide_banner", "-loglevel", "warning", "-y", "-listen", "1", "-i", $"rtmp://127.0.0.1:{port}/live/test", "-c", "copy", "-f", "flv", recu }) info.ArgumentList.Add(a);
-            using var serveur = System.Diagnostics.Process.Start(info)!;
-            var journalServeur = serveur.StandardError.ReadToEndAsync();
-            await Attendre(1500);
-            await fen.TestDemarrerAutre($"rtmp://127.0.0.1:{port}/live", "test");
+            var (serveur, recu, port, journalServeur) = await ServeurRtmp(ffmpeg, "direct-recu.flv", "test");
+            await fen!.TestDemarrerAutre($"rtmp://127.0.0.1:{port}/live", "test");
             for (int i = 0; i < 40 && App.Direct.Etat != Audio.EtatDirect.EnDirect; i++) await Attendre(250);
             await Attendre(5000);
             Ok(App.Direct.Etat == Audio.EtatDirect.EnDirect && w.TestDirectTexte.StartsWith("En direct"),
                 $"1.6.0 : le direct part (« {w.TestDirectTexte} », encodeur {App.Direct.Encodeur}) : {App.Direct.Message}");
+            Ok(w.TestVeille.EndsWith("PC"), "1.6.4 : pendant le direct, le PC reste éveillé (" + w.TestVeille + ")");
             Capture(fen, "66-v160-youtube-en-direct.png");
             Capture(w, "67-v160-en-direct.png");
             await App.Direct.ArreterAsync();
             await Attendre(500);
             Ok(App.Direct.Etat == Audio.EtatDirect.Arrete && w.TestDirectTexte == "YouTube", $"1.6.0 : Arrêter le direct (« {w.TestDirectTexte} ») : " + App.Direct.Message);
-            try { await serveur.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15)); } catch (Exception) { try { serveur.Kill(true); } catch (Exception) { } }
-            Note("serveur RTMP de test : " + (await journalServeur).Trim());
+            await FinServeur(serveur, journalServeur);
             var (code, journal) = await Decrire(ffmpeg, recu);
             Ok(File.Exists(recu) && new FileInfo(recu).Length > 50_000 && journal.Contains("Video: h264") && journal.Contains("Audio: aac") && journal.Contains("1280x720"),
                 $"1.6.0 : le serveur a reçu MyStream (H.264 1280 × 720) et le son (AAC) : {(File.Exists(recu) ? new FileInfo(recu).Length : 0)} octets");
         }
         else Note($"1.6.0 : direct réel non essayé (ffmpeg {File.Exists(ffmpeg)}, son {App.Audio.Running}/{App.Audio.TracksActive})");
         fen?.Close();
+        await Attendre(300);
+
+        // ------------------------------------------------------------ 1.6.4 : un direct automatique (chaque jour à l'heure qu'il est)
+        var D = App.Donnees.Reglages.Direct;
+        var maintenant = DateTime.Now;
+        var auto = new DirectProgramme { Jours = new() { 0, 1, 2, 3, 4, 5, 6 }, Heure = maintenant.AddMinutes(-1).ToString("HH:mm"), Duree = 60, Qualite = "720p" };
+        auto.Modele.Titre = "Culte du {date}";
+        auto.Normaliser();
+        Ok(auto.AFaire(maintenant) != null && App.Planificateur.Prochain(maintenant) == null, "1.6.4 : direct automatique préparé (" + auto.Quand + ")");
+        if (directPossible)
+        {
+            var (serveur, recu, port, journalServeur) = await ServeurRtmp(ffmpeg, "direct-automatique.flv", "auto");
+            D.Mode = ReglagesDirect.Autre;
+            D.Serveur = $"rtmp://127.0.0.1:{port}/live";
+            App.Direct.Coffre.Ecrire(AdresseDirect.CleAutre, "auto");
+            D.Programmes.Add(auto);
+            App.Donnees.SauverReglages();
+            App.Planificateur.Modifie();
+            await App.Planificateur.VerifierAsync(maintenant);
+            for (int i = 0; i < 40 && App.Direct.Etat != Audio.EtatDirect.EnDirect; i++) await Attendre(250);
+            await Attendre(4000);
+            Ok(App.Direct.Etat == Audio.EtatDirect.EnDirect && App.Planificateur.EnCours == auto && auto.Dernier != null && App.Planificateur.ArretPrevu != null,
+                $"1.6.4 : le direct automatique démarre tout seul à l'heure ({auto.Quand}) : {App.Direct.Message}");
+            w.TestOuvrirDirect();
+            await Attendre(800);
+            var fen2 = w.TestFenetreDirect;
+            Ok(fen2 != null && fen2.TestAutomatiques == 1 && fen2.TestTexteAutomatiques.Contains("En direct maintenant"),
+                "1.6.4 : la fenêtre du direct le montre : " + fen2?.TestTexteAutomatiques);
+            if (fen2 != null) Capture(fen2, "68-v164-direct-automatique.png");
+            await App.Planificateur.VerifierAsync(maintenant.AddSeconds(20));
+            Ok(App.Planificateur.EnCours == auto && App.Direct.EnDirect, "1.6.4 : un 2e tour à la même heure : le direct continue, rien ne repart");
+            // après sa durée (1 h), il s'arrête tout seul
+            await App.Planificateur.VerifierAsync(DateTime.Now.AddMinutes(61));
+            for (int i = 0; i < 40 && App.Direct.Etat != Audio.EtatDirect.Arrete; i++) await Attendre(250);
+            Ok(App.Direct.Etat == Audio.EtatDirect.Arrete && App.Planificateur.EnCours == null, "1.6.4 : après sa durée, le direct automatique s'arrête tout seul : " + App.Direct.Message);
+            await App.Planificateur.VerifierAsync(DateTime.Now);
+            await Attendre(500);
+            Ok(!App.Direct.Actif && auto.Dernier != null, "1.6.4 : il ne repart pas le même jour");
+            await FinServeur(serveur, journalServeur);
+            var (code2, journal2) = await Decrire(ffmpeg, recu);
+            Ok(File.Exists(recu) && new FileInfo(recu).Length > 50_000 && journal2.Contains("Video: h264") && journal2.Contains("Audio: aac"),
+                $"1.6.4 : le serveur a reçu le direct automatique (H.264 et AAC) : {(File.Exists(recu) ? new FileInfo(recu).Length : 0)} octets");
+            fen2?.Close();
+            D.Programmes.Remove(auto);
+            App.Donnees.SauverReglages();
+            App.Planificateur.Modifie();
+        }
+        else Note("1.6.4 : direct automatique réel non essayé (pas de ffmpeg ou pas de son)");
+        // la fenêtre « Programmer un direct automatique » (jours, heure, arrêt, MyStream, qualité, réglages YouTube)
+        await Fenetre(w, () => new ProgrammeDirectWindow(null), "69-v164-programmer-direct.png");
         R.ChoisirSourceStream(null);
         R.SupprimerAnnonce(cam.Id);
         await Attendre(500);
         Ok(w.TestEtatStream.Mode == R.EtatCamera(R.Etat).Mode, "1.6.0 : sans source principale, MyStream suit de nouveau l'église");
+    }
+
+    /// <summary>Un serveur RTMP local (ffmpeg en écoute, comme YouTube) qui garde ce qu'il reçoit dans <paramref name="nom"/>.</summary>
+    static async Task<(System.Diagnostics.Process Serveur, string Recu, int Port, Task<string> Journal)> ServeurRtmp(string ffmpeg, string nom, string cle)
+    {
+        var libre = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); libre.Start();
+        int port = ((System.Net.IPEndPoint)libre.LocalEndpoint).Port; libre.Stop();
+        string recu = Path.Combine(dossier, nom);
+        var info = new System.Diagnostics.ProcessStartInfo(ffmpeg) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
+        foreach (var a in new[] { "-hide_banner", "-loglevel", "warning", "-y", "-listen", "1", "-i", $"rtmp://127.0.0.1:{port}/live/{cle}", "-c", "copy", "-f", "flv", recu }) info.ArgumentList.Add(a);
+        var serveur = System.Diagnostics.Process.Start(info)!;
+        var journal = serveur.StandardError.ReadToEndAsync();
+        await Attendre(1500);
+        return (serveur, recu, port, journal);
+    }
+
+    static async Task FinServeur(System.Diagnostics.Process serveur, Task<string> journal)
+    {
+        try { await serveur.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15)); } catch (Exception) { try { serveur.Kill(true); } catch (Exception) { } }
+        Note("serveur RTMP de test : " + (await journal).Trim());
+        serveur.Dispose();
     }
 
     public static async void Lancer(MainWindow w, string sortie)
@@ -1324,7 +1408,7 @@ public static class AutoTest
             });
             Ok(idEditeur != null && R.Trouver(idEditeur) != null, "1.5.1 : fermer l'éditeur garde le chant enregistré");
             if (idEditeur != null) R.SupprimerChant(idEditeur);
-            // 1.6.0 : MyStream (les deux écrans, la source principale, le bandeau, la touche M) et le direct
+            // 1.6.0 / 1.6.4 : MyStream (les deux écrans, la source principale, « Envoyer dans le stream », la touche M), le direct, le direct automatique
             try { await TestMyStream(w); }
             catch (Exception x) { Echec("1.6.0 : MyStream : " + x); }
             await Fenetre(w, () => new DecoupeWindow(new CibleVerset(42, 3, 16, 16)), "13-decoupe.png");

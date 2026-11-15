@@ -175,6 +175,56 @@ public static class Natif
         catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException) { return false; }
     }
 
+    // ------------------------------------------------------------ 1.6.4 : les directs automatiques
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern IntPtr CreateWaitableTimer(IntPtr attributes, bool manualReset, string? name);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetWaitableTimer(IntPtr timer, ref long dueTime, int period, IntPtr completion, IntPtr arg, bool resume);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool CancelWaitableTimer(IntPtr timer);
+    static IntPtr minuterieReveil;
+
+    /// <summary>
+    /// Réveille l'ordinateur en veille à <paramref name="quand"/> (heure de l'ordinateur) ; null : plus de réveil prévu.
+    /// Windows le fait si les minuteurs de réveil sont permis (Options d'alimentation, permis par défaut sur la plupart des PC de bureau).
+    /// Rend faux si Windows refuse.
+    /// </summary>
+    public static bool Reveil(DateTime? quand)
+    {
+        try
+        {
+            if (minuterieReveil == IntPtr.Zero) minuterieReveil = CreateWaitableTimer(IntPtr.Zero, true, null);
+            if (minuterieReveil == IntPtr.Zero) return false;
+            if (quand is not { } q || q <= DateTime.Now) return CancelWaitableTimer(minuterieReveil);
+            long echeance = q.ToUniversalTime().ToFileTimeUtc();
+            return SetWaitableTimer(minuterieReveil, ref echeance, 0, IntPtr.Zero, IntPtr.Zero, true);
+        }
+        catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or ArgumentOutOfRangeException) { return false; }
+    }
+
+    const string CleExecuter = @"Software\Microsoft\Windows\CurrentVersion\Run";
+
+    /// <summary>MyChurch s'ouvre quand Windows démarre (clé « Run » de l'utilisateur : visible dans le Gestionnaire des tâches › Démarrage).</summary>
+    public static bool DemarrageWindows
+    {
+        get
+        {
+            try { using var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(CleExecuter); return k?.GetValue("MyChurch") is string; }
+            catch (Exception) { return false; }
+        }
+    }
+
+    /// <summary>Ouvrir (ou plus) MyChurch au démarrage de Windows. Rend faux si Windows refuse.</summary>
+    public static bool ChangerDemarrageWindows(bool oui)
+    {
+        try
+        {
+            using var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(CleExecuter, true);
+            if (oui) k.SetValue("MyChurch", "\"" + Environment.ProcessPath + "\"");
+            else k.DeleteValue("MyChurch", false);
+            Journal.Info(oui ? "MyChurch s'ouvrira au démarrage de Windows" : "MyChurch ne s'ouvrira plus au démarrage de Windows");
+            return true;
+        }
+        catch (Exception e) { Journal.Erreur("démarrage avec Windows", e); return false; }
+    }
+
     /// <summary>Crochet de fenêtre : l'économiseur d'écran ne démarre pas (WM_SYSCOMMAND / SC_SCREENSAVE refusé).</summary>
     public static IntPtr SansEconomiseur(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {

@@ -15,9 +15,10 @@ namespace MyVerse.Ui;
 /// Comment : le compte YouTube (conseillé : MyChurch crée le direct), la clé de stream de YouTube Studio, ou un autre service.
 /// Le direct : titre, description, confidentialité, catégorie, « pour les enfants ? », miniature, latence, DVR, 360°, programmer ;
 /// ou un direct déjà prévu sur la chaîne. En direct : la durée, l'état chez YouTube, « Voir sur YouTube », « Arrêter le direct ».
+/// 1.6.4 : les directs automatiques (chaque dimanche à 10:00…), dans DirectsAutomatiquesUi.cs.
 /// La fenêtre peut rester ouverte pendant le culte (elle ne bloque pas MyChurch).
 /// </summary>
-public sealed class DirectWindow : FenetreDialogue
+public sealed partial class DirectWindow : FenetreDialogue
 {
     static DirectService D => App.Direct;
     static ReglagesDirect R => App.Donnees.Reglages.Direct;
@@ -290,10 +291,13 @@ public sealed class DirectWindow : FenetreDialogue
         blocDirect.Children.Add(blocPrevu);
         corps.Children.Add(blocDirect);
 
+        // ------------------------------------------------------------ 1.6.4 : les directs automatiques (chaque dimanche à 10:00…)
+        corps.Children.Add(ConstruireAutomatiques());
+
         // ------------------------------------------------------------ image et son
         var (image, pileImage) = Tiroir("Image et son du direct", "IconeEcran");
         image.Margin = new Thickness(0, 18, 0, 0);
-        pileImage.Children.Add(Note("L'image : MyStream, à droite dans MyChurch (sa source principale, les paroles en bandeau…). La même que Zoom.", 0));
+        pileImage.Children.Add(Note("L'image : MyStream, à droite dans MyChurch (sa source principale, ou ce que montre l'église après « Envoyer dans le stream »). La même que Zoom.", 0));
         pileImage.Children.Add(Petit("Qualité"));
         q720 = new RadioButton { Content = "720p, 4,5 Mb/s (conseillé)", GroupName = "qualite", IsChecked = R.Qualite is not ("1080p" or "2160p"), FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
         q1080 = new RadioButton { Content = "1080p, 6 Mb/s (Internet rapide : 10 Mb/s d'envoi au moins)", GroupName = "qualite", IsChecked = R.Qualite == "1080p", FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
@@ -451,6 +455,7 @@ public sealed class DirectWindow : FenetreDialogue
         blocPrevu.Visibility = prevu.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         bool actif = D.Actif;
         MajCarte();
+        RemplirAutomatiques();
         // les boutons du bas
         corps.IsEnabled = !actif;
         bool plusTard = programmer.IsChecked == true;
