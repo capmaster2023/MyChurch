@@ -132,7 +132,7 @@ public sealed class AjoutSonWindow : FenetreDialogue
         }
         var p = new StackPanel();
         p.Children.Add(tuiles);
-        var note = SonUi.Texte("Le son des vidéos de Display est déjà là : il s'entend dans l'église et part dans les enregistrements.", 13, "Brume");
+        var note = SonUi.Texte("Le son des vidéos (Médias) est déjà là : il s'entend dans l'église et part dans les enregistrements.", 13, "Brume");
         note.Margin = new Thickness(2, 6, 0, 0);
         p.Children.Add(note);
         return p;

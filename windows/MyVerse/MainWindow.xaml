@@ -360,7 +360,7 @@
                     <StackPanel DockPanel.Dock="Top">
                         <local:Capitales Libelle="Médias" />
                         <Button x:Name="DisplayAjouter" Style="{StaticResource BtnOr}" Content="+ Ajouter un média" Height="44" Padding="14,0" Margin="0,10,0,0" ToolTip="Ajouter un texte, des images ou une source vidéo" />
-                        <TextBlock Text="+ : ajouter à la grille (✓ : déjà dedans, clic pour l'en retirer) · double-clic : en direct · clic droit : modifier, épingler, supprimer"
+                        <TextBlock Text="Le + met un média dans la grille (✓ : il y est déjà). Double-clic : le montrer. Clic droit : modifier, garder dans un coin, supprimer."
                                    TextWrapping="Wrap" Foreground="{StaticResource Brume}" FontSize="12.5" LineHeight="18" Margin="0,10,0,0" />
                     </StackPanel>
                     <Grid Margin="0,12,0,0">
