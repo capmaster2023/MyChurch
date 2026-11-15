@@ -108,8 +108,8 @@ public sealed class SourcesDisplay : IDisposable
                         catch (IOException ex)
                         {
                             var message = ex.Message.TrimEnd('.') + " : MyChurch réessaie toutes les 2 secondes.";
-                            // une seule ligne au journal tant que la raison ne change pas (une tuile attend une caméra débranchée des heures)
-                            if (message != attente) Journal.Info($"caméra « {nouvelle.Peripherique} » : {ex.Message} (nouvel essai toutes les 2 s)");
+                            // une tuile (1.7.0) n'écrit qu'une ligne au journal tant que la raison ne change pas (caméra débranchée des heures)
+                            if (!Tuile || message != attente) Journal.Info($"caméra « {nouvelle.Peripherique} » : {ex.Message} (nouvel essai toutes les 2 s)");
                             attente = await Attendre(g, attente, message, false);
                             await Task.Delay(2000, token.Token);
                         }

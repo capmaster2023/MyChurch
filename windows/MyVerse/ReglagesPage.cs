@@ -238,23 +238,28 @@ public sealed class ReglagesPage : Grid
         var dossier = App.Donnees.Dossier;
         var r = ReglagesDistance.Lire(dossier);
         distance.Children.Clear();
-        var bascule = new Button { Style = S(r.Actif ? "BtnPetit" : "Btn"), Content = r.Actif ? "Couper" : "Activer", Height = 34, Padding = new Thickness(14, 0, 14, 0) };
-        bascule.Click += (_, _) =>
+        // un bouton neuf pour chaque ligne (un élément WPF n'a qu'un parent)
+        Button Bascule()
         {
-            var n = ReglagesDistance.Lire(dossier);
-            n.Actif = !n.Actif;
-            try { n.Ecrire(dossier); }
-            catch (Exception x) { Principale?.Toast("Réglage impossible à enregistrer : " + x.Message); return; }
-            Journal.Info(n.Actif ? $"à distance : activé (relais « {n.Relais} »)" : "à distance : coupé");
-            App.MajAgent();
-            Principale?.Toast(n.Actif ? "Contrôle à distance activé : ce PC sera joignable par Internet dès que Windows démarre." : "Contrôle à distance coupé.");
-            MajDistance();
-        };
-        var etat = Ligne(r.Actif, "Contrôle à distance", r.Actif ? "vérification auprès du relais…" : "coupé : le téléphone ne joint ce PC que sur le Wi-Fi de l'église", bascule);
+            var b = new Button { Style = S(r.Actif ? "BtnPetit" : "Btn"), Content = r.Actif ? "Couper" : "Activer", Height = 34, Padding = new Thickness(14, 0, 14, 0) };
+            b.Click += (_, _) =>
+            {
+                var n = ReglagesDistance.Lire(dossier);
+                n.Actif = !n.Actif;
+                try { n.Ecrire(dossier); }
+                catch (Exception x) { Principale?.Toast("Réglage impossible à enregistrer : " + x.Message); return; }
+                Journal.Info(n.Actif ? $"à distance : activé (relais « {n.Relais} »)" : "à distance : coupé");
+                App.MajAgent();
+                Principale?.Toast(n.Actif ? "Contrôle à distance activé : ce PC sera joignable par Internet dès que Windows démarre." : "Contrôle à distance coupé.");
+                MajDistance();
+            };
+            return b;
+        }
+        var etat = Ligne(r.Actif, "Contrôle à distance", r.Actif ? "vérification auprès du relais…" : "coupé : le téléphone ne joint ce PC que sur le Wi-Fi de l'église", Bascule());
         distance.Children.Add(etat);
 
         // l'adresse du relais (celle du VPS par défaut)
-        var adresse = new TextBox { Text = r.Relais, Height = 34, FontSize = 13.5, VerticalContentAlignment = VerticalAlignment.Center, MinWidth = 300, Margin = new Thickness(0, 0, 10, 0) };
+        var adresse = new TextBox { Style = S("Champ"), Text = r.Relais, FontSize = 13.5, MinWidth = 300, Margin = new Thickness(0, 0, 10, 0) };
         var garder = new Button { Style = S("BtnPetit"), Content = "Enregistrer", Height = 34, Padding = new Thickness(12, 0, 12, 0) };
         garder.Click += (_, _) =>
         {
@@ -296,8 +301,9 @@ public sealed class ReglagesPage : Grid
             null => $"actif · relais « {ReglagesDistance.Nettoyer(r.Relais)} » injoignable (VPS éteint, adresse fausse, ou pas d'Internet)",
         };
         int i = distance.Children.IndexOf(etat);
+        if (i < 0) return;
         distance.Children.RemoveAt(i);
-        distance.Children.Insert(i, Ligne(joignable == true, "Contrôle à distance", sous, bascule));
+        distance.Children.Insert(i, Ligne(joignable == true, "Contrôle à distance", sous, Bascule()));
         if (joignable != true && IsVisible)
         {
             await Task.Delay(4000);
