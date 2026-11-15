@@ -8,8 +8,8 @@ namespace MyVerse.Ui;
 /// MyChurch 3.3 :
 /// - la carte « Écran par défaut » de la colonne de contrôle : noir (l'écran se vide, comme avant), fond seul, ou un écran principal
 ///   du déroulé ; Retirer de l'écran (Échap) revient direct sur celui qui est choisi ;
-/// - l'écran live en grand sur la page Culte (ce qui est à l'écran, ce qui vient, Précédent, Suivant, Noir, Retirer) ;
-/// - la barre de gauche large (logo, nom des pages) quand la fenêtre est assez grande, compacte sinon.
+/// - l'écran en direct en grand sur la page Culte (1.5.0 : Précédent, Suivant, Noir, Effacer sont dans la barre du bas) ;
+/// - la barre de gauche, étroite (1.5.0).
 /// </summary>
 public partial class MainWindow
 {
@@ -32,31 +32,21 @@ public partial class MainWindow
     }
 
     // ------------------------------------------------------------ barre de gauche
-    /// <summary>Fenêtre de 1360 px et plus : barre large (logo, « MyChurch », icône et nom de chaque page) ; sinon la barre compacte.</summary>
+    /// <summary>1.5.0 : la barre de gauche est toujours étroite (icône au-dessus du nom) : trois pages, Culte, Bibliothèque, Son.</summary>
     void AdapterBarre()
     {
-        double w = ActualWidth > 0 ? ActualWidth : Width;
-        bool large = double.IsNaN(w) || w >= 1360;
-        if (large == barreLarge && ColonneRail.Width.Value == (large ? 208 : 78)) return;
-        barreLarge = large;
-        ColonneRail.Width = new GridLength(large ? 208 : 78);
-        LogoLarge.Visibility = large ? Visibility.Visible : Visibility.Collapsed;
-        LogoCompact.Visibility = large ? Visibility.Collapsed : Visibility.Visible;
-        var style = Style_(large ? "OngletBarre" : "OngletRail");
-        foreach (var o in new[] { OngletAgenda, OngletBible, OngletChants, OngletAnnonces, OngletDuo, OngletSon, OngletReglages }) o.Style = style;
-        OngletReglages.Margin = large ? new Thickness(12, 0, 12, 0) : new Thickness(0);
-        ThemeBtn.Style = Style_(large ? "BtnBarre" : "BtnRail");
-        VersionBtn.HorizontalAlignment = large ? HorizontalAlignment.Left : HorizontalAlignment.Center;
-        VersionBtn.Margin = large ? new Thickness(20, 8, 0, 14) : new Thickness(0, 4, 0, 12);
+        barreLarge = false;
+        if (ColonneRail.Width.Value != 84) ColonneRail.Width = new GridLength(84);
     }
 
-    // ------------------------------------------------------------ écran live de la page Culte
-    /// <summary>L'écran live prend un peu moins de la moitié de la hauteur : les vignettes du culte gardent de la place dessous.</summary>
+    // ------------------------------------------------------------ écran en direct de la page Culte
+    /// <summary>L'écran en direct prend un peu plus de la moitié de la hauteur, sans dépasser la largeur : les diapositives du culte restent dessous.</summary>
     void TailleCulteLive()
     {
-        double h = CentreAgenda.ActualHeight;
-        if (h <= 0) return;
-        CulteApercu.MaxWidth = Math.Round(Math.Clamp(h * 0.46, 150, 440) * 16 / 9);
+        double h = CentreAgenda.ActualHeight, w = CentreAgenda.ActualWidth;
+        if (h <= 0 || w <= 0) return;
+        double parHauteur = Math.Clamp(h * 0.56, 160, 560) * 16 / 9;
+        CulteApercu.MaxWidth = Math.Round(Math.Max(240, Math.Min(parHauteur, w - 52)));
     }
 
     /// <summary>Le grand écran live : ce qui est à l'écran, ce qui vient avec Suivant, le bouton Noir.</summary>
@@ -64,7 +54,8 @@ public partial class MainWindow
     {
         CulteRendu.Afficher(e);
         CulteApercu.BorderBrush = Pinceau(e.Vide && e.Duo == null ? "Nuit3" : "Direct");
-        CulteAEcran.Text = "À l'écran : " + AEcran(e);
+        var a = AEcran(e);
+        CulteAEcran.Text = a.Length > 0 ? char.ToUpperInvariant(a[0]) + a[1..] : "";
         CulteEnsuite.Text = "Ensuite : " + (s?.Label ?? "rien");
         CulteEnsuite.ToolTip = s != null && s.Texte.Length > 0 ? s.Texte.Replace("\r", "").Replace("\n", " ") : null;
         if (noir) { CulteNoir.Background = Pinceau("Blanc"); CulteNoir.Foreground = Pinceau("Page"); CulteNoir.BorderBrush = Pinceau("Blanc"); }
@@ -76,9 +67,15 @@ public partial class MainWindow
     {
         if (noir) return "écran noir";
         if (R.Cible is CibleDefaut)
-            return R.ElementCourant is { } p ? "écran principal · " + p.Titre : "écran par défaut · " + R.LibelleEcranDefaut;
-        if (e.Vide) return e.Duo != null ? "contenu épinglé · " + e.Duo.Libelle : "rien";
-        if (R.Cible is CibleChant cc && R.Trouver(cc.Id) is { } c) return c.Title + (c.Sections.Count > 1 ? $" · {cc.I + 1}/{c.Sections.Count}" : "");
+            return R.ElementCourant is { } p ? "écran principal · " + p.Titre : "écran de repos · " + R.LibelleEcranDefaut;
+        if (e.Vide) return e.Duo != null ? "dans le coin · " + e.Duo.Libelle : "rien";
+        if (R.Cible is CibleChant cc && R.Trouver(cc.Id) is { } c)
+        {
+            // 1.5.0 : « À toi la gloire, refrain »
+            if (c.Sections.Count <= 1) return c.Title;
+            var lab = cc.I >= 0 && cc.I < c.Sections.Count ? (c.Sections[cc.I].Label ?? "").Trim() : "";
+            return c.Title + ", " + (lab.Length > 0 ? char.ToLowerInvariant(lab[0]) + lab[1..] : $"{cc.I + 1} sur {c.Sections.Count}");
+        }
         if (e.Mode is "verset" or "media" && e.Ref.Length > 0) return e.Ref;
         if (R.ElementCourant is { } el) return TitreElement(el);
         return e.Lignes.FirstOrDefault(l => l.Trim().Length > 0)?.Trim() ?? "";
@@ -94,10 +91,10 @@ public partial class MainWindow
         var choix = new List<(string Id, string Nom, string Sous)>
         {
             ("noir", "Noir", "L'écran se vide (comme avant)"),
-            ("fond", "Fond seul", "L'habillage, sans texte"),
+            ("fond", "Fond seul", "Le fond seul, sans texte"),
         };
         foreach (var p in R.EcransPrincipaux)
-            choix.Add((p.Id, p.Titre, (p.Heure is { Length: > 0 } h ? h + " · " : "") + "Déroulé · " + R.Description(p).Sous.Split(" · ")[0]));
+            choix.Add((p.Id, p.Titre, (p.Heure is { Length: > 0 } h ? h + " · " : "") + "Programme · " + R.Description(p).Sous.Split(" · ")[0]));
         var signature = string.Join("|", choix.Select(c => c.Id + "=" + c.Nom + "=" + c.Sous)) + "|" + Habillage(R.Etat);
         if (signature != signatureDefaut)
         {
@@ -117,9 +114,11 @@ public partial class MainWindow
         }
         var lib = R.LibelleEcranDefaut;
         CulteRetourTexte.Text = "Retour direct : " + (actuel == "noir" ? "noir" : lib);
+        TiroirReposValeur.Text = actuel == "noir" ? "Noir" : lib;
+        TiroirReposValeur.ToolTip = TiroirReposValeur.Text;
         Effacer.ToolTip = CulteRetirer.ToolTip = actuel == "noir"
-            ? "Échap · l'écran se vide (écran par défaut : noir)"
-            : $"Échap · retour direct sur l'écran par défaut : {lib}";
+            ? "Échap · l'écran se vide (écran de repos : noir)"
+            : $"Échap · retour direct sur l'écran de repos : {lib}";
     }
 
     Button BoutonDefaut(string id, string nom, string sous)
@@ -130,7 +129,7 @@ public partial class MainWindow
         if (id != "noir")
         {
             try { etat = R.EtatCible(new CibleDefaut(id)); }
-            catch (Exception x) { Journal.Erreur("miniature de l'écran par défaut", x); }
+            catch (Exception x) { Journal.Erreur("miniature de l'écran de repos", x); }
         }
         if (etat != null)
         {
@@ -176,15 +175,15 @@ public partial class MainWindow
         {
             Style = Style_("Btn"), Content = grille, Padding = new Thickness(6, 6, 8, 6), Margin = new Thickness(0, 0, 0, 8), MinHeight = 50,
             HorizontalContentAlignment = HorizontalAlignment.Stretch, Tag = id,
-            ToolTip = id == "noir" ? "Retirer de l'écran vide l'écran, comme avant" : $"Retirer de l'écran revient direct sur « {nom} »",
+            ToolTip = id == "noir" ? "Effacer vide l'écran, comme avant" : $"Effacer revient tout de suite sur « {nom} »",
         };
         b.Click += (_, _) =>
         {
             R.ChoisirEcranDefaut(id);
             MajEcranDefaut();
             Toast(id == "noir"
-                ? "Écran par défaut : noir. Retirer de l'écran vide l'écran, comme avant."
-                : $"Écran par défaut : {nom}. Retirer de l'écran (Échap) revient direct dessus.");
+                ? "Écran de repos : noir. Effacer vide l'écran, comme avant."
+                : $"Écran de repos : {nom}. Effacer (Échap) revient tout de suite dessus.");
         };
         boutonsDefaut.Add((b, id, coche));
         return b;

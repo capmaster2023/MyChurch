@@ -120,11 +120,11 @@ public partial class MainWindow
             AnnonceTexte.IsReadOnly = a.Source != null;
             DisplayReconnecter.Visibility = a.Source?.Type is "camera" or "fenetre" ? Visibility.Visible : Visibility.Collapsed;
         };
-        AnnonceEnregistrer.Click += (_, _) => { if (EnregistrerAnnonce() != null) Toast("Display enregistré."); };
+        AnnonceEnregistrer.Click += (_, _) => { if (EnregistrerAnnonce() != null) Toast("Média enregistré."); };
         AnnonceAfficher.Click += (_, _) => { if (EnregistrerAnnonce() is { } a) R.AfficherAnnonce(a); };
         AnnonceAjouter.Click += (_, _) =>
         {
-            if (EnregistrerAnnonce() is { } a && R.AjouterAnnonceAgenda(a.Id) is { } el) Toast($"« {el.Titre} » ajoutée au déroulé « {R.Agenda.Nom} ».");
+            if (EnregistrerAnnonce() is { } a && R.AjouterAnnonceAgenda(a.Id) is { } el) Toast($"« {el.Titre} » ajoutée au programme « {R.Agenda.Nom} ».");
         };
         AnnonceSupprimer.Click += (_, _) =>
         {
@@ -179,7 +179,7 @@ public partial class MainWindow
         l.Heure = e.Heure ?? (l.Fait && R.HeureAffiche(e) is DateTime h ? h.ToString("HH:mm") : "");
     }
 
-    static string TypeLib(ElementAgenda e) => e.Type switch { "chant" => "Chant", "bible" => "Lecture", "compte" => "Accueil", "principal" => "Écran principal", _ => "Display" };
+    static string TypeLib(ElementAgenda e) => e.Type switch { "chant" => "Chant", "bible" => "Lecture", "compte" => "Accueil", "principal" => "Écran principal", _ => "Média" };
 
     /// <summary>L'icône de la carte : note, livre, horloge, punaise (écran principal), deux écrans (Duo), texte ou écran (Display).</summary>
     static string IconeType(ElementAgenda e) => e.Type switch
@@ -236,7 +236,7 @@ public partial class MainWindow
         if (elementChoisi == null)
         {
             if (R.Agenda.Elements.FirstOrDefault() is { } premier) { ChoisirElement(premier); R.AfficherElement(premier, 0); }
-            else Toast("Le déroulé est vide : « + Ajouter », ou cherchez un chant ou un verset en haut (Ctrl K).");
+            else Toast("Le programme est vide : « + Ajouter au programme », ou cherche un chant ou un verset en haut (Ctrl K).");
             return;
         }
         R.AfficherElement(elementChoisi, R.ElementCourant == elementChoisi && R.PositionAgenda(elementChoisi) is int p ? p : 0);
@@ -313,7 +313,7 @@ public partial class MainWindow
             if (Dialogue.Demander(this, "Nouveau nom :", actuel.Nom, "Renommer") is { } nom && nom.Trim().Length > 0) R.RenommerAgenda(actuel.Id, nom);
         }));
         m.Items.Add(new Separator());
-        m.Items.Add(Article("Envoyer le déroulé sur WhatsApp", () => PartagerWhatsApp(R.DeroulePartage())));
+        m.Items.Add(Article("Envoyer le programme sur WhatsApp", () => PartagerWhatsApp(R.DeroulePartage())));
         m.Items.Add(Article("Envoyer le résumé du culte sur WhatsApp", () => PartagerWhatsApp(R.ResumePartage())));
         m.Items.Add(new Separator());
         m.Items.Add(Article("Supprimer ce culte", () =>
@@ -331,10 +331,10 @@ public partial class MainWindow
         m.Items.Add(Article("Chant ou verset…  (Ctrl K)", () =>
         {
             OuvrirCommande();
-            Toast("Tapez « chant 12 » ou « jean 3 16 », puis Tab ou + pour l'ajouter au déroulé.");
+            Toast("Tape « wokovu 45 » ou « jean 3 16 » en haut, puis Tab ou + pour l'ajouter au programme.");
         }));
-        var displays = new MenuItem { Header = "Display de la bibliothèque" };
-        if (R.Annonces.Count == 0) displays.Items.Add(new MenuItem { Header = "(aucune : onglet Display)", IsEnabled = false });
+        var displays = new MenuItem { Header = "Média de la bibliothèque" };
+        if (R.Annonces.Count == 0) displays.Items.Add(new MenuItem { Header = "(aucun : onglet Médias)", IsEnabled = false });
         foreach (var a in R.Annonces)
         {
             var id = a.Id;
@@ -353,7 +353,7 @@ public partial class MainWindow
         // 3.3 : un écran qui reste (logo, image, caméra, texte de bienvenue, fond seul) ; il devient l'écran par défaut quand il passe
         m.Items.Add(new Separator());
         var principal = new MenuItem { Header = "Écran principal (reste à l'écran)", FontWeight = FontWeights.Bold };
-        principal.Items.Add(Article("Fond seul (l'habillage, sans texte)", () => AjouterPrincipal(null)));
+        principal.Items.Add(Article("Fond seul (le style, sans texte)", () => AjouterPrincipal(null)));
         var sources = R.Annonces.Where(a => a.Source?.Type != "duo").ToList();
         if (sources.Count > 0) principal.Items.Add(new Separator());
         foreach (var a in sources)
@@ -361,7 +361,7 @@ public partial class MainWindow
             var id = a.Id;
             principal.Items.Add(Article(a.Titre.Length > 0 ? a.Titre : "(sans titre)", () => AjouterPrincipal(id)));
         }
-        if (sources.Count == 0) principal.Items.Add(new MenuItem { Header = "(logo, image, caméra : ajoutez-les d'abord dans Display)", IsEnabled = false });
+        if (sources.Count == 0) principal.Items.Add(new MenuItem { Header = "(logo, image, caméra : ajoute-les d'abord dans Médias)", IsEnabled = false });
         m.Items.Add(principal);
         Ouvrir(m, AgendaAjouter, PlacementMode.Top);
     }
@@ -371,7 +371,7 @@ public partial class MainWindow
     {
         if (R.AjouterPrincipalAgenda(annonceId) is not { } el) return;
         ChoisirElement(el);
-        Toast($"« {el.Titre} » ajouté comme écran principal : il reste à l'écran quand il passe, et Retirer de l'écran revient dessus. Vous pouvez aussi le choisir dans « Écran par défaut ».");
+        Toast($"« {el.Titre} » ajouté comme écran principal : il reste à l'écran quand il passe, et Effacer revient dessus. Tu peux aussi le choisir dans « Écran de repos », à droite.");
     }
 
     void MenuElement(ElementAgenda e)
@@ -382,13 +382,13 @@ public partial class MainWindow
         if (e.Type is "texte" or "chant" or "compte") m.Items.Add(Article("Modifier…", () => ModifierElement(e)));
         if (e.Type == "principal")
             m.Items.Add(R.EcranDefaut == e.Id
-                ? new MenuItem { Header = "C'est l'écran par défaut", IsEnabled = false }
-                : Article("Choisir comme écran par défaut", () => R.ChoisirEcranDefaut(e.Id)));
+                ? new MenuItem { Header = "C'est l'écran de repos", IsEnabled = false }
+                : Article("Choisir comme écran de repos", () => R.ChoisirEcranDefaut(e.Id)));
         m.Items.Add(new Separator());
         m.Items.Add(Article("Monter", () => R.DeplacerAgenda(e.Id, -1)));
         m.Items.Add(Article("Descendre", () => R.DeplacerAgenda(e.Id, 1)));
         m.Items.Add(new Separator());
-        m.Items.Add(Article("Retirer du déroulé", () => RetirerElement(e)));
+        m.Items.Add(Article("Retirer du programme", () => RetirerElement(e)));
         Ouvrir(m, ListeAgenda, PlacementMode.MousePoint);
     }
 
@@ -413,21 +413,21 @@ public partial class MainWindow
     {
         e.Handled = true;
         if ((sender as FrameworkElement)?.DataContext is Chant c && R.AjouterChantAgenda(c.Id) is { } el)
-            Toast($"« {el.Titre} » ajouté au déroulé « {R.Agenda.Nom} ».");
+            Toast($"« {el.Titre} » ajouté au programme « {R.Agenda.Nom} ».");
     }
 
     void AjouterAnnonceListe_Click(object sender, RoutedEventArgs e)
     {
         e.Handled = true;
         if ((sender as FrameworkElement)?.DataContext is Annonce a && R.AjouterAnnonceAgenda(a.Id) is { } el)
-            Toast($"« {el.Titre} » ajoutée au déroulé « {R.Agenda.Nom} ».");
+            Toast($"« {el.Titre} » ajoutée au programme « {R.Agenda.Nom} ».");
     }
 
     void AjouterVersetAgenda(int b, int c, int v)
     {
         var r = sel is Ref s && s.B == b && s.C == c && s.V2 > s.V1 && v >= s.V1 && v <= s.V2 ? s : new Ref(b, c, v, v);
         var el = R.AjouterBibleAgenda(r);
-        Toast($"{el.Titre} ajouté au déroulé « {R.Agenda.Nom} ».");
+        Toast($"{el.Titre} ajouté au programme « {R.Agenda.Nom} ».");
     }
 
     static IEnumerable<T> Enfants<T>(DependencyObject o) where T : DependencyObject
@@ -443,16 +443,42 @@ public partial class MainWindow
     // ------------------------------------------------------------ recherche du culte (Ctrl K)
     void OuvrirCommande()
     {
-        if (onglet is not ("agenda" or "annonces" or "duo")) MontrerOnglet("agenda");
+        // 1.5.0 : la recherche est en haut de toutes les pages ; seuls Son et Réglages ramènent au culte
+        if (onglet is "son" or "reglages") MontrerOnglet("agenda");
         Cmd.Focus();
         Cmd.SelectAll();
     }
 
-    void CommandeMaj()
+    int generationCmd;
+
+    /// <summary>
+    /// 1.5.0 : la recherche ne bloque plus l'interface. Le rapide (références, numéros, « wokovu 45 », titres) s'affiche tout de suite ;
+    /// les paroles et les versets mal écrits, plus longs à chercher, se calculent à côté et complètent la liste.
+    /// </summary>
+    async void CommandeMaj()
     {
+        var q = Cmd.Text;
         var rec = App.Donnees.Reglages.Recueil;
-        cmdRes = R.Commande(Cmd.Text, rec.Length > 0 ? rec : null);
+        string? recueil = rec.Length > 0 ? rec : null;
+        int g = ++generationCmd;
+        using (Mesures.Chrono("recherche Ctrl K (rapide)"))
+        {
+            try { cmdRes = R.Commande(q, recueil, false); }
+            catch (Exception x) { Journal.Erreur("recherche du culte", x); cmdRes = new(); }
+        }
         cmdIndex = 0;
+        CmdResultatsMaj();
+        if (Recherche.Mots(q).Count < 2) return;
+        List<ResultatCommande> complet;
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+        try { complet = await Task.Run(() => R.Commande(q, recueil, true)); }
+        catch (Exception x) { Journal.Erreur("recherche du culte (paroles)", x); return; }
+        Mesures.Ajouter("recherche Ctrl K (paroles, à côté)", System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
+        if (g != generationCmd || Cmd.Text != q || complet.Count <= cmdRes.Count) return;
+        // la ligne choisie reste la même si l'utilisateur a déjà bougé avec ↑ ↓
+        var choisi = cmdIndex < cmdRes.Count ? cmdRes[cmdIndex] : null;
+        cmdRes = complet;
+        cmdIndex = choisi != null ? Math.Max(0, cmdRes.FindIndex(x => x.Titre == choisi.Titre && x.Type == choisi.Type)) : 0;
         CmdResultatsMaj();
     }
 
@@ -463,7 +489,7 @@ public partial class MainWindow
         CmdPopup.IsOpen = texte && Cmd.IsKeyboardFocusWithin;
         CmdAide.Text = texte && cmdRes.Count == 0
             ? "Rien trouvé. Essayez « jean 3 16 », « chant 45 » ou des mots du chant."
-            : "Entrée : afficher · Tab ou + : ajouter au déroulé · ↑ ↓ : choisir";
+            : "Entrée : montrer. Tab ou + : ajouter au programme. ↑ ↓ : choisir. × : annuler.";
         for (int i = 0; i < cmdRes.Count; i++)
         {
             var r = cmdRes[i];
@@ -492,7 +518,7 @@ public partial class MainWindow
             rang.Children.Add(ligne);
             if (r.Action == null)
             {
-                var plus = new Button { Style = Style_("BtnAjout"), Margin = new Thickness(6, 0, 4, 0), ToolTip = "Ajouter au déroulé (Tab)", VerticalAlignment = VerticalAlignment.Center };
+                var plus = new Button { Style = Style_("BtnAjout"), Margin = new Thickness(6, 0, 4, 0), ToolTip = "Ajouter au programme (Tab)", VerticalAlignment = VerticalAlignment.Center };
                 plus.Click += (_, _) => ExecuterCommande(r, true);
                 Grid.SetColumn(plus, 1);
                 rang.Children.Add(plus);
@@ -541,7 +567,7 @@ public partial class MainWindow
         if (ajouter)
         {
             var el = r.ChantId != null ? R.AjouterChantAgenda(r.ChantId) : r.Ref is Ref ra ? R.AjouterBibleAgenda(ra) : null;
-            if (el != null) { Toast($"« {el.Titre} » ajouté au déroulé."); ChoisirElement(el); }
+            if (el != null) { Toast($"« {el.Titre} » ajouté au programme."); ChoisirElement(el); }
             Cmd.SelectAll();
             return;
         }
@@ -654,7 +680,15 @@ public partial class MainWindow
     // ------------------------------------------------------------ pour le test automatique
     public void TestOngletAgenda() => MontrerOnglet("agenda");
     public void TestOngletAnnonces() => MontrerOnglet("annonces");
-    public List<ResultatCommande> TestCommande(string q) { Cmd.Text = q; minuterieCmd.Stop(); CommandeMaj(); return cmdRes; }
+    public List<ResultatCommande> TestCommande(string q)
+    {
+        Cmd.Text = q; minuterieCmd.Stop(); ++generationCmd;
+        var rec = App.Donnees.Reglages.Recueil;
+        cmdRes = R.Commande(q, rec.Length > 0 ? rec : null);
+        cmdIndex = 0;
+        CmdResultatsMaj();
+        return cmdRes;
+    }
     public void TestNoir() => BasculerNoir();
     public bool TestEstNoir => noir;
     public string TestResume => R.Resume();

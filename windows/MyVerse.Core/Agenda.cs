@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
 namespace MyVerse;
@@ -436,7 +437,9 @@ public sealed partial class Regie
     /// Ce que propose la barre de commande : « jean 3 16 » (Bible), « chant 16 » ou « 16 » (numéro dans le recueil choisi d'abord),
     /// des mots du titre ou des paroles, « noir », « retirer ».
     /// </summary>
-    public List<ResultatCommande> Commande(string? saisie, string? recueil = null)
+    /// <param name="complet">Faux : seulement le rapide (références, numéros, titres) ; les paroles et les versets mal écrits
+    /// (plus longs à chercher) viennent avec <c>true</c>, calculés à côté par l'interface (1.5.0).</param>
+    public List<ResultatCommande> Commande(string? saisie, string? recueil = null, bool complet = true)
     {
         var q = (saisie ?? "").Trim();
         var res = new List<ResultatCommande>();
@@ -444,7 +447,7 @@ public sealed partial class Regie
         var n = Texte.Norm(q);
 
         if (n is "noir" or "ecran noir") res.Add(new ResultatCommande("ACTION", "Écran noir", "Cache le texte sans le perdre", Action: "noir"));
-        if (n is "retirer" or "effacer" or "vider") res.Add(new ResultatCommande("ACTION", "Retirer de l'écran", "Échap", Action: "retirer"));
+        if (n is "retirer" or "effacer" or "vider") res.Add(new ResultatCommande("ACTION", "Effacer l'écran", "Échap", Action: "retirer"));
 
         // numéro de chant : le recueil choisi d'abord
         var mc = R_CHANT.Match(n);
@@ -490,6 +493,7 @@ public sealed partial class Regie
 
         // 1.4.0 : paroles mal écrites (« je lava vers dieu » trouve « je leva les yeux vers Dieu »)
         var mots = Recherche.Mots(q);
+        if (!complet) return res;
         if (mots.Count >= 2 && res.Count < 9)
             foreach (var (c, extrait) in ParolesProches(mots).Take(6))
                 if (vus.Add(c.Id) && res.Count < 9)
@@ -536,13 +540,11 @@ public sealed partial class Regie
     public IEnumerable<(Chant C, string Extrait)> ParolesProches(List<string> q)
     {
         var res = new List<(Chant, string, int)>();
-        foreach (var c in Chants)
+        foreach (var c in Chants.ToArray())
         {
-            foreach (var sec in c.Sections)
-                foreach (var ligne in (sec.Text ?? "").Split('\n'))
+            foreach (var sec in c.Sections.ToArray())
+                foreach (var (ligne, lm) in LignesDe(sec))
                 {
-                    var lm = Recherche.Mots(ligne);
-                    if (lm.Count == 0) continue;
                     int i = 0, cout = 0, saut = 0;
                     foreach (var w in q)
                     {
@@ -555,10 +557,22 @@ public sealed partial class Regie
                         if (trouve < 0) { cout = -1; break; }
                         i = trouve + 1;
                     }
-                    if (cout >= 0) { res.Add((c, ligne.Trim(), cout * 3 + saut)); goto suivant; }
+                    if (cout >= 0) { res.Add((c, ligne, cout * 3 + saut)); goto suivant; }
                 }
             suivant:;
         }
         return res.OrderBy(x => x.Item3).Select(x => (x.Item1, x.Item2));
+    }
+
+    /// <summary>1.5.0 : les lignes d'une strophe et leurs mots, gardés tant que le texte ne change pas (la recherche ne refait pas tout à chaque touche).</summary>
+    sealed class LignesSection { public string Texte = ""; public (string Ligne, List<string> Mots)[] Lignes = Array.Empty<(string, List<string>)>(); }
+    static readonly ConditionalWeakTable<Section, LignesSection> lignesSections = new();
+    static (string Ligne, List<string> Mots)[] LignesDe(Section s)
+    {
+        var t = s.Text ?? "";
+        if (lignesSections.TryGetValue(s, out var c) && ReferenceEquals(c.Texte, t)) return c.Lignes;
+        var l = t.Split('\n').Select(x => (x.Trim(), Recherche.Mots(x))).Where(x => x.Item2.Count > 0).ToArray();
+        lignesSections.AddOrUpdate(s, new LignesSection { Texte = t, Lignes = l });
+        return l;
     }
 }

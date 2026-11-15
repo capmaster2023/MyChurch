@@ -648,7 +648,7 @@ public static class AutoTest
             await Attendre(900);
             int nbVignettes = R.Agenda.Elements.Sum(e => R.Diapos(e).Count);
             Ok(w.TestVignettes == nbVignettes && nbVignettes >= 5, $"page Culte : toutes les diapositives du culte en vignettes ({w.TestVignettes} / {nbVignettes})");
-            Ok(w.TestVignetteDirecte.StartsWith("Jean 3:16") && w.TestVignetteDirecte.EndsWith("À L'ÉCRAN"), "vignette à l'écran : " + w.TestVignetteDirecte);
+            Ok(w.TestVignetteDirecte.StartsWith("Jean 3:16") && w.TestVignetteDirecte.EndsWith("À l'écran"), "vignette à l'écran : " + w.TestVignetteDirecte);
             Ok(w.TestVignetteSuivante == "Jean 3:17" && w.TestSuivantLabel == "Jean 3:17", $"vignette suivante et aperçu « Suivant » : {w.TestVignetteSuivante} / {w.TestSuivantLabel}");
             Capture(w, "19-culte.png");
             App.Bibles.BasculerSeconde("kjv");
@@ -667,7 +667,7 @@ public static class AutoTest
             Ok(!w.TestEstNoir, "la diapositive suivante rallume l'écran");
 
             // 3.3 : écran par défaut — un écran principal dans le déroulé ; Retirer de l'écran revient direct dessus
-            Ok(w.TestBarreLarge == (w.ActualWidth >= 1360), "barre de gauche large ou compacte selon la fenêtre (" + (int)w.ActualWidth + " px)");
+            Ok(!w.TestBarreLarge, "1.5.0 : barre de gauche étroite, trois pages (Culte, Bibliothèque, Son) (" + (int)w.ActualWidth + " px)");
             var principal = R.AjouterPrincipalAgenda(null);
             await Attendre(400);
             Ok(principal != null && w.TestEcranDefautChoix.Split(" | ").Count(x => x.StartsWith("Fond seul")) == 2,
@@ -681,7 +681,7 @@ public static class AutoTest
                 R.Effacer();
                 await Attendre(900);
                 Ok(R.Cible is CibleDefaut && R.Etat.Mode == "fond" && R.EtatDiffusion(R.Etat).Vide, "Retirer de l'écran : retour direct sur l'écran par défaut (fond seul), OBS vide");
-                Ok(w.TestVignetteDirecte.Contains("À L'ÉCRAN") && w.TestCulteAEcran.Contains("défaut"), "vignette et écran live : " + w.TestVignetteDirecte + " · " + w.TestCulteAEcran);
+                Ok(w.TestVignetteDirecte.Contains("À l'écran") && w.TestCulteAEcran.Contains("repos"), "vignette et écran live : " + w.TestVignetteDirecte + " · " + w.TestCulteAEcran);
                 Capture(w, "21b-culte-ecran-par-defaut.png");
                 if (w.Ecran != null) Capture(w.Ecran, "21c-ecran-par-defaut.png");
                 R.Bouger(-1);
@@ -1069,10 +1069,24 @@ public static class AutoTest
             Ok(w.TestCliquerVignette(k17) && R.Etat.Ref.StartsWith("Jean 3:17"), "clic sur une vignette : en direct (" + R.Etat.Ref + ")");
             await Attendre(300);
             Ok(w.TestVignetteDirecte.StartsWith("Jean 3:17"), "la vignette cliquée passe « À L'ÉCRAN »");
-            Ok(w.TestDeroule.StartsWith("Culte du dimanche / 15 novembre / 10:30") && w.TestDeroule.Contains("4 éléments") || c == null, "en-tête du déroulé : " + w.TestDeroule);
+            Ok(w.TestDeroule.StartsWith("Culte du dimanche 15 novembre / 4 moments") && w.TestDeroule.Contains("à 10:30") || c == null, "en-tête du programme : " + w.TestDeroule);
             R.AfficherElement(lect, 0);
             await Attendre(400);
             Capture(w, "39-pupitre-culte.png");
+            // 1.5.0 : la télécommande dit ce qui est à l'écran ; les outils de l'écran s'ouvrent d'un clic
+            Ok(w.TestTelecommande.Contains("Jean 3:16") && w.TestTelecommande.Contains("1 sur 2"), "1.5.0 : télécommande : " + w.TestTelecommande);
+            w.TestTiroir("style", true);
+            await Attendre(300);
+            Capture(w, "60-v150-outil-style.png");
+            w.TestTiroir("repos", true);
+            await Attendre(300);
+            Capture(w, "61-v150-outil-repos.png");
+            w.TestTiroir("repos", false);
+            w.TestPage("chants");
+            await Attendre(400);
+            Capture(w, "62-v150-bibliotheque-chants.png");
+            w.TestPage("agenda");
+            await Attendre(300);
             w.TestBasculerTheme();
             Ok(Palette.Actuelle.Sombre && w.TestTheme == "Clair", "bouton de la barre de gauche : thème sombre");
             w.TestBasculerTheme();
@@ -1106,6 +1120,29 @@ public static class AutoTest
                 w.TestPage(page);
                 await Attendre(500);
                 Capture(w, nom);
+            }
+            // 1.5.0 : la vitesse d'un clic sur Suivant (toute l'interface mise à jour, page Culte), mesurée
+            {
+                w.TestPage("agenda");
+                R.AfficherElement(lect, 0);
+                await Attendre(600);
+                Mesures.Vider();
+                var chrono = System.Diagnostics.Stopwatch.StartNew();
+                for (int i = 0; i < 20; i++)
+                {
+                    R.Bouger(i % 2 == 0 ? 1 : -1);
+                    await w.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                }
+                chrono.Stop();
+                double moy = chrono.Elapsed.TotalMilliseconds / 20;
+                Note($"1.5.0 : un clic sur Suivant (page Culte) : {moy:0} ms en moyenne sur 20 clics");
+                Note("1.5.0 : mesures :\n" + Mesures.Resume());
+                Ok(moy < 500, $"1.5.0 : un clic sur Suivant prend {moy:0} ms (moins de 500 ms)");
+                var tCmd = System.Diagnostics.Stopwatch.StartNew();
+                var resCmd = w.TestCommande("je lava vers dieu");
+                tCmd.Stop();
+                Note($"1.5.0 : recherche complète « je lava vers dieu » : {tCmd.Elapsed.TotalMilliseconds:0} ms ({resCmd.Count} résultats)");
+                w.TestCommande("");
             }
             R.SupprimerAnnonce(anG.Id);
             R.Effacer();

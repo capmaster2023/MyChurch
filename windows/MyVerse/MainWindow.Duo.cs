@@ -35,7 +35,7 @@ public partial class MainWindow
 
     void Epingler(string? libelle = null)
     {
-        if (R.Epingler(libelle) && R.Etat.Duo is { } d) Toast($"Épinglé : « {d.Libelle} ». Affichez maintenant autre chose : les deux seront à l'écran.");
+        if (R.Epingler(libelle) && R.Etat.Duo is { } d) Toast($"Dans le coin : « {d.Libelle} ». Montre maintenant autre chose : les deux seront à l'écran.");
     }
 
     void Desepingler()
@@ -82,15 +82,15 @@ public partial class MainWindow
             if (Math.Abs(DuoTaille.Value - v) > 0.5) DuoTaille.Value = v;
             bool cote = place == "cote";
             DuoTaille.IsEnabled = !cote;
-            DuoTailleLab.Text = cote ? "Taille : deux moitiés égales" : $"Taille du contenu épinglé : {DuoTaille.Value:0} %";
+            DuoTailleLab.Text = cote ? "Taille : deux moitiés égales" : $"Taille du coin : {DuoTaille.Value:0} %";
         }
         finally { majDuo = false; }
         DuoBoite.Visibility = d != null ? Visibility.Visible : Visibility.Collapsed;
         DuoAide.Visibility = d != null ? Visibility.Collapsed : Visibility.Visible;
         DuoLibelle.Text = d?.Libelle ?? "";
-        DuoEtat.Text = d == null ? "rien d'épinglé" : noir ? "caché (écran noir)" : "à l'écran";
+        DuoEtat.Text = d == null ? "touche P" : noir ? "caché (écran noir)" : "à l'écran";
         DuoEtat.Foreground = Pinceau(d != null && !noir ? "Direct" : "Brume");
-        DuoEpingler.Content = d == null ? "Épingler le contenu en direct" : "Remplacer le contenu épinglé";
+        DuoEpingler.Content = d == null ? "Garder dans un coin" : "Remplacer le coin";
         DuoEpingler.IsEnabled = !R.Etat.Vide;
         DuoRetirer.IsEnabled = d != null;
         DuoRetirer.Visibility = d != null ? Visibility.Visible : Visibility.Collapsed;

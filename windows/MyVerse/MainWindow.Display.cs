@@ -114,7 +114,7 @@ public partial class MainWindow
 
     void AjouterImage()
     {
-        var dialog = new OpenFileDialog { Title = "Ajouter des images à Display", Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff", Multiselect = true };
+        var dialog = new OpenFileDialog { Title = "Ajouter des images aux Médias", Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff", Multiselect = true };
         if (dialog.ShowDialog(this) != true) return;
         foreach (var file in dialog.FileNames)
         {
@@ -130,7 +130,7 @@ public partial class MainWindow
     }
     void AjouterVideo()
     {
-        var dialog = new OpenFileDialog { Title = "Ajouter une vidéo à Display", Filter = "Vidéos|*.mp4;*.mkv;*.wmv;*.avi;*.mov", Multiselect = false };
+        var dialog = new OpenFileDialog { Title = "Ajouter une vidéo aux Médias", Filter = "Vidéos|*.mp4;*.mkv;*.wmv;*.avi;*.mov", Multiselect = false };
         if (dialog.ShowDialog(this) != true) return;
         ChoisirDisplay(R.NouveauDisplay(Path.GetFileNameWithoutExtension(dialog.FileName), new SourceDisplay { Type = "video", Chemin = dialog.FileName }));
         // le mélangeur reste choisi par l'utilisateur : aucune source audio n'est ajoutée toute seule
@@ -161,7 +161,7 @@ public partial class MainWindow
         if (R.Annonces.FirstOrDefault(x => x.Source is { Type: "mycam" } s && s.Peripherique == c.DeviceId) is { } deja)
         {
             ChoisirDisplay(deja);
-            Toast($"« {deja.Titre} » est déjà dans Display.");
+            Toast($"« {deja.Titre} » est déjà dans les Médias.");
             return;
         }
         var a = R.NouveauDisplay(c.Nom, new SourceDisplay { Type = "mycam", Peripherique = c.DeviceId });
@@ -204,7 +204,7 @@ public partial class MainWindow
         {
             if (!myCamsAnnoncees.Add(i.DeviceId)) continue;
             if (R.Annonces.Any(x => x.Source is { Type: "mycam" } s && s.Peripherique == i.DeviceId)) continue;
-            Toast($"MyCam « {i.Nom} » diffuse : Display › Ajouter › Téléphone MyCam pour la mettre à l'écran.");
+            Toast($"MyCam « {i.Nom} » diffuse : Médias › Ajouter › Téléphone MyCam pour la mettre à l'écran.");
         }
     }
 

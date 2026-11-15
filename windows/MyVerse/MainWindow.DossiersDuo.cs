@@ -85,12 +85,12 @@ public partial class MainWindow
 
         var actions = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
         actions.Children.Add(Bouton("Afficher", "BtnOr", AfficherDuoChoisi, "Envoie les 2 éléments en direct"));
-        actions.Children.Add(Bouton("+ Display", "Btn", () =>
+        actions.Children.Add(Bouton("+ Médias", "Btn", () =>
         {
             if (!d.A.Choisi || !d.B.Choisi) { Toast("Choisissez d'abord les 2 éléments du dossier."); return; }
             R.AjouterDuoDisplay(d);
-            Toast($"« {d.Nom} » est dans Display : un clic sur sa tuile l'envoie en direct.");
-        }, "Ajoute ce dossier dans la grille de Display"));
+            Toast($"« {d.Nom} » est dans les Médias : un clic sur sa tuile l'envoie en direct.");
+        }, "Ajoute ce dossier dans la grille des Médias"));
         actions.Children.Add(Bouton("Côte à côte", "Btn", () => Mesures(d, 0, 0.25, 0.5, 0.5, 0.25, 0.5)));
         actions.Children.Add(Bouton("Grand + coin", "Btn", () => Mesures(d, 0, 0, 1, 0.62, 0.03, 0.35)));
         actions.Children.Add(Bouton("Échanger 1 et 2", "Btn", () =>
@@ -235,7 +235,7 @@ public partial class MainWindow
         }, true));
         m.Items.Add(new Separator());
         var sources = R.Annonces.Where(a => a.Source?.Type != "duo").ToList();
-        if (sources.Count == 0) m.Items.Add(new MenuItem { Header = "(aucune source : onglet Display)", IsEnabled = false });
+        if (sources.Count == 0) m.Items.Add(new MenuItem { Header = "(aucun média : onglet Médias)", IsEnabled = false });
         foreach (var a in sources)
         {
             var src = a;

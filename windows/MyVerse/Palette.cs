@@ -4,7 +4,7 @@ using System.Windows.Media;
 namespace MyVerse.Ui;
 
 /// <summary>
-/// Les couleurs de l'interface : thème clair par défaut (MyChurch 3.3 : ivoire, bleu nuit et or), thème sombre au choix (Réglages › Apparence ou barre de gauche).
+/// Les couleurs de l'interface : thème clair par défaut (MyChurch 1.5.0 : blanc chaud et bordeaux #930000), thème sombre (noyer) au choix (Réglages › Apparence ou barre de gauche).
 /// Chaque pinceau de Theme.xaml est lié à une couleur d'ici : changer de thème met à jour d'un coup toute l'interface,
 /// fenêtres ouvertes et éléments construits en C# compris (ils utilisent les mêmes pinceaux).
 /// Les noms viennent des versions précédentes : « Blanc » est le texte, « Encre » et « Nuit » le fond des cartes, « Or » l'accent.
@@ -14,62 +14,65 @@ public sealed class Palette : INotifyPropertyChanged
     /// <summary>Clé → (clair, sombre). Déclaré avant <see cref="Actuelle"/> : les champs statiques s'initialisent dans l'ordre.</summary>
     static readonly Dictionary<string, (string Clair, string Sombre)> Couleurs = new()
     {
-        // fonds (3.3 : ivoire et sable en clair, brun très foncé en sombre)
-        ["Page"] = ("#FBF9F9", "#141111"),
-        ["Rail"] = ("#F5F0F0", "#100D0D"),
-        ["RailActif"] = ("#FBEAEA", "#2A1717"),
-        ["Encre"] = ("#FFFFFF", "#1E1B16"),
-        ["Nuit"] = ("#FFFFFF", "#1E1B16"),
-        ["Nuit2"] = ("#F6F2EB", "#27231D"),
-        ["Nuit3"] = ("#E6DED1", "#332D25"),
-        ["Trait"] = ("#ECE5DA", "#2A251F"),
-        ["Trait2"] = ("#D6CDBF", "#4A4237"),
-        // textes (3.3 : bleu nuit en clair)
-        ["Blanc"] = ("#172036", "#F3EEE6"),
-        ["Encre2"] = ("#3C465B", "#C9BFB1"),
-        ["Brume"] = ("#646C7E", "#A99F92"),
-        ["Brume2"] = ("#6E7587", "#8F8576"),
-        // accent or
-        ["Or"] = ("#930000", "#FF6B5E"),
-        ["Or2"] = ("#6E0000", "#FF8A80"),
-        ["OrVif"] = ("#930000", "#E0453A"),
-        ["OrLeger"] = ("#FBEAEA", "#2E1414"),
-        ["OrBord"] = ("#E5B3B3", "#5E2525"),
+        // fonds (1.5.0 : blanc chaud en clair ; noyer très foncé en sombre)
+        ["Page"] = ("#FAF7F7", "#15110E"),
+        ["Rail"] = ("#F3EEEE", "#100D0A"),
+        ["RailActif"] = ("#FBE9E9", "#2C1D1A"),
+        ["Encre"] = ("#FFFFFF", "#1E1915"),
+        ["Nuit"] = ("#FFFFFF", "#1E1915"),
+        ["Nuit2"] = ("#F6F1F1", "#28211B"),
+        ["Nuit3"] = ("#E8E0E0", "#3A2F27"),
+        ["Trait"] = ("#EFE8E8", "#2C241E"),
+        ["Trait2"] = ("#D6CACA", "#4D4137"),
+        // textes
+        ["Blanc"] = ("#1E1818", "#F4EADB"),
+        ["Encre2"] = ("#463D3D", "#D2C4B2"),
+        ["Brume"] = ("#6E6262", "#A8998A"),
+        ["Brume2"] = ("#857979", "#8E8072"),
+        // accent (1.5.0) : bordeaux #930000
+        ["Or"] = ("#930000", "#F07A6E"),
+        ["Or2"] = ("#6E0000", "#FF9D93"),
+        ["OrVif"] = ("#930000", "#D8463B"),
+        ["OrLeger"] = ("#FBEDED", "#2E1715"),
+        ["OrBord"] = ("#EBC4C4", "#5C2A25"),
         ["SurOr"] = ("#FFFFFF", "#FFFFFF"),
-        ["OrDegrade"] = ("#930000", "#B3261E"),
-        ["OrDegradeClair"] = ("#B01E1E", "#D33A2F"),
-        // bouton principal (Suivant, Importer…) : bleu nuit en clair, or en sombre
-        ["Primaire"] = ("#930000", "#B3261E"),
-        ["PrimaireSurvol"] = ("#B01212", "#D33A2F"),
+        ["OrDegrade"] = ("#930000", "#930000"),
+        ["OrDegradeClair"] = ("#B01E1E", "#B3261E"),
+        // bouton principal (Suivant, Importer…) : bordeaux #930000 dans les deux thèmes
+        ["Primaire"] = ("#930000", "#930000"),
+        ["PrimaireSurvol"] = ("#AD1616", "#B01818"),
         ["SurPrimaire"] = ("#FFFFFF", "#FFFFFF"),
+        // ce qui vient avec Suivant (1.5.0) : or, à côté du rouge du direct
+        ["Ensuite"] = ("#D9981E", "#F2B33D"),
+        ["SurEnsuite"] = ("#241804", "#231804"),
         // en direct, sourdine, erreurs
-        ["Rouge"] = ("#D92D20", "#F04438"),
-        ["Direct"] = ("#D92D20", "#F04438"),
-        ["RougeLeger"] = ("#FFF5F3", "#2A1715"),
-        ["RougeBord"] = ("#F3C2BC", "#5B2722"),
-        ["RougeTexte"] = ("#B42318", "#FF7A6E"),
-        ["Danger"] = ("#B42318", "#FF7A6E"),
+        ["Rouge"] = ("#E0312B", "#FF4D40"),
+        ["Direct"] = ("#E0312B", "#FF4D40"),
+        ["RougeLeger"] = ("#FFF1F0", "#2D1614"),
+        ["RougeBord"] = ("#F6C4C0", "#6A2620"),
+        ["RougeTexte"] = ("#B3261E", "#FF8A7F"),
+        ["Danger"] = ("#B3261E", "#FF8A7F"),
         // projection et moteur actifs
-        ["Vert"] = ("#16A34A", "#3DD68C"),
-        ["VertLeger"] = ("#E9F7EF", "#13261C"),
-        // types d'éléments du déroulé (trait des cartes, titres des groupes de vignettes)
-        ["TypeAccueil"] = ("#475569", "#94A3B8"),
-        ["TypeChant"] = ("#2563EB", "#60A5FA"),
-        ["TypeLecture"] = ("#B45309", "#F59E0B"),
-        ["TypeDisplay"] = ("#BE185D", "#F472B6"),
-        ["TypeDuo"] = ("#0F766E", "#2DD4BF"),
-        ["TypePrincipal"] = ("#A87618", "#E3B762"),
+        ["Vert"] = ("#15803D", "#4ADE80"),
+        ["VertLeger"] = ("#E8F6EE", "#12261A"),
+        // types d'éléments du programme (icônes des lignes, groupes de vignettes)
+        ["TypeAccueil"] = ("#64748B", "#A3B1C6"),
+        ["TypeChant"] = ("#2563EB", "#7AA7FF"),
+        ["TypeLecture"] = ("#7C3AED", "#B794F6"),
+        ["TypeDisplay"] = ("#DB2777", "#F58FB6"),
+        ["TypeDuo"] = ("#0F766E", "#4FD1C5"),
+        ["TypePrincipal"] = ("#A16207", "#E3B762"),
         // divers
         ["BleuFonce"] = ("#152C91", "#9DB0FF"),
-        ["Marque"] = ("#FBDADA", "#3A1A1A"),
-        ["Surligne"] = ("#FFE3A3", "#4A3A12"),
+        ["Marque"] = ("#FBE3E3", "#3A1F1C"),
+        ["Surligne"] = ("#FFE9A8", "#4A3A12"),
         ["TuileFond"] = ("#17130E", "#0E0C09"),
         ["TuileSource"] = ("#2A241C", "#26211A"),
         ["TuileTexte"] = ("#D9CFC0", "#A99F92"),
-        ["VuFond"] = ("#ECE6DC", "#2B261F"),
-        ["VuCrete"] = ("#F7D9D6", "#3F2427"),
-        ["DamierA"] = ("#F4F0E9", "#1C1914"),
-        ["DamierB"] = ("#E8E2D8", "#26221C"),
+        ["VuFond"] = ("#EEE7E7", "#2B241E"),
+        ["VuCrete"] = ("#F9DCDA", "#3F2427"),
+        ["DamierA"] = ("#F5F1F1", "#1C1814"),
+        ["DamierB"] = ("#E9E2E2", "#26201B"),
     };
 
     public static Palette Actuelle { get; } = new();
@@ -131,6 +134,8 @@ public sealed class Palette : INotifyPropertyChanged
     public Color Primaire => C(nameof(Primaire));
     public Color PrimaireSurvol => C(nameof(PrimaireSurvol));
     public Color SurPrimaire => C(nameof(SurPrimaire));
+    public Color Ensuite => C(nameof(Ensuite));
+    public Color SurEnsuite => C(nameof(SurEnsuite));
     public Color SurOr => C(nameof(SurOr));
     public Color OrDegrade => C(nameof(OrDegrade));
     public Color OrDegradeClair => C(nameof(OrDegradeClair));

@@ -76,19 +76,19 @@ public partial class MainWindow
     {
         var m = new ContextMenu();
         m.Items.Add(Article("Afficher en direct", () => R.AfficherAnnonce(a), true));
-        m.Items.Add(Article("Afficher puis épingler", () => EpinglerDisplay(a)));
+        m.Items.Add(Article("Montrer puis garder dans un coin", () => EpinglerDisplay(a)));
         m.Items.Add(Article("Modifier…", () => ModifierDisplay(a)));
         m.Items.Add(a.Grille ? Article("Retirer de la grille", () => R.GrilleAnnonce(a.Id, false)) : Article("Ajouter à la grille", () => R.GrilleAnnonce(a.Id, true)));
-        m.Items.Add(Article("Ajouter au déroulé du culte", () =>
+        m.Items.Add(Article("Ajouter au programme du culte", () =>
         {
-            if (R.AjouterAnnonceAgenda(a.Id) is { } el) Toast($"« {el.Titre} » ajouté au déroulé « {R.Agenda.Nom} ».");
+            if (R.AjouterAnnonceAgenda(a.Id) is { } el) Toast($"« {el.Titre} » ajouté au programme « {R.Agenda.Nom} ».");
         }));
         // 3.3 : un écran qui reste ; quand il passe, il devient l'écran par défaut (Retirer de l'écran revient dessus)
         if (a.Source?.Type != "duo")
-            m.Items.Add(Article("Ajouter au déroulé comme écran principal", () =>
+            m.Items.Add(Article("Ajouter au programme comme écran principal", () =>
             {
                 if (R.AjouterPrincipalAgenda(a.Id) is { } el)
-                    Toast($"« {el.Titre} » ajouté au déroulé comme écran principal : il reste à l'écran quand il passe. Choisissez-le aussi dans « Écran par défaut ».");
+                    Toast($"« {el.Titre} » ajouté au programme comme écran principal : il reste à l'écran quand il passe. Choisis-le aussi dans « Écran de repos », à droite.");
             }));
         if (a.Source is { Type: "fenetre" } sf) m.Items.Add(MenuDiffusion(a, sf));
         if (a.Source?.Type is "camera" or "fenetre") m.Items.Add(Article("Reconnecter la source", ReconnecterSources));
@@ -242,7 +242,7 @@ public partial class MainWindow
             t.Direct.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;
             if (t.Vue != null) t.Vue.Source = ok ? App.Sources.Image : null;
         }
-        GrilleInfo.Text = ecran != null ? "Écran : " + NomEcran() : "Aucun écran choisi (Projection, en bas à droite)";
+        GrilleInfo.Text = ecran != null ? "Écran : " + NomEcran() : "Aucun écran choisi (Projection, en haut à droite)";
     }
 
     // ------------------------------------------------------------ pour le test automatique
@@ -284,7 +284,7 @@ public partial class MainWindow
         ProjectionPoint.Fill = Pinceau(ecran != null ? "Vert" : attente ? "OrVif" : "Brume2");
         if (GrilleInfo != null) GrilleInfo.Text = ecran != null ? "Écran : " + NomEcran()
             : attente ? "Projecteur débranché : la projection se rouvrira toute seule"
-            : "Aucun écran choisi (Projection, en bas à droite)";
+            : "Aucun écran choisi (Projection, en haut à droite)";
     }
 
     /// <summary>Comme « Projecteur plein écran » d'OBS : la liste des écrans, une fenêtre, ou arrêter.</summary>

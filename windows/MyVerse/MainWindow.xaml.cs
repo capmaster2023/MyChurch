@@ -128,7 +128,7 @@ public partial class MainWindow : Window
         ThemeBtn.Click += (_, _) => App.AppliquerApparence(Palette.Actuelle.Sombre ? "clair" : "sombre");
         Palette.Change += MajThemeBtn;
         MajThemeBtn();
-        // l'heure de l'ordinateur, en bas à droite
+        // l'heure de l'ordinateur, en haut à droite
         minuterieHorloge.Tick += (_, _) => Horloge.Text = DateTime.Now.ToString("HH:mm:ss");
         Horloge.Text = DateTime.Now.ToString("HH:mm:ss");
         minuterieHorloge.Start();
@@ -194,7 +194,7 @@ public partial class MainWindow : Window
             }
         };
         Apercu.SizeChanged += (_, _) => Apercu.Clip = new RectangleGeometry(new Rect(0, 0, Apercu.ActualWidth, Apercu.ActualHeight), 10, 10);
-        SuivantApercu.SizeChanged += (_, _) => SuivantApercu.Clip = new RectangleGeometry(new Rect(0, 0, SuivantApercu.ActualWidth, SuivantApercu.ActualHeight), 8, 8);
+        SuivantApercu.SizeChanged += (_, _) => SuivantApercu.Clip = new RectangleGeometry(new Rect(0, 0, SuivantApercu.ActualWidth, SuivantApercu.ActualHeight), 14, 14);
         var reg = App.Donnees.Reglages;
         Presentation.SelectedItem = Presentation.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == reg.Presentation) ?? Presentation.Items[0];
         Taille.Value = Math.Clamp(reg.Taille, Taille.Minimum, Taille.Maximum);
@@ -245,16 +245,17 @@ public partial class MainWindow : Window
         InitDossiersDuo();
         InitDuo();
         InitEcranDefaut();
+        InitTelecommande();
         InitProjecteur();
         AgendaAjoutBible.Click += (_, _) =>
         {
-            if (sel is Ref s && s.V1 > 0) Toast($"{R.AjouterBibleAgenda(s).Titre} ajouté au déroulé « {R.Agenda.Nom} ».");
-            else if (vue is { } v) Toast($"{R.AjouterBibleAgenda(new Ref(v.B, v.C, 0, 0)).Titre} (chapitre entier) ajouté au déroulé.");
+            if (sel is Ref s && s.V1 > 0) Toast($"{R.AjouterBibleAgenda(s).Titre} ajouté au programme « {R.Agenda.Nom} ».");
+            else if (vue is { } v) Toast($"{R.AjouterBibleAgenda(new Ref(v.B, v.C, 0, 0)).Titre} (chapitre entier) ajouté au programme.");
             else Toast("Choisissez d'abord un verset ou un chapitre.");
         };
         AgendaAjoutChant.Click += (_, _) =>
         {
-            if (chantOuvert != null && R.AjouterChantAgenda(chantOuvert) is { } el) Toast($"« {el.Titre} » ajouté au déroulé « {R.Agenda.Nom} ».");
+            if (chantOuvert != null && R.AjouterChantAgenda(chantOuvert) is { } el) Toast($"« {el.Titre} » ajouté au programme « {R.Agenda.Nom} ».");
         };
         MontrerOnglet("agenda");
         MajEcran();
@@ -329,14 +330,15 @@ public partial class MainWindow : Window
     void Placement()
     {
         double w = ActualWidth > 0 ? ActualWidth : Width;
-        ColonneGauche.Width = new GridLength(Math.Clamp(w * 0.195, 250, 330));
-        ColonneDroite.Width = new GridLength(Math.Clamp(w * 0.23, 300, 380));
-        Recherches.Width = Math.Clamp(w * 0.22, 230, 400);
+        ColonneGauche.Width = new GridLength(Math.Clamp(w * 0.215, 270, 340));
+        ColonneDroite.Width = new GridLength(Math.Clamp(w * 0.21, 270, 330));
+        Recherches.Width = Math.Clamp(w * 0.2, 220, 360);
         // petit écran : en-tête et barre du bas plus courts
         bool compact = w < 1360;
         VersionsLab.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         SceneBtn.Visibility = SceneSep.Visibility = w < 1200 ? Visibility.Collapsed : Visibility.Visible;
-        ProjectionCompact = compact;
+        // 1.5.0 : l'état est en haut, à côté de la recherche : le nom court du projecteur sous 1500 px
+        ProjectionCompact = w < 1500;
         MajProjection();
         LargeurVignettes();
     }
@@ -366,20 +368,19 @@ public partial class MainWindow : Window
         PanneauChants.Visibility = DefilSections.Visibility = TeteChants.Visibility = V(o == "chants");
         PanneauAnnonces.Visibility = DefilGrille.Visibility = TeteDisplay.Visibility = V(o == "annonces");
         PanneauDuo.Visibility = CentreDuo.Visibility = TeteDuo.Visibility = V(o == "duo");
-        // Réglages : toute la largeur, sans la colonne de contrôle ; Son : à la place de la colonne de gauche et du centre
+        // Réglages : toute la largeur, sans la colonne de droite ; Son : à la place de la colonne de gauche et du centre
         PanneauReglages.Visibility = V(o == "reglages");
         PanneauSon.Visibility = V(o == "son");
         ColonneControle.Visibility = V(o != "reglages");
-        EnTete.Visibility = V(o is not ("reglages" or "son"));
-        RechercheCulte.Visibility = V(o is "agenda" or "annonces" or "duo");
+        // 1.5.0 : sur Culte, l'écran en direct est en grand, sans en-tête ; la recherche Ctrl K est en haut, sur toutes les pages
+        EnTete.Visibility = V(o is not ("reglages" or "son" or "agenda"));
         RechercheBible.Visibility = V(o == "bible");
         RechercheChants.Visibility = V(o == "chants");
-        if (o is not ("agenda" or "annonces" or "duo")) CmdPopup.IsOpen = false;
+        Recherches.Visibility = V(o is "bible" or "chants");
         (o switch { "agenda" => OngletAgenda, "bible" => OngletBible, "annonces" => OngletAnnonces, "duo" => OngletDuo, "son" => OngletSon, "reglages" => OngletReglages, _ => OngletChants }).IsChecked = true;
-        // sur Culte, un clic sur une vignette affiche : pas de bouton « Afficher la sélection » ; sur Display, le mélangeur est complet
+        MajPagesBiblio(o);
+        // sur Culte, un clic sur une image la montre : pas de bouton « Montrer la sélection »
         Afficher.Visibility = V(o is not ("agenda" or "reglages" or "son"));
-        // 3.3 : sur Culte, l'écran live est en grand au centre ; la colonne garde l'écran par défaut, le Duo et l'habillage
-        ControleHaut.Visibility = V(o != "agenda");
         MajEntete();
         if (o == "agenda") Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => { LargeurVignettes(); DefilerVers(elementChoisi ?? R.ElementCourant); }));
     }
@@ -392,14 +393,15 @@ public partial class MainWindow : Window
             "agenda" => "Toutes les diapositives du culte",
             "bible" => "Bible · " + VB.Etiquette(),
             "chants" => "Chants · " + ((Recueil.SelectedItem as ComboBoxItem)?.Content as string ?? "aucun recueil"),
-            "annonces" => $"Display · {R.Annonces.Count} source{(R.Annonces.Count > 1 ? "s" : "")} · {R.Annonces.Count(a => a.Grille)} dans la grille",
+            "annonces" => $"Médias · {R.Annonces.Count} source{(R.Annonces.Count > 1 ? "s" : "")} · {R.Annonces.Count(a => a.Grille)} dans la grille",
             "duo" => $"Duo · {R.Duos.Count()} dossier{(R.Duos.Count() > 1 ? "s" : "")}",
             _ => "",
         };
         TeteDuo.Text = duoChoisi is { } d ? (d.Nom.Trim().Length > 0 ? d.Nom : "Dossier sans nom") : "Dossiers Duo";
-        var (sur, titre) = DecouperNomCulte(R.Agenda.Nom);
+        var (sur, _) = DecouperNomCulte(R.Agenda.Nom);
         AgendaSurtitre.Libelle = sur;
-        AgendaTitre.Text = titre;
+        // 1.5.0 : en haut, le nom du culte en entier (« Culte du dimanche 15 novembre »)
+        AgendaTitre.Text = R.Agenda.Nom is { Length: > 0 } nom ? nom : "Culte";
         AgendaTitre.ToolTip = R.Agenda.Nom;
         AgendaInfo.Text = InfoDeroule();
     }
@@ -515,7 +517,7 @@ public partial class MainWindow : Window
         Ajout("précédent", "←");
         Ajout("retirer", "Échap");
         Ajout("écran noir", "B");
-        Ajout("épingler (duo)", "P");
+        Ajout("garder dans un coin", "P");
         Ajout("diapositive", "1–9");
     }
 
@@ -941,7 +943,13 @@ public partial class MainWindow : Window
     }
 
     // ------------------------------------------------------------ ce qui est à l'écran
+    /// <summary>Tout ce qui montre l'écran (aperçus, projection, caméra virtuelle, OBS, programme, télécommande) suit la régie.</summary>
     void MajEcran()
+    {
+        using (Mesures.Chrono("mise à jour de l'écran (un clic)")) MajEcranTout();
+    }
+
+    void MajEcranTout()
     {
         // écran noir : le texte est caché sans être perdu ; une nouvelle diapositive le rallume
         if (noir && !ReferenceEquals(R.Etat, etatNoir)) noir = false;
@@ -992,6 +1000,8 @@ public partial class MainWindow : Window
         }
         MajAgendaEcran();
         MajFonds();
+        MajTelecommande(e);
+        MajOutils();
     }
 
     /// <summary>Pastille de l'aperçu : la diapositive part-elle vers la fenêtre de projection ?</summary>
@@ -1003,17 +1013,17 @@ public partial class MainWindow : Window
         // 1.3.1 : une source qui ne va qu'à un endroit le dit (« Streaming seulement », « Église seulement »)
         var dif = !noir && e.Mode == "media" ? e.Media?.Diffusion : null;
         PastilleTexte.Text = noir ? "Écran noir" : dif == SourceDisplay.Streaming ? "Streaming seulement"
-            : ouvert ? (R.Cible is CibleDefaut ? "Écran par défaut" : e.Vide && e.Duo == null ? "Écran ouvert · vide" : dif == SourceDisplay.Eglise ? "Église seulement" : "À l'écran")
+            : ouvert ? (R.Cible is CibleDefaut ? "Écran de repos" : e.Vide && e.Duo == null ? "Écran ouvert · vide" : dif == SourceDisplay.Eglise ? "Église seulement" : "À l'écran")
             : attente ? "Projecteur débranché" : "Aperçu seulement";
         // l'état s'affiche à droite d'« EN DIRECT » (« Aperçu seulement » tant qu'aucun écran n'est ouvert)
         var m = App.Donnees.Reglages.Ecran;
         EcranInfo.Text = PastilleTexte.Text;
         EcranInfo.Foreground = Pinceau(dif == SourceDisplay.Streaming ? "OrVif" : ouvert && !noir ? "Vert" : attente ? "OrVif" : "Brume");
-        EcranInfo.ToolTip = dif == SourceDisplay.Streaming ? "En streaming seulement : MyVirtualCam et OBS reçoivent cette source, l'écran de projection garde l'écran par défaut"
-            : dif == SourceDisplay.Eglise ? "Dans l'église seulement : MyVirtualCam (Zoom) montre l'écran par défaut à la place, OBS ne reçoit rien (pas d'effet miroir dans Zoom)"
+        EcranInfo.ToolTip = dif == SourceDisplay.Streaming ? "En streaming seulement : MyVirtualCam et OBS reçoivent cette source, l'écran de projection garde l'écran de repos"
+            : dif == SourceDisplay.Eglise ? "Dans l'église seulement : MyVirtualCam (Zoom) montre l'écran de repos à la place, OBS ne reçoit rien (pas d'effet miroir dans Zoom)"
             : ecran != null && m != null ? $"{m.Nom} · {m.W} × {m.H}"
             : attente ? $"Projecteur débranché ({m?.Nom}) : la projection se rouvrira toute seule dès qu'il sera branché"
-            : "Aucun écran de projection : Projection, en bas à droite";
+            : "Aucun écran de projection : Projection, en haut à droite";
         MajProjection();
     }
 
@@ -1123,7 +1133,7 @@ public partial class MainWindow : Window
     public void TestPage(string o) => MontrerOnglet(o);
     public string TestTheme => ThemeBtn.Content as string ?? "";
     public void TestBasculerTheme() => ThemeBtn.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-    public string TestDeroule => AgendaSurtitre.Libelle + " / " + AgendaTitre.Text + " / " + AgendaInfo.Text;
+    public string TestDeroule => AgendaTitre.Text + " / " + AgendaInfo.Text;
     /// <summary>Test : le « + » (ou ✓) d'une source de la bibliothèque Display.</summary>
     public void TestPlusGrille(Annonce a) => GrilleAnnonceListe_Click(new Button { DataContext = a }, new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
     public Chant? TestPremierChant() => ListeChants.Items.Count > 0 ? ListeChants.Items[0] as Chant : null;

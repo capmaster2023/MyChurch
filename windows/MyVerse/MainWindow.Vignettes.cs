@@ -11,7 +11,7 @@ namespace MyVerse.Ui;
 /// <summary>
 /// Page Culte, design « Pupitre » (MyChurch 3.2) : toutes les diapositives du culte en vignettes, groupées par élément du déroulé.
 /// Chaque vignette est dessinée comme l'écran (le même rendu que la projection, avec l'habillage choisi) ;
-/// « À L'ÉCRAN » en rouge, « SUIVANT » en ambre ; un clic l'affiche, un clic droit ouvre le menu de l'élément.
+/// « À l'écran » en rouge, « Ensuite » en or (1.5.0) ; un clic la montre, un clic droit ouvre le menu de l'élément.
 /// La colonne de droite montre aussi la diapositive suivante en petit.
 /// </summary>
 public partial class MainWindow
@@ -70,6 +70,7 @@ public partial class MainWindow
     /// <summary>Reconstruit toutes les vignettes (déroulé, chants, Bible, découpage ou habillage changés).</summary>
     void VignettesMaj()
     {
+        using var _ = Mesures.Chrono("vignettes du culte (tout redessiner)");
         minuterieVignettes.Stop();
         Vignettes.Children.Clear();
         vignettes.Clear();
@@ -100,9 +101,11 @@ public partial class MainWindow
         var d = R.Diapos(e);
         nbDiapos += d.Count;
         var pile = new StackPanel { Margin = new Thickness(0, k == 0 ? 2 : 18, 0, 0) };
-        var tete = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10), Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = "Clic : choisir · double-clic : afficher depuis le début · clic droit : menu" };
-        tete.Children.Add(new Border { Width = 10, Height = 10, CornerRadius = new CornerRadius(3), Background = Pinceau(CleType(e)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
-        tete.Children.Add(new TextBlock { Text = (e.Heure is { Length: > 0 } h ? h + " · " : "") + TitreElement(e), FontSize = 13.5, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center });
+        var tete = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10), Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = "Clic : choisir. Double-clic : montrer depuis le début. Clic droit : menu" };
+        tete.Children.Add(new Border { Width = 10, Height = 10, CornerRadius = new CornerRadius(5), Background = Pinceau(CleType(e)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
+        if (e.Heure is { Length: > 0 } h)
+            tete.Children.Add(new TextBlock { Text = h, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Pinceau("Brume"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
+        tete.Children.Add(new TextBlock { Text = TitreElement(e), FontSize = 14.5, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center });
         tete.Children.Add(new TextBlock
         {
             Text = d.Count == 1 ? "1 diapositive" : $"{d.Count} diapositives", FontSize = 13, FontWeight = FontWeights.SemiBold,
@@ -129,7 +132,7 @@ public partial class MainWindow
         var ecran = new Grid { Background = Brushes.Black, ClipToBounds = true };
         EtatEcran? etat = null;
         try { etat = R.EtatCible(d.Cible, e); }
-        catch (Exception x) { Journal.Erreur("vignette du déroulé", x); }
+        catch (Exception x) { Journal.Erreur("vignette du programme", x); }
         if (etat != null)
         {
             var rendu = new Rendu { Transitions = false, Width = 1920, Height = 1080, IsHitTestVisible = false };
@@ -145,10 +148,10 @@ public partial class MainWindow
                     Foreground = Pinceau("TuileTexte"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
                 });
         }
-        var badgeTexte = new TextBlock { FontSize = 10, FontWeight = FontWeights.ExtraBold, Foreground = Brushes.White };
+        var badgeTexte = new TextBlock { FontSize = 11, FontWeight = FontWeights.ExtraBold, Foreground = Brushes.White };
         var badge = new Border
         {
-            CornerRadius = new CornerRadius(6), Padding = new Thickness(7, 3, 7, 3), Margin = new Thickness(7), Child = badgeTexte,
+            CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 2, 8, 3), Margin = new Thickness(7), Child = badgeTexte,
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Visibility = Visibility.Collapsed,
         };
         ecran.Children.Add(badge);
@@ -164,18 +167,18 @@ public partial class MainWindow
         DockPanel.SetDock(num, Dock.Left);
         pied.Children.Add(num);
         pied.Children.Add(nom);
-        var bas = new Border { BorderBrush = Pinceau(CleType(e)), BorderThickness = new Thickness(0, 3, 0, 0), Padding = new Thickness(10, 6, 10, 8), Child = pied };
+        var bas = new Border { BorderBrush = Pinceau(CleType(e)), BorderThickness = new Thickness(0, 2, 0, 0), Padding = new Thickness(10, 6, 10, 8), Child = pied };
         var pile = new DockPanel();
         DockPanel.SetDock(bas, Dock.Bottom);
         pile.Children.Add(bas);
         pile.Children.Add(ecran);
-        var carte = new Border { Background = Pinceau("Encre"), BorderBrush = Pinceau("Nuit3"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Child = pile };
+        var carte = new Border { Background = Pinceau("Encre"), BorderBrush = Pinceau("Nuit3"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(11), Child = pile };
         // coins arrondis : la diapositive ne déborde pas de la carte
-        carte.SizeChanged += (_, _) => pile.Clip = new RectangleGeometry(new Rect(0, 0, Math.Max(0, carte.ActualWidth - 2), Math.Max(0, carte.ActualHeight - 2)), 9, 9);
+        carte.SizeChanged += (_, _) => pile.Clip = new RectangleGeometry(new Rect(0, 0, Math.Max(0, carte.ActualWidth - 2), Math.Max(0, carte.ActualHeight - 2)), 10, 10);
         var anneau = new Border
         {
-            BorderThickness = new Thickness(3), BorderBrush = Brushes.Transparent, CornerRadius = new CornerRadius(13), Margin = new Thickness(0, 0, EcartVignettes, EcartVignettes),
-            Child = carte, Cursor = Cursors.Hand, ToolTip = "Clic : afficher · clic droit : menu de l'élément",
+            BorderThickness = new Thickness(3), BorderBrush = Brushes.Transparent, CornerRadius = new CornerRadius(14), Margin = new Thickness(0, 0, EcartVignettes, EcartVignettes),
+            Child = carte, Cursor = Cursors.Hand, ToolTip = "Clic : montrer. Clic droit : menu de l'élément",
         };
         int k = i;
         anneau.MouseLeftButtonUp += (_, _) => { ChoisirElement(e, false); R.AfficherElement(e, k); };
@@ -221,13 +224,13 @@ public partial class MainWindow
         {
             bool live = pos is int q && v.Element == cur && v.Index == q;
             bool next = !live && suivante is { } s && v.Element == s.E && v.Index == s.I;
-            v.Anneau.BorderBrush = live ? Pinceau("Direct") : next ? Pinceau("OrVif") : Brushes.Transparent;
+            v.Anneau.BorderBrush = live ? Pinceau("Direct") : next ? Pinceau("Ensuite") : Brushes.Transparent;
             v.Badge.Visibility = live || next ? Visibility.Visible : Visibility.Collapsed;
             if (live || next)
             {
-                v.Badge.Background = Pinceau(live ? "Direct" : "OrVif");
-                v.BadgeTexte.Text = live ? (noir ? "ÉCRAN NOIR" : "À L'ÉCRAN") : "SUIVANT";
-                v.BadgeTexte.Foreground = live ? Brushes.White : Pinceau("SurOr");
+                v.Badge.Background = Pinceau(live ? "Direct" : "Ensuite");
+                v.BadgeTexte.Text = live ? (noir ? "Écran noir" : "À l'écran") : "Ensuite";
+                v.BadgeTexte.Foreground = live ? Brushes.White : Pinceau("SurEnsuite");
             }
             if (live) directe = v;
         }
@@ -259,17 +262,17 @@ public partial class MainWindow
     static (string Surtitre, string Titre) DecouperNomCulte(string nom)
     {
         var m = Regex.Match(nom ?? "", @"^(.*\b(?:dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi))\s+(\S.*)$", RegexOptions.IgnoreCase);
-        return m.Success ? (m.Groups[1].Value.Trim(), m.Groups[2].Value.Trim()) : ("Déroulé", nom ?? "");
+        return m.Success ? (m.Groups[1].Value.Trim(), m.Groups[2].Value.Trim()) : ("Programme", nom ?? "");
     }
 
-    /// <summary>« 10:00 → 11:30 · 6 éléments · 18 diapositives ».</summary>
+    /// <summary>« 4 moments, 18 diapositives, de 10:00 à 11:30 » (1.5.0).</summary>
     string InfoDeroule()
     {
         var l = R.Agenda.Elements;
-        if (l.Count == 0) return "Déroulé vide";
+        if (l.Count == 0) return "Rien pour l'instant";
         var heures = l.Select(e => e.Heure).Where(h => !string.IsNullOrEmpty(h)).ToList();
-        string plage = heures.Count >= 2 ? $"{heures[0]} → {heures[^1]} · " : heures.Count == 1 ? heures[0] + " · " : "";
-        return $"{plage}{l.Count} élément{(l.Count > 1 ? "s" : "")} · {nbDiapos} diapositive{(nbDiapos > 1 ? "s" : "")}";
+        string plage = heures.Count >= 2 ? $", de {heures[0]} à {heures[^1]}" : heures.Count == 1 ? $", à {heures[0]}" : "";
+        return $"{l.Count} moment{(l.Count > 1 ? "s" : "")}, {nbDiapos} diapositive{(nbDiapos > 1 ? "s" : "")}{plage}";
     }
 
     /// <summary>La diapositive qui vient avec « Suivant », en petit dans la colonne de droite.</summary>
@@ -292,10 +295,10 @@ public partial class MainWindow
 
     // ------------------------------------------------------------ pour le test automatique
     public int TestVignettes => vignettes.Count;
-    /// <summary>« Jean 3:16 · À L'ÉCRAN » : la vignette en direct (vide s'il n'y en a pas).</summary>
+    /// <summary>« Jean 3:16 · À l'écran » : la vignette en direct (vide s'il n'y en a pas).</summary>
     public string TestVignetteDirecte => vignettes.FirstOrDefault(v => v.Badge.Visibility == Visibility.Visible && v.Badge.Background == Pinceau("Direct")) is { } v
         ? NomDiapo(v.Element, R.Diapos(v.Element)[v.Index]) + " · " + v.BadgeTexte.Text : "";
-    public string TestVignetteSuivante => vignettes.FirstOrDefault(v => v.Badge.Visibility == Visibility.Visible && v.BadgeTexte.Text == "SUIVANT") is { } v
+    public string TestVignetteSuivante => vignettes.FirstOrDefault(v => v.Badge.Visibility == Visibility.Visible && v.BadgeTexte.Text == "Ensuite") is { } v
         ? NomDiapo(v.Element, R.Diapos(v.Element)[v.Index]) : "";
     /// <summary>Clic sur la vignette n (dans l'ordre du culte).</summary>
     public bool TestCliquerVignette(int n)
