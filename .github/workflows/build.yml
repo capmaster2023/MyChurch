@@ -120,6 +120,10 @@ jobs:
           $encodeurs | Where-Object { $_ -match "libx264|h264_nvenc|h264_qsv|h264_amf|mjpeg|libmp3lame| flac | aac " } | ForEach-Object { $_.Trim() } | Tee-Object -FilePath ci/ffmpeg.txt -Append
           # MyChurch 1.3 enregistre le son en MP3 : l'encodeur libmp3lame doit être dans ffmpeg.exe
           if (-not ($encodeurs | Where-Object { $_ -match "libmp3lame" })) { throw "ffmpeg.exe sans encodeur MP3 (libmp3lame)" }
+          # MyChurch 1.6.0 : le direct part vers YouTube en RTMPS (et RTMP pour les autres services)
+          $protocoles = @(& $exe.FullName -hide_banner -protocols) | ForEach-Object { $_.Trim() }
+          "protocoles du direct : rtmp $($protocoles -contains 'rtmp'), rtmps $($protocoles -contains 'rtmps')" | Tee-Object -FilePath ci/ffmpeg.txt -Append
+          if (-not ($protocoles -contains 'rtmps')) { throw "ffmpeg.exe sans RTMPS (direct YouTube)" }
 
       - name: Tests du cœur (Bible, recherche, chants, téléphone, mélangeur sur la vraie libobs)
         run: |
