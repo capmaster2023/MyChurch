@@ -1,4 +1,4 @@
-; Installateur de Siloé Stream (logiciel Windows natif), compilé sur GitHub Actions.
+﻿; Installateur de Siloé Stream (logiciel Windows natif), compilé sur GitHub Actions.
 ; Le dossier « app » (copié en entier, sous-dossiers compris) contient aussi « obs » : libobs (OBS Studio 33.0.1, GNU GPL v2 ou ultérieure)
 ; et COPYING.txt, ainsi que « ffmpeg » : ffmpeg.exe 8.0.1 (gyan.dev, GNU GPL v3) et sa licence, pour le FLAC et la vidéo des enregistrements. VB-CABLE n'est jamais inclus : Siloé Stream le télécharge à la demande depuis le site officiel.
 ; Installation par utilisateur (pas besoin d'être administrateur), au même endroit que la 3.x : la mise à jour la remplace.
