@@ -256,13 +256,15 @@ jobs:
       - name: Test de l'installateur (mise à jour d'une 3.x, puis désinstallation)
         if: success()
         run: |
-          $dir = "$env:LOCALAPPDATA\Programs\MyVerse"
-          # une fausse MyVerse 3.x déjà installée (Neutralino + module réseau)
-          New-Item -ItemType Directory -Force "$dir\extensions\bridge" | Out-Null
-          New-ItemProperty -Path (New-Item -Path "HKCU:\Software\MyVerse" -Force).PSPath -Name InstallDir -Value $dir -Force | Out-Null
-          Set-Content "$dir\resources.neu" "ancien"
-          Set-Content "$dir\extensions\bridge\verselight-bridge.exe" "ancien"
-          Set-Content "$dir\neutralinojs.log" "ancien"
+          # 1.9.0 : une ancienne installation (MyChurch, dans Programs\MyVerse) est retirée ; Siloé Stream s'installe à côté
+          $ancien = "$env:LOCALAPPDATA\Programs\MyVerse"
+          $dir = "$env:LOCALAPPDATA\Programs\SiloeStream"
+          New-Item -ItemType Directory -Force "$ancien\extensions\bridge" | Out-Null
+          New-ItemProperty -Path (New-Item -Path "HKCU:\Software\MyVerse" -Force).PSPath -Name InstallDir -Value $ancien -Force | Out-Null
+          Set-Content "$ancien\MyChurch.exe" "ancien"
+          Set-Content "$ancien\resources.neu" "ancien"
+          Set-Content "$ancien\extensions\bridge\verselight-bridge.exe" "ancien"
+          New-Item -ItemType Directory -Force $dir | Out-Null
           # Une application vidéo garde la DLL chargée pendant toute la mise à jour.
           Copy-Item out/SiloeStream/MyVirtualCam.dll "$dir/MyVirtualCam.dll"
           Copy-Item out/SiloeStream/MyVirtualCam32.dll "$dir/MyVirtualCam32.dll"
@@ -285,9 +287,9 @@ jobs:
           $ouvert | Stop-Process -Force -ErrorAction SilentlyContinue
           $ok = $true
           foreach ($f in @("SiloeStream.exe", "Ressources\lsg.json", "Ressources\obs\ecran.html", "Desinstaller.exe", "obs\bin\64bit\obs.dll", "obs\core\win-wasapi\win-wasapi.dll", "COPYING.txt", "ffmpeg\ffmpeg.exe", "ffmpeg\LICENSE.txt")) { $e = Test-Path "$dir\$f"; "présent $f : $e" | Tee-Object -FilePath ci/installateur.txt -Append; if (-not $e) { $ok = $false } }
-          foreach ($f in @("resources.neu", "extensions", "neutralinojs.log")) { $e = Test-Path "$dir\$f"; "ancien $f retiré : $(-not $e)" | Tee-Object -FilePath ci/installateur.txt -Append; if ($e) { $ok = $false } }
+          $e = Test-Path "$ancien\MyChurch.exe"; "ancienne installation MyChurch retirée : $(-not $e)" | Tee-Object -FilePath ci/installateur.txt -Append; if ($e) { $ok = $false }
           "raccourci Bureau : $(Test-Path "$env:USERPROFILE\Desktop\Siloé Stream.lnk")" | Tee-Object -FilePath ci/installateur.txt -Append
-          "Applications installées : $((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MyVerse' -ErrorAction SilentlyContinue).DisplayVersion)" | Tee-Object -FilePath ci/installateur.txt -Append
+          "Applications installées : $((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SiloeStream' -ErrorAction SilentlyContinue).DisplayVersion)" | Tee-Object -FilePath ci/installateur.txt -Append
           $u = Start-Process "$dir\Desinstaller.exe" -ArgumentList @("/S", "_?=$dir") -PassThru
           $null = $u.Handle
           $u.WaitForExit(120000) | Out-Null
