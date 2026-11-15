@@ -738,7 +738,7 @@ if (Actif())
     Ok(rg.ElementCourant == eB && rg.Etat.Ref.StartsWith("Jean 3:16"), "Suivant passe à l'élément suivant");
     Egal(rg.Prochaine()?.Label, "Jean 3:17", "Suivant = Jean 3:17");
     rg.Bouger(1);
-    Egal(rg.Prochaine()?.Label, "Agenda › Annonces", "fin du passage : l'élément suivant est annoncé");
+    Egal(rg.Prochaine()?.Label, "Annonces", "fin du passage : l'élément suivant est annoncé (1.5.1 : son titre seul)");
     rg.Bouger(1);
     Ok(rg.ElementCourant == eT && string.Join("|", rg.Etat.Lignes) == "Bienvenue", "puis le texte");
     rg.Bouger(1); rg.Bouger(1);

@@ -408,7 +408,7 @@ public sealed partial class Regie
         for (int k = i + 1; i >= 0 && k < l.Count; k++)
         {
             var d2 = Diapos(l[k]);
-            if (d2.Count > 0) return (true, new Suivante(d2[0].Cible, "Agenda › " + l[k].Titre, d2[0].Texte));
+            if (d2.Count > 0) return (true, new Suivante(d2[0].Cible, l[k].Titre, d2[0].Texte));
         }
         return (true, null);
     }
