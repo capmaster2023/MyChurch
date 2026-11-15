@@ -268,6 +268,8 @@ public sealed class PageSon : Grid
         A.Recorder.Changed += () => Dispatcher.BeginInvoke(new Action(Maj));
         A.PeripheriquesChange += () => Dispatcher.BeginInvoke(new Action(() => { versionAppareils++; Maj(); }));
         minuterie.Tick += (_, _) => Battre();
+        // les cartes prennent les couleurs du thème à leur construction : un changement de thème les refait à la prochaine visite
+        Palette.Change += () => { aRefaire = true; if (IsVisible) Maj(); };
         IsVisibleChanged += (_, _) =>
         {
             if (IsVisible) { Maj(); minuterie.Start(); }
@@ -303,7 +305,9 @@ public sealed class PageSon : Grid
     /// <summary>Refait les cartes si quelque chose a vraiment changé, puis met à jour les mots et les boutons.</summary>
     public void Maj()
     {
-        if (!IsVisible) { aRefaire = true; return; }
+        // 1.8.0 : page cachée : rien à faire maintenant ; à l'ouverture, les cartes ne sont refaites que si quelque chose a vraiment
+        // changé (la signature), au lieu de tout reconstruire à chaque visite (la page Son mettait des secondes à s'ouvrir)
+        if (!IsVisible) return;
         string sig = Signature();
         if (sig != signature || aRefaire)
         {

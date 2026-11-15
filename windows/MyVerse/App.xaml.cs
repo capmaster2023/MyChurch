@@ -158,6 +158,12 @@ public partial class App : Application
             if (SortieObs.Preparer()) SortieObs.Ecrire(Regie.Etat);
         });
 
+        // 1.8.0 : les caméras ne fabriquent pas d'images plus grandes que l'écran de l'église ou le direct (4K seulement si utile)
+        Audio.CameraFrames.LargeurMax = () =>
+        {
+            var (l, _, _) = Donnees.Reglages.Direct.Taille;
+            return Math.Clamp(Math.Max(l, Donnees.Reglages.Ecran?.W ?? 1920), 1920, 3840);
+        };
         Sources = new SourcesDisplay();
         SourcesDuo = new SourcesDisplay("display-duo.jpg");
         SourcesDefaut = new SourcesDisplay("");

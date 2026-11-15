@@ -59,6 +59,7 @@ public static class CameraFrames
             {
                 if (disposed) return; disposed = true;
                 if (vignettes) capture.Vignettes--;
+                else capture.Pleines--;
                 // l'appareil reste ouvert, prêt, pendant la garde (il revient tout de suite)
                 if (--capture.Users == 0) capture.Libere = Environment.TickCount64;
             }
@@ -74,6 +75,8 @@ public static class CameraFrames
         /// <summary>Parts qui veulent aussi la vignette (tuiles de la grille) ; la dernière vignette faite (horloge).</summary>
         public int Vignettes;
         public long DerniereVignette;
+        /// <summary>1.8.0 : parts qui montrent l'image en grand (écran, MyStream, enregistrement).</summary>
+        public int Pleines;
         public volatile string? Error;
         public readonly CancellationTokenSource Cancel = new();
         public TaskCompletionSource Prochaine = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -117,6 +120,7 @@ public static class CameraFrames
             }
             capture.Users++;
             if (vignettes) capture.Vignettes++;
+            else capture.Pleines++;
             return new(capture, vignettes);
         }
     }
@@ -189,8 +193,8 @@ public static class CameraFrames
                     throw new OperationCanceledException();
                 }
             }
-            // Read attend l'image suivante de l'appareil (une seconde au plus)
-            if (!camera.Read(frame) || frame.Empty())
+            // Grab attend l'image suivante de l'appareil (une seconde au plus) ; elle n'est convertie (Retrieve) que si on la montre
+            if (!camera.Grab())
             {
                 // une image ratée (carte de capture qui hésite, câble HDMI qui bouge) : coupée seulement après 3 de suite
                 if (++ratees >= 3) throw new IOException("La caméra ne fournit plus d’image.");
@@ -203,32 +207,62 @@ public static class CameraFrames
             {
                 if (t - libreDepuis < 500) continue;
                 libreDepuis = t;
-                Publier(state, frame, bgra);
+                if (Recuperer(camera, frame)) Publier(state, frame, bgra, true);
+                continue;
+            }
+            // 1.8.0 : seulement des tuiles (vignettes) : dix petites images par seconde, rien en grand
+            if (Volatile.Read(ref state.Pleines) <= 0)
+            {
+                if (Environment.TickCount64 - state.DerniereVignette < 90) continue;
+                if (Recuperer(camera, frame)) Publier(state, frame, bgra, false);
                 continue;
             }
             if (t < prochain - tolerance) continue;
             prochain = Math.Max(prochain + intervalle, t);
-            Publier(state, frame, bgra);
+            if (Recuperer(camera, frame)) Publier(state, frame, bgra, true);
         }
     }
 
-    static void Publier(Capture state, Mat frame, Mat bgra)
+    static bool Recuperer(VideoCapture camera, Mat frame) => camera.Retrieve(frame) && !frame.Empty();
+
+    /// <summary>
+    /// 1.8.0 : la plus grande image utile : 1920 de large (l'écran de l'église, MyStream en 1080p), 3840 si le direct part en 4K.
+    /// Une caméra 4K montrée en 1080p ne fabrique plus des images de 33 Mo (soixante fois par seconde) : l'interface reste vive.
+    /// </summary>
+    public static Func<int> LargeurMax { get; set; } = () => 1920;
+
+    static BitmapSource Bitmap(Mat m)
     {
-        if (frame.Channels() == 4) frame.CopyTo(bgra);
-        else Cv2.CvtColor(frame, bgra, ColorConversionCodes.BGR2BGRA);
-        var bitmap = BitmapSource.Create(bgra.Width, bgra.Height, 96, 96, PixelFormats.Bgra32, null, bgra.Data, (int)(bgra.Step() * bgra.Height), (int)bgra.Step());
-        bitmap.Freeze();
-        Volatile.Write(ref state.Image, bitmap);
-        // 1.7.0 : la tuile de la grille reste en direct sans pousser 8 Mo par image vers l'écran
-        if (Volatile.Read(ref state.Vignettes) > 0 && Environment.TickCount64 - state.DerniereVignette >= 90 && bgra.Width > 0)
+        var b = BitmapSource.Create(m.Width, m.Height, 96, 96, PixelFormats.Bgra32, null, m.Data, (int)(m.Step() * m.Height), (int)m.Step());
+        b.Freeze();
+        return b;
+    }
+
+    static void Publier(Capture state, Mat frame, Mat bgra, bool pleine)
+    {
+        // 1.7.0 : la tuile de la grille reste en direct sans pousser l'image en grand vers l'écran
+        if (Volatile.Read(ref state.Vignettes) > 0 && Environment.TickCount64 - state.DerniereVignette >= 90 && frame.Width > 0)
         {
             state.DerniereVignette = Environment.TickCount64;
-            int l = Math.Min(384, bgra.Width), h = Math.Max(1, (int)Math.Round(bgra.Height * (double)l / bgra.Width));
+            int l = Math.Min(384, frame.Width), h = Math.Max(1, (int)Math.Round(frame.Height * (double)l / frame.Width));
             using var petite = new Mat();
-            Cv2.Resize(bgra, petite, new OpenCvSharp.Size(l, h), 0, 0, InterpolationFlags.Area);
-            var vignette = BitmapSource.Create(petite.Width, petite.Height, 96, 96, PixelFormats.Bgra32, null, petite.Data, (int)(petite.Step() * petite.Height), (int)petite.Step());
-            vignette.Freeze();
-            Volatile.Write(ref state.Vignette, vignette);
+            using var petiteBgra = new Mat();
+            Cv2.Resize(frame, petite, new OpenCvSharp.Size(l, h), 0, 0, InterpolationFlags.Area);
+            if (petite.Channels() == 4) petite.CopyTo(petiteBgra); else Cv2.CvtColor(petite, petiteBgra, ColorConversionCodes.BGR2BGRA);
+            Volatile.Write(ref state.Vignette, Bitmap(petiteBgra));
+        }
+        if (pleine)
+        {
+            int max = Math.Max(640, LargeurMax());
+            if (frame.Width > max)
+            {
+                using var reduite = new Mat();
+                Cv2.Resize(frame, reduite, new OpenCvSharp.Size(max, Math.Max(1, (int)Math.Round(frame.Height * (double)max / frame.Width))), 0, 0, InterpolationFlags.Area);
+                if (reduite.Channels() == 4) reduite.CopyTo(bgra); else Cv2.CvtColor(reduite, bgra, ColorConversionCodes.BGR2BGRA);
+            }
+            else if (frame.Channels() == 4) frame.CopyTo(bgra);
+            else Cv2.CvtColor(frame, bgra, ColorConversionCodes.BGR2BGRA);
+            Volatile.Write(ref state.Image, Bitmap(bgra));
         }
         var avant = Interlocked.Exchange(ref state.Prochaine, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
         avant.TrySetResult();

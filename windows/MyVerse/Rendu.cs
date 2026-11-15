@@ -466,7 +466,8 @@ public sealed class Rendu : Grid
         Taille(10, avec2);
         double mot1 = PlusLongMot(texte) / texte.FontSize, mot2 = avec2 ? PlusLongMot(texte2) / texte2.FontSize : 0;
         double lo = 0.5, hi = plafond, best = 0.5;
-        for (int i = 0; i < 16; i++)
+        // 12 essais : la taille à un demi-millième près (16 refaisaient la mise en page pour rien, sur chaque vignette du culte)
+        for (int i = 0; i < 12; i++)
         {
             double mid = (lo + hi) / 2;
             Taille(mid, avec2);

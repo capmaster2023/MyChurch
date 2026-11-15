@@ -33,6 +33,7 @@ public partial class MainWindow
 
     void InitGrille()
     {
+        if (App.AutoTest == null) SurveillerInterface();
         App.Sources.Change += GrilleDirect;
         minuterieGrille.Tick += (_, _) => { minuterieGrille.Stop(); GrilleMaj(); };
         R.DuosChange += GrillePlusTard;
@@ -160,7 +161,7 @@ public partial class MainWindow
         {
             if (!lecteursTuiles.TryGetValue(id, out var l))
             {
-                l = new SourcesDisplay("") { Tuile = true };
+                l = new SourcesDisplay("") { Tuile = true, Pause = onglet != "annonces" };
                 var cle = id;
                 l.Change += () => ImageTuile(cle);
                 lecteursTuiles[id] = l;

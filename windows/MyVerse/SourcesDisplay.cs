@@ -25,6 +25,10 @@ public sealed class SourcesDisplay : IDisposable
     /// </summary>
     public bool Tuile { get; init; }
 
+    volatile bool pause;
+    /// <summary>1.8.0 : tuile cachée (on n'est pas sur la page Médias) : la fenêtre n'est plus capturée, la caméra reste ouverte sans rien montrer.</summary>
+    public bool Pause { get => pause; set => pause = value; }
+
     public sealed record Peripherique(int Index, string Nom, string Id);
     /// <summary>Une fenêtre ouverte : son programme (« Zoom.exe ») et sa classe servent à la retrouver quand elle est rouverte (1.3.1).</summary>
     public sealed record Fenetre(long Handle, int Processus, string Titre, string Exe = "", string Classe = "")
@@ -93,7 +97,7 @@ public sealed class SourcesDisplay : IDisposable
                             {
                                 if (lease.Error is { } error) throw new IOException(error);
                                 var prochaine = lease.Prochaine;
-                                if ((Tuile ? lease.Vignette : lease.Image) is { } b && !ReferenceEquals(b, previous))
+                                if (!(Tuile && pause) && (Tuile ? lease.Vignette : lease.Image) is { } b && !ReferenceEquals(b, previous))
                                 {
                                     await Publier(b, g, token.Token);
                                     previous = b;
@@ -196,6 +200,7 @@ public sealed class SourcesDisplay : IDisposable
                     string attente = "";
                     while (!token.IsCancellationRequested)
                     {
+                        if (Tuile && pause) { await Task.Delay(400, token.Token); continue; }
                         if (!Ouverte(h, pid))
                         {
                             if (Retrouver(nouvelle) is { } f) { h = new IntPtr(f.Handle); pid = f.Processus; }

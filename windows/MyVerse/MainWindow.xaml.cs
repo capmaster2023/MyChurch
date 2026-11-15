@@ -367,6 +367,9 @@ public partial class MainWindow : Window
     {
         onglet = o;
         R.OngletBible = o == "bible";
+        // 1.8.0 : les tuiles en direct ne travaillent que sur la page Médias (la caméra reste ouverte, prête)
+        foreach (var l in lecteursTuiles.Values) l.Pause = o != "annonces";
+        DebutPage(o);
         static Visibility V(bool b) => b ? Visibility.Visible : Visibility.Collapsed;
         // chaque page : sa colonne de gauche, son centre et le titre de l'en-tête
         PanneauAgenda.Visibility = CentreAgenda.Visibility = ElemTitre.Visibility = V(o == "agenda");
