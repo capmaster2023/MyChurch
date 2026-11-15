@@ -123,6 +123,63 @@ public static class RecordingIntegrationTests
         await session.StopAsync();
         return path;
     }
+    /// <summary>
+    /// MyChurch 1.6.0 : un vrai direct (FLV vers RTMP, comme vers YouTube) reçu par un serveur local (ffmpeg lui-même, en écoute),
+    /// puis relu : H.264 et AAC 48 kHz stéréo, une image clé toutes les 2 s, la bonne durée.
+    /// </summary>
+    static async Task<(bool Ok, string Detail)> SessionDirectAsync(string ffmpeg, string directory, Frames frame)
+    {
+        var libre = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); libre.Start();
+        int port = ((System.Net.IPEndPoint)libre.LocalEndpoint).Port; libre.Stop();
+        string recu = Path.Combine(directory, "direct-recu.flv"), adresse = $"rtmp://127.0.0.1:{port}/live2/cle-de-test";
+        var info = new ProcessStartInfo(ffmpeg) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardOutput = true, CreateNoWindow = true };
+        foreach (var a in new[] { "-hide_banner", "-loglevel", "warning", "-y", "-listen", "1", "-i", adresse, "-c", "copy", "-f", "flv", recu }) info.ArgumentList.Add(a);
+        using var serveur = Process.Start(info)!;
+        var journalServeur = serveur.StandardError.ReadToEndAsync();
+        try
+        {
+            await Task.Delay(1200);
+            var profile = new RecordingProfile { Name = "direct", Format = RecordingProfile.FormatDirect, AudioOnly = false, Directory = "", Width = 640, Height = 360, Fps = 30, VideoKbps = 1500, AudioKbps = 128, Encoder = "libx264" };
+            var args = RecordingSession.FfmpegArguments(profile, "son", "image", "libx264", adresse).ToList();
+            bool arguments = args.Contains("flv") && args[args.IndexOf("-g") + 1] == "60" && args[args.IndexOf("-maxrate") + 1] == "1500k" && args.Last() == adresse;
+            var block = new float[AudioBlock.Samples];
+            string? erreur;
+            using (var session = new RecordingSession(profile, adresse, ffmpeg, "libx264", frame))
+            {
+                await session.PrepareAsync();
+                var debut = Stopwatch.StartNew();
+                for (int n = 0; n < 300; n++)
+                {
+                    frame.Set(n % 60 < 30 ? (byte)40 : (byte)200);
+                    FillAudio(block, n);
+                    if (!session.Accept(block)) throw new IOException(session.Error ?? "bloc refusé");
+                    int attente = (int)(n * 10 - debut.ElapsedMilliseconds);
+                    if (attente > 0) await Task.Delay(attente);
+                }
+                await session.StopAsync();
+                erreur = session.Error;
+            }
+            await serveur.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
+            string ffprobe = Path.Combine(Path.GetDirectoryName(ffmpeg)!, OperatingSystem.IsWindows() ? "ffprobe.exe" : "ffprobe");
+            string json = await ProcessAsync(ffprobe, new[] { "-v", "error", "-show_streams", "-show_format", "-of", "json", recu });
+            using var doc = JsonDocument.Parse(json);
+            var streams = doc.RootElement.GetProperty("streams").EnumerateArray().ToList();
+            bool video = streams.Any(x => x.GetProperty("codec_type").GetString() == "video" && x.GetProperty("codec_name").GetString() == "h264" && x.GetProperty("width").GetInt32() == 640);
+            bool son = streams.Any(x => x.GetProperty("codec_type").GetString() == "audio" && x.GetProperty("codec_name").GetString() == "aac" && x.GetProperty("sample_rate").GetString() == "48000" && x.GetProperty("channels").GetInt32() == 2);
+            double duree = double.Parse(doc.RootElement.GetProperty("format").GetProperty("duration").GetString()!, CultureInfo.InvariantCulture);
+            // images clés : au moins une toutes les 2 s (YouTube l'exige)
+            string cles = await ProcessAsync(ffprobe, new[] { "-v", "error", "-select_streams", "v:0", "-skip_frame", "nokey", "-show_entries", "frame=pts_time", "-of", "csv=p=0", recu });
+            var temps = cles.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(t => double.Parse(t.Trim().TrimEnd(','), CultureInfo.InvariantCulture)).ToList();
+            bool gop = temps.Count >= 2 && temps.Zip(temps.Skip(1), (x, y) => y - x).All(e => e <= 2.05);
+            bool bon = arguments && erreur == null && video && son && Math.Abs(duree - 3) < 0.6 && gop;
+            return (bon, $"arguments {arguments}, erreur {erreur ?? "aucune"}, vidéo {video}, son {son}, durée {duree:0.00} s, images clés {string.Join(" ", temps.Select(t => t.ToString("0.0", CultureInfo.InvariantCulture)))}");
+        }
+        finally
+        {
+            try { if (!serveur.HasExited) serveur.Kill(true); } catch (Exception) { }
+            await journalServeur;
+        }
+    }
     static void FillAudio(float[] block, int n, int clap = 50)
     {
         for (int i = 0; i < block.Length; i += 2)
@@ -188,6 +245,16 @@ public static class RecordingIntegrationTests
                 await ProcessAsync(executable, new[] { "-v", "error", "-i", path, "-f", "null", "-" });
                 ok(true, "Décodage complet FFmpeg sans erreur (" + format + ")", null);
             }
+        }
+        if (executable != null)
+        {
+            // 1.6.0 : un vrai direct RTMP, reçu par un serveur local
+            try
+            {
+                var (bon, detail) = await SessionDirectAsync(executable, directory, frame);
+                ok(bon, "Direct réel : FLV vers un serveur RTMP local (H.264, AAC 48 kHz, image clé toutes les 2 s)", detail);
+            }
+            catch (Exception e) { ok(false, "Direct réel : FLV vers un serveur RTMP local", e.Message); }
         }
         if (executable != null)
         {

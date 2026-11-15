@@ -62,7 +62,9 @@ public sealed class RecordingSession : IDisposable
     public long VideoFrames => Interlocked.Read(ref imagesEcrites);
     /// <summary>Recalages de la vidéo sur le son (saut de l'horloge du son) : 0 normalement.</summary>
     public long Sauts => Interlocked.Read(ref sauts);
-    public long Bytes => File.Exists(Path) ? new FileInfo(Path).Length : 0;
+    public long Bytes => !Direct && File.Exists(Path) ? new FileInfo(Path).Length : 0;
+    /// <summary>MyChurch 1.6.0 : un direct (YouTube, un autre service) : <see cref="Path"/> est l'adresse RTMP(S), pas un fichier.</summary>
+    public bool Direct => profile.Format == RecordingProfile.FormatDirect;
     public string Path { get; }
     public string Encoder { get; }
     public Task Completion => worker ?? Task.CompletedTask;
@@ -94,6 +96,23 @@ public sealed class RecordingSession : IDisposable
         var args = new List<string> { "-hide_banner", "-loglevel", "warning", "-nostdin", "-y" };
         if (videoInput != null) args.AddRange(new[] { "-f", "rawvideo", "-pixel_format", "bgra", "-video_size", $"{profile.Width}x{profile.Height}", "-framerate", profile.Fps.ToString(), "-probesize", "32", "-analyzeduration", "0", "-i", videoInput });
         args.AddRange(new[] { "-f", "f32le", "-ar", AudioBlock.Rate.ToString(), "-ac", "2", "-probesize", "32", "-analyzeduration", "0", "-i", audioInput });
+        if (videoInput != null && profile.Format == RecordingProfile.FormatDirect)
+        {
+            // 1.6.0 : le direct (YouTube) : débit constant, une image clé toutes les 2 s (exigé par YouTube), AAC 48 kHz stéréo, FLV vers RTMP(S)
+            string k = profile.VideoKbps.ToString(), g = (2 * profile.Fps).ToString();
+            args.AddRange(new[] { "-map", "0:v:0", "-map", "1:a:0", "-c:v", encoder, "-b:v", k + "k", "-maxrate", k + "k", "-bufsize", 2 * profile.VideoKbps + "k",
+                "-g", g, "-keyint_min", g, "-pix_fmt", "yuv420p" });
+            args.AddRange(encoder switch
+            {
+                "libx264" => new[] { "-preset", "veryfast", "-profile:v", "high", "-sc_threshold", "0" },
+                "h264_nvenc" => new[] { "-preset", "p5", "-rc", "cbr", "-profile:v", "high", "-forced-idr", "1" },
+                "h264_qsv" => new[] { "-preset", "veryfast", "-profile:v", "high" },
+                "h264_amf" => new[] { "-rc", "cbr", "-profile:v", "high" },
+                _ => Array.Empty<string>(),
+            });
+            args.AddRange(new[] { "-c:a", "aac", "-b:a", profile.AudioKbps + "k", "-ar", AudioBlock.Rate.ToString(), "-ac", "2", "-f", "flv", "-flvflags", "no_duration_filesize" });
+            args.Add(output); return args;
+        }
         if (videoInput != null)
         {
             args.AddRange(new[] { "-map", "0:v:0", "-map", "1:a:0", "-c:v", encoder, "-b:v", profile.VideoKbps + "k", "-pix_fmt", encoder == "mjpeg" ? "yuvj420p" : "yuv420p", "-c:a", "aac", "-b:a", profile.AudioKbps + "k", "-cluster_time_limit", "1000", "-f", "matroska" });
@@ -196,7 +215,7 @@ public sealed class RecordingSession : IDisposable
                 if (Environment.TickCount64 - lastDiskCheck > 1000)
                 {
                     lastDiskCheck = Environment.TickCount64;
-                    if (RecordingFiles.FreeSpace(profile.Directory) < RecordingFiles.ReserveBytes) { Fail("Espace disque faible : arrêt et finalisation du fichier."); }
+                    if (!Direct && RecordingFiles.FreeSpace(profile.Directory) < RecordingFiles.ReserveBytes) { Fail("Espace disque faible : arrêt et finalisation du fichier."); }
                     if (ffmpeg?.HasExited == true) throw new IOException("FFmpeg s’est arrêté : " + stderr);
                 }
             }

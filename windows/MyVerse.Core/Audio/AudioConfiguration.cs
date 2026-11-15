@@ -176,6 +176,8 @@ public sealed class RecordingProfile : IDestinationAudio
     public List<string> DisplayIds { get; set; } = new();
     /// <summary>Ce qui est à l'écran de projection (Bible, chants, Display, Duo).</summary>
     public const string Projection = "projection";
+    /// <summary>1.6.0 : le format d'un direct (YouTube, un autre service) : FLV vers une adresse RTMP(S).</summary>
+    public const string FormatDirect = "flv";
     /// <summary>Plusieurs sources Display : « incrustation » (la 1re en grand, les autres en petit) ou « cote » (côte à côte).</summary>
     public string Layout { get; set; } = "incrustation";
     public int Width { get; set; } = 1280;
@@ -250,6 +252,15 @@ public sealed class VirtualSoundSettings : IDestinationAudio
     [JsonIgnore] public bool ParCable => string.IsNullOrEmpty(DeviceId);
 }
 
+/// <summary>1.6.0 : le son du direct (YouTube, un autre service) : tout le son, ou les sons choisis.</summary>
+public sealed class SonDirect : IDestinationAudio
+{
+    public string Id { get; set; } = AudioConfiguration.IdDirect;
+    public string Name { get; set; } = "YouTube";
+    [JsonPropertyName("sons")] public List<string>? ChoixSons { get; set; }
+    [JsonIgnore] public int Track { get; set; } = 1;
+}
+
 /// <summary>Ce que MyChurch demande au moteur, recalculé à chaque changement : les sources d'OBS et la piste de chaque destination.</summary>
 public sealed class PlanAudio
 {
@@ -276,6 +287,8 @@ public sealed class AudioConfiguration
     public const int MaxEntrees = 32;
     /// <summary>La destination « casque de la régie » dans <see cref="PlanAudio.Pistes"/>.</summary>
     public const string IdCasque = "casque";
+    /// <summary>La destination « direct » (YouTube) dans <see cref="PlanAudio.Pistes"/>.</summary>
+    public const string IdDirect = "direct";
 
     public int Version { get; set; } = Actuelle;
     [JsonPropertyName("sons")] public List<Son> Sons { get; set; } = new();
@@ -284,6 +297,8 @@ public sealed class AudioConfiguration
     [JsonPropertyName("enregistrements")] public List<RecordingProfile> Profiles { get; set; } = new();
     /// <summary>Les envois (Zoom, OBS…) : 4 au plus, actifs en même temps si besoin.</summary>
     [JsonPropertyName("sortiesVirtuelles")] public List<VirtualSoundSettings> VirtualSounds { get; set; } = new();
+    /// <summary>1.6.0 : le son du direct (YouTube).</summary>
+    [JsonPropertyName("direct")] public SonDirect Direct { get; set; } = new();
 
     // ------------------------------------------------------------ réglages des versions précédentes (relus une fois, puis oubliés)
     /// <summary>1.0 à 1.2 (et 3.x, 4.x) : les sources du mélangeur « comme OBS ». Reprises en <see cref="Sons"/>.</summary>
@@ -395,7 +410,7 @@ public sealed class AudioConfiguration
     }
 
     /// <summary>Les enregistrements et les envois.</summary>
-    public IEnumerable<IDestinationAudio> Destinations() => Profiles.Cast<IDestinationAudio>().Concat(VirtualSounds);
+    public IEnumerable<IDestinationAudio> Destinations() => Profiles.Cast<IDestinationAudio>().Concat(VirtualSounds).Append(Direct);
 
     /// <summary>Ce que reçoit une destination, en mots : « Tout le son », « Pasteur et Chorale », « Aucun son ».</summary>
     public string Recoit(IDestinationAudio d)
@@ -448,6 +463,7 @@ public sealed class AudioConfiguration
         };
         foreach (var v in VirtualSounds) destinations.Add((v.Id, v.Name, v.ChoixSons, v.ParCable ? null : v.DeviceId, v.Enabled));
         foreach (var p in Profiles) destinations.Add((p.Id, p.Name, p.ChoixSons, null, actives?.Contains(p.Id) == true));
+        destinations.Add((Direct.Id, Direct.Name, Direct.ChoixSons, null, actives?.Contains(Direct.Id) == true));
         // les sons de chaque destination, et son mélange (null = tout le son)
         var voulus = destinations.Select(d =>
         {
@@ -513,6 +529,9 @@ public sealed class AudioConfiguration
     {
         Sons ??= new(); Profiles ??= new(); VirtualSounds ??= new();
         Eglise ??= new(); Casque ??= new();
+        Direct ??= new();
+        Direct.Id = IdDirect;
+        if (string.IsNullOrWhiteSpace(Direct.Name)) Direct.Name = "YouTube";
         Sons.RemoveAll(s => s == null);
         Profiles.RemoveAll(p => p == null);
         VirtualSounds.RemoveAll(v => v == null);
@@ -564,6 +583,7 @@ public sealed class AudioConfiguration
             v.ChoixSons = v.ChoixSons?.Where(known.Contains).Distinct().ToList();
             v.SourceIds = null; v.PisteV6 = null; v.AncienVolumeDb = null; v.AncienneSourdine = null;
         }
+        Direct.ChoixSons = Direct.ChoixSons?.Where(known.Contains).Distinct().ToList();
         var pids = new HashSet<string>();
         Profiles.RemoveAll(p => string.IsNullOrEmpty(p.Id) || !pids.Add(p.Id));
         if (Profiles.Count > MaxEnregistrements) Profiles.RemoveRange(MaxEnregistrements, Profiles.Count - MaxEnregistrements);

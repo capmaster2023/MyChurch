@@ -1055,6 +1055,78 @@ if (Actif())
     Ok(rg.Cible is CibleDefaut && rg.EtatSalle(rg.Etat).Media == zoom.Source && rg.EtatCamera(rg.Etat).Vide, "… même affiché comme écran par défaut");
 }
 
+Groupe("MyStream (1.6.0)");
+if (Actif())
+{
+    var don = Donnees.Charger(Temp(), res);
+    var rg = new Regie(don, new Bibles(don));
+    var cam = rg.NouveauDisplay("MyCam Samsung", new SourceDisplay { Type = "mycam", Peripherique = "tel-1" });
+    var image = rg.NouveauDisplay("Annonce repas", new SourceDisplay { Type = "image", Chemin = "repas.png" });
+    var texte = rg.NouveauDisplay("Bienvenue", new SourceDisplay { Type = "image", Chemin = "x.png" });
+    texte.Source = null; texte.Texte = "Bienvenue à tous";
+
+    // sans source principale : comme MyVirtualCam jusqu'à la 1.5
+    rg.AfficherVerset(43, 3, 16, 16);
+    Ok(rg.SourcePrincipaleStream == null && rg.EtatStream(rg.Etat) == rg.EtatCamera(rg.Etat), "sans source principale : MyStream montre comme l'église (comme Zoom avant)");
+
+    // une source principale : toujours là quand l'église ne montre rien
+    rg.ChoisirSourceStream(texte.Id);
+    Ok(rg.SourcePrincipaleStream == null, "un texte ne peut pas être la source principale");
+    rg.ChoisirSourceStream(cam.Id);
+    Ok(rg.SourcePrincipaleStream?.Id == cam.Id && Donnees.Charger(don.Dossier, res).Reglages.MyStreamSource == cam.Id, "la source principale est choisie et gardée");
+    Ok(rg.SourcesStreamPossibles.Select(a => a.Id).SequenceEqual(new[] { cam.Id, image.Id }), "les sources possibles : MyCam d'abord, pas les textes");
+    rg.Effacer();
+    Ok(rg.EtatStream(rg.Etat) is { Mode: "media" } s0 && s0.Media == cam.Source, "l'église vide : MyStream montre la source principale");
+
+    // les paroles et les versets passent par-dessus, en bandeau
+    rg.AfficherVerset(43, 3, 16, 16);
+    var s1 = rg.EtatStream(rg.Etat);
+    Ok(s1.Mode == "verset" && s1.Media == cam.Source && s1.Presentation == "bandeau" && Regie.TexteSurImage(s1) && s1.Lignes.SequenceEqual(rg.Etat.Lignes),
+        "un verset : en bandeau sur la source principale");
+    Ok(rg.Etat.Presentation == "plein" && rg.Etat.Media == null, "l'église garde son verset en plein écran");
+    Ok(!Regie.TexteSurImage(rg.Etat), "l'église : pas de texte sur image");
+    rg.ChoisirTexteStream("plein");
+    Ok(rg.EtatStream(rg.Etat) == rg.EtatCamera(rg.Etat) && Donnees.Charger(don.Dossier, res).Reglages.MyStreamTexte == "plein", "« plein écran » : le verset comme dans l'église (gardé)");
+    rg.ChoisirTexteStream("bandeau");
+
+    // une image montrée à l'église passe en grand
+    rg.AfficherAnnonce(image);
+    Ok(rg.EtatStream(rg.Etat) is { Mode: "media" } s2 && s2.Media == image.Source, "une image à l'église : en grand sur MyStream");
+
+    // touche M : retour à la source principale, l'église garde l'image
+    Ok(rg.StreamPrincipale() && rg.StreamSurPrincipale, "touche M : MyStream revient sur la source principale");
+    Ok(rg.EtatStream(rg.Etat).Media == cam.Source && rg.Etat.Media == image.Source, "… l'église garde l'image");
+    rg.Theme("aube");
+    Ok(rg.StreamSurPrincipale && rg.EtatStream(rg.Etat).Media == cam.Source, "changer le style ne ramène pas l'image sur MyStream");
+    rg.AfficherAnnonce(image);
+    Ok(!rg.StreamSurPrincipale && rg.EtatStream(rg.Etat).Media == image.Source, "la même image remontrée repart sur MyStream");
+    rg.StreamPrincipale();
+    rg.AfficherVerset(43, 3, 17, 17);
+    Ok(!rg.StreamSurPrincipale && rg.EtatStream(rg.Etat) is { Mode: "verset", Presentation: "bandeau" }, "le verset suivant repart sur MyStream (en bandeau)");
+
+    // écran noir (rien à l'écran) : la source principale
+    var noir = rg.Etat with { Mode = "vide", Media = null, Lignes = Array.Empty<string>(), Ref = "", Second = null, Duo = null };
+    Ok(rg.EtatStream(noir).Media == cam.Source, "écran noir : MyStream montre la source principale");
+
+    // l'écran de repos de l'église (fond seul) : MyStream montre la source principale
+    rg.ChoisirEcranDefaut("fond");
+    rg.Effacer();
+    Ok(rg.Cible is CibleDefaut && rg.EtatSalle(rg.Etat).Mode == "fond" && rg.EtatStream(rg.Etat).Media == cam.Source, "l'église sur son écran de repos : MyStream sur la source principale");
+
+    // un contenu gardé dans un coin reste sur MyStream (sauf après la touche M)
+    rg.AfficherVerset(43, 3, 16, 16);
+    rg.Epingler("Jean 3:16");
+    Ok(rg.EtatStream(rg.Etat) is { Mode: "media" } s3 && s3.Media == cam.Source && s3.Duo?.Libelle == "Jean 3:16", "un verset dans le coin : la source principale avec le coin");
+    rg.StreamPrincipale();
+    Ok(rg.EtatStream(rg.Etat).Duo == null, "touche M : la source principale seule, sans le coin");
+    rg.Desepingler();
+
+    // une source principale supprimée : MyStream suit l'église
+    rg.SupprimerAnnonce(cam.Id);
+    rg.AfficherVerset(43, 3, 16, 16);
+    Ok(rg.SourcePrincipaleStream == null && rg.EtatStream(rg.Etat) == rg.EtatCamera(rg.Etat) && !rg.StreamPrincipale(), "source principale supprimée : MyStream suit l'église, M ne fait rien");
+}
+
 Groupe("Dossiers Duo");
 if (Actif())
 {
@@ -1250,7 +1322,8 @@ if (Actif())
     for (int i = 0; i < 2; i++) beaucoup.VirtualSounds.Add(new MyVerse.Audio.VirtualSoundSettings { Name = "V" + i, ChoixSons = new() { "s" + (5 + i) } });
     beaucoup.Normalize();
     var pb = beaucoup.Planifier();
-    Ok(pb.Alertes.Count == 2 && beaucoup.Destinations().Count(d => d.Track == 1) == 2 && beaucoup.Destinations().Select(d => d.Track).Where(t => t > 1).Distinct().Count() == 5,
+    // 1.6.0 : le direct (YouTube) reçoit tout le son par défaut : la piste 1, sans prendre de piste
+    Ok(pb.Alertes.Count == 2 && beaucoup.Direct.Track == 1 && beaucoup.Destinations().Count(d => d.Track == 1 && d.Id != MyVerse.Audio.AudioConfiguration.IdDirect) == 2 && beaucoup.Destinations().Select(d => d.Track).Where(t => t > 1).Distinct().Count() == 5,
         "6 pistes : 5 mélanges choisis au plus, les autres reçoivent tout le son (avec une alerte)", string.Join(" | ", pb.Alertes));
     // plus de mélanges que de pistes : un enregistrement qui tourne passe en premier
     var dernier = beaucoup.Profiles[^1];
@@ -1753,6 +1826,9 @@ if (Actif())
     Ok(rg.Commande("je lava vers dieu").Any(x => x.Titre == "45 - Ndashima"), "« je lava vers dieu » trouve « je leva les yeux vers Dieu »");
     Ok(!rg.Commande("bonjour la maison").Any(x => x.Titre == "45 - Ndashima"), "des mots sans rapport ne trouvent pas le chant");
 }
+
+Groupe("YouTube (1.6.0)");
+if (Actif()) MyVerse.Tests.YouTubeTests.RunAsync(Ok).GetAwaiter().GetResult();
 
 Groupe("Enregistrement");
 if (Actif()) MyVerse.Tests.RecordingIntegrationTests.RunAsync(Ok).GetAwaiter().GetResult();
