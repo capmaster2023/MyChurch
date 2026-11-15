@@ -1033,7 +1033,8 @@ public static class AutoTest
             Ok(duoJpg.Exists && duoJpg.Length > 3000, "Duo : image épinglée publiée pour la page OBS (" + (duoJpg.Exists ? duoJpg.Length : 0) + " octets)");
             if (App.CameraVirtuelle != null)
             {
-                await Attendre(300);
+                // 1.5.0 : la caméra virtuelle dessine sur son propre fil (un dessin peut prendre 200 ms sur la machine du CI)
+                await Attendre(900);
                 using var mm = System.IO.MemoryMappedFiles.MemoryMappedFile.OpenExisting(@"Local\MyChurch.MyVirtualCam.frames.v1");
                 using var view = mm.CreateViewAccessor();
                 // milieu du coin haut droite (35 % de 1280 × 720, marge 3 %) ; l'image de la caméra virtuelle est rangée de bas en haut
