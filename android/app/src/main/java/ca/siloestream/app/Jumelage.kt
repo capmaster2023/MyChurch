@@ -89,8 +89,8 @@ fun Jumelage(remote: Remote, enCours: Boolean) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 TuileLogo()
                 Row {
-                    T("My", taille = 32.sp, poids = FontWeight.ExtraBold)
-                    T("Church", taille = 32.sp, poids = FontWeight.ExtraBold, couleur = C.Or)
+                    T("Siloé ", taille = 32.sp, poids = FontWeight.ExtraBold)
+                    T("Stream", taille = 32.sp, poids = FontWeight.ExtraBold, couleur = C.Or)
                 }
                 T("Télécommande et caméra pour le culte", taille = 14.5.sp, couleur = C.Encre2, centre = true)
             }
@@ -135,6 +135,9 @@ fun Jumelage(remote: Remote, enCours: Boolean) {
                 }
                 if (info.isNotEmpty()) T(info, taille = 13.5.sp, couleur = C.RougeTexte, interligne = 19.sp)
             }
+
+            // 1.9.1 : entrer avec son compte Google (membre ajouté par l'admin de l'église)
+            if (!enCours) CarteEglise(remote)
 
             Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Note(I.coche, "Une seule fois : ensuite le téléphone se reconnecte tout seul.")

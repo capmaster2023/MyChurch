@@ -151,6 +151,7 @@ public partial class App : Application
         Palette.Actuelle.Appliquer(Donnees.Reglages.Apparence);
         SortieObs = new SortieObs(Path.Combine(Ressources, "obs"), AutoTest != null ? Path.Combine(dossier, "SiloeStream-OBS") : null);
         Telephone = new Telephone(dossier, Regie, f => Dispatcher.InvokeAsync(f).Task.Unwrap());
+        Telephone.DistanceChange += () => Dispatcher.InvokeAsync(MajAgent);
         try { Telephone.Demarrer(); }
         catch (Exception x) { Journal.Erreur("téléphone : démarrage", x); }
         _ = Task.Run(() =>

@@ -20,6 +20,7 @@ if ! command -v caddy >/dev/null; then
 fi
 mkdir -p /opt/mychurch-relais && cd /opt/mychurch-relais
 curl -fsSL "https://raw.githubusercontent.com/capmaster2023/MyChurch/$BRANCHE/relais/relais.js" -o relais.js
+curl -fsSL "https://raw.githubusercontent.com/capmaster2023/MyChurch/$BRANCHE/relais/comptes.js" -o comptes.js
 [ -f package.json ] || npm init -y >/dev/null
 npm install --omit=dev ws@8 >/dev/null
 id mychurch >/dev/null 2>&1 || useradd --system --no-create-home mychurch
@@ -31,6 +32,8 @@ After=network.target
 ExecStart=/usr/bin/node /opt/mychurch-relais/relais.js
 Restart=always
 User=mychurch
+# 1.9.1 : comptes et églises gardés dans /var/lib/siloe
+StateDirectory=siloe
 [Install]
 WantedBy=multi-user.target
 UNIT

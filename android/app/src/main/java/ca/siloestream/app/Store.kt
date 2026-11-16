@@ -108,6 +108,25 @@ class Store(context: Context) {
         get() = prefs.getString("reglages", "{}") ?: "{}"
         set(v) = prefs.edit().putString("reglages", v).apply()
 
+    // ------------------------------------------------------------ 1.9.1 : compte Google et église
+    /** Jeton de session du serveur (après « Se connecter avec Google »). */
+    var session: String
+        get() = prefs.getString("session", "") ?: ""
+        set(v) = prefs.edit().putString("session", v).apply()
+
+    /** L'église par laquelle ce téléphone est entré (billet du serveur) ; vide : jumelé par code QR. */
+    var egliseId: String
+        get() = prefs.getString("egliseId", "") ?: ""
+        set(v) = prefs.edit().putString("egliseId", v).apply()
+
+    var billet: String
+        get() = prefs.getString("billet", "") ?: ""
+        set(v) = prefs.edit().putString("billet", v).apply()
+
+    var billetExp: Long
+        get() = prefs.getLong("billetExp", 0L)
+        set(v) = prefs.edit().putLong("billetExp", v).apply()
+
     fun pairing(): Pairing? {
         val pcId = prefs.getString("pcId", null) ?: return null
         val key = decrypt(prefs.getString("key", null) ?: return null) ?: return null
@@ -143,6 +162,7 @@ class Store(context: Context) {
     }
 
     fun forget() {
+        prefs.edit().remove("egliseId").remove("billet").remove("billetExp").apply()
         prefs.edit().remove("pcId").remove("pcName").remove("key").remove("ips")
             .remove("port").remove("lastHost").remove("lastPort").remove("relay").remove("viaRelay")
             .remove("obsActif").remove("obsPort").remove("obsMdp").remove("obsDirect").remove("reglages").remove("chantsStamp").apply()

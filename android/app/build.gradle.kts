@@ -74,4 +74,7 @@ dependencies {
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
     implementation(libs.mlkit.barcode)
+    implementation(libs.credentials)
+    implementation(libs.credentials.play)
+    implementation(libs.googleid)
 }

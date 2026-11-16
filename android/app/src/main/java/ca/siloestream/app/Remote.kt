@@ -74,6 +74,8 @@ class Remote(private val context: Context, val store: Store) {
     val route = MutableStateFlow("")
     /** Siloé Stream 1.7.1 : le rôle de ce téléphone, donné par le PC (« admin », « bible », « chants », « camera »). */
     val role = MutableStateFlow(store.role)
+    /** 1.9.1 : l'église à laquelle le PC est relié (vide : aucune). */
+    val eglisePc = MutableStateFlow("")
     private var agendaVu = -1
     private val clock = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.FRANCE)
 
@@ -247,6 +249,21 @@ class Remote(private val context: Context, val store: Store) {
                 return
             }
             link.value = Link.CONNECTING
+            // 1.9.1 : billet de l'église renouvelé avant qu'il expire (un membre retiré n'en reçoit plus)
+            if (store.egliseId.isNotEmpty() && store.billetExp - System.currentTimeMillis() / 1000 < 6 * 3600) {
+                when (val r = Comptes.renouveler(store)) {
+                    Comptes.Renouv.RETIRE -> {
+                        log("église : accès retiré par l'admin")
+                        info.value = "Votre accès à cette église a été retiré par l'admin."
+                        store.forget()
+                        pcName.value = ""
+                        screen.value = null
+                        link.value = Link.NOT_PAIRED
+                        return
+                    }
+                    else -> if (r != Comptes.Renouv.OK) log("église : billet non renouvelé (pas d'Internet ?)")
+                }
+            }
             when (tryAll(p, null)) {
                 Result.REVOKED -> {
                     store.forget()
@@ -343,10 +360,11 @@ class Remote(private val context: Context, val store: Store) {
                 return Result.FAILED
             }
             val cnonce = b64(ByteArray(16).also { random.nextBytes(it) })
-            ws.send(
-                JSONObject().put("t", "hello").put("v", 2).put("pcId", p.pcId).put("deviceId", store.deviceId)
-                    .put("deviceName", deviceName()).put("pair", pair).put("cnonce", cnonce).toString()
-            )
+            val hello = JSONObject().put("t", "hello").put("v", 2).put("pcId", p.pcId).put("deviceId", store.deviceId)
+                .put("deviceName", deviceName()).put("pair", pair).put("cnonce", cnonce)
+            // 1.9.1 : entré par l'église (compte Google) : le billet du serveur
+            if (!pair && store.egliseId.isNotEmpty() && store.billet.isNotEmpty()) hello.put("compte", store.billet)
+            ws.send(hello.toString())
             val ch = next(5000) ?: return Result.FAILED
             if (ch.optString("t") == "auth.fail") throw Rejected(ch.optString("code"), ch.optString("message"))
             if (ch.optString("t") != "challenge") {
@@ -382,6 +400,7 @@ class Remote(private val context: Context, val store: Store) {
             appPc.value = if (agent) w.optString("app", "ferme") else ""
             w.optString("role", "admin").ifBlank { "admin" }.let { role.value = it; store.role = it }
             pcName.value = name
+            eglisePc.value = w.optString("eglise", "")
             info.value = ""
             proto.value = w.optInt("proto", 1)
             codecsPc.value = w.optJSONArray("codecs")?.let { a -> (0 until a.length()).map { a.optString(it) }.toSet() } ?: setOf("jpeg")
@@ -439,6 +458,10 @@ class Remote(private val context: Context, val store: Store) {
                                 "fermeture" -> Bulles.dire("Siloé Stream se ferme sur le PC.")
                             }
                         }
+                        "compte.lie" -> {
+                            eglisePc.value = m.optString("eglise")
+                            events.tryEmit(m)
+                        }
                         "obs" -> {} // ancien relais des réglages OBS : ignoré
                         "sync" -> scope.launch {
                             try {
@@ -483,6 +506,34 @@ class Remote(private val context: Context, val store: Store) {
         }
     }
 
+    // ---------------------------------------------------------------- 1.9.1 : entrer par l'église (compte Google)
+
+    /** Le téléphone d'un membre : la clé et le billet viennent du serveur, puis connexion comme un téléphone jumelé. */
+    fun entrerEglise(egliseId: String, b: JSONObject) {
+        val p = Pairing(
+            pcId = b.getString("pcId"),
+            pcName = b.optString("pcNom", "PC"),
+            key = Base64.decode(b.getString("cle"), Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP),
+            ips = emptyList(),
+            port = 47900,
+            lastHost = null,
+            lastPort = 47900,
+            relay = b.optString("relais").ifBlank { null },
+            viaRelay = true,
+        )
+        stop()
+        store.save(p)
+        store.egliseId = egliseId
+        store.billet = b.getString("billet")
+        store.billetExp = b.optLong("exp")
+        store.role = b.optString("role", "admin")
+        role.value = store.role
+        pcName.value = p.pcName
+        info.value = ""
+        log("entrée par l'église · PC « ${p.pcName} » · rôle ${store.role}")
+        start()
+    }
+
     // ---------------------------------------------------------------- jumelage (QR)
 
     /** siloe://pair? (et l'ancien verselight://pair?) pcId=…&name=…&ips=…&port=…&secret=… */
@@ -507,6 +558,8 @@ class Remote(private val context: Context, val store: Store) {
             relay = u.getQueryParameter("relay")?.ifBlank { null },
         )
         job?.cancel()
+        store.egliseId = ""
+        store.billet = ""
         running = true
         info.value = ""
         log("jumelage avec « ${p.pcName} » · IP du code QR : ${p.ips.joinToString(", ")} · port ${p.port}")

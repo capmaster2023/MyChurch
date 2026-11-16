@@ -23,6 +23,8 @@ public sealed class AppareilsJumeles
         [JsonPropertyName("lastSeen"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] public string? LastSeen { get; set; }
         /// <summary>1.7.1 : le rôle du téléphone (« admin » si absent : les téléphones déjà jumelés gardent tout).</summary>
         [JsonPropertyName("role"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Role { get; set; }
+        /// <summary>1.9.1 : le compte Google du membre (téléphone venu par l'église, sans code QR) ; il lui faut un billet valide.</summary>
+        [JsonPropertyName("compte"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Compte { get; set; }
     }
 
     sealed class Fichier
@@ -89,6 +91,28 @@ public sealed class AppareilsJumeles
             d.Devices.Add(new Appareil { DeviceId = deviceId, Name = nom, Key = Telephone.B64(cle), Paired = now, LastSeen = now });
             Sauver();
         }
+    }
+
+    /// <summary>1.9.1 : téléphone d'un membre de l'église (billet du serveur) : clé, compte et rôle mis à jour à chaque connexion.</summary>
+    public void AjouterCompte(string deviceId, string nom, byte[] cle, string email, string role)
+    {
+        lock (verrou)
+        {
+            var now = Maintenant();
+            var a = d.Devices.FirstOrDefault(x => x.DeviceId == deviceId);
+            if (a == null) d.Devices.Add(a = new Appareil { DeviceId = deviceId, Paired = now });
+            a.Name = nom;
+            a.Key = Telephone.B64(cle);
+            a.LastSeen = now;
+            a.Compte = email;
+            a.Role = Roles.Nettoyer(role) == Roles.Admin ? null : Roles.Nettoyer(role);
+            Sauver();
+        }
+    }
+
+    public bool ParCompte(string deviceId)
+    {
+        lock (verrou) return d.Devices.Any(x => x.DeviceId == deviceId && !string.IsNullOrEmpty(x.Compte));
     }
 
     public void Vu(string deviceId, string nom)
@@ -216,6 +240,8 @@ public sealed class Telephone : IDisposable
     public AppareilsJumeles Store => store;
     /// <summary>Téléphones jumelés ou connectés : la liste a changé (thread quelconque).</summary>
     public event Action? Change;
+    /// <summary>1.9.1 : le PC vient d'être relié à une église (contrôle à distance activé) : l'app relance l'agent.</summary>
+    public event Action? DistanceChange;
 
     sealed class Connexion
     {
@@ -821,6 +847,7 @@ boucle();
         }
         bool jumelage = hello["pair"] is JsonValue pv && pv.TryGetValue<bool>(out var pb) && pb;
         byte[]? cle;
+        CompteEglise.Billet? billet = null;
         if (jumelage)
         {
             lock (phones) cle = cleJumelage != null && DateTime.UtcNow < jumelageFin ? DeriverCle(cleJumelage, PcId, deviceId, BonjourSiloe(hello)) : null;
@@ -832,7 +859,20 @@ boucle();
         }
         else
         {
-            cle = store.Cle(deviceId);
+            // 1.9.1 : membre de l'église (compte Google) : billet signé par le serveur avec le secret de ce PC
+            var billetTxt = Champ(hello, "compte");
+            var eglise = billetTxt.Length > 0 ? CompteEglise.Lire(dossier) : null;
+            if (eglise != null && CompteEglise.Verifier(billetTxt, B64Dec(eglise.Secret), PcId, deviceId, DateTimeOffset.UtcNow) is { } b)
+            {
+                billet = b;
+                cle = CompteEglise.CleTelephone(B64Dec(eglise.Secret), PcId, deviceId);
+            }
+            else
+            {
+                cle = store.Cle(deviceId);
+                // un téléphone venu par compte n'entre qu'avec un billet à jour (membre retiré : plus de billet)
+                if (cle != null && store.ParCompte(deviceId)) cle = null;
+            }
             if (cle == null)
             {
                 await Refus("revoked", "Ce téléphone n'est plus jumelé avec ce PC.");
@@ -860,7 +900,12 @@ boucle();
             return;
         }
         var nom = nomTel.Length > 0 ? nomTel : "Téléphone";
-        if (jumelage)
+        if (billet != null)
+        {
+            store.AjouterCompte(deviceId, nom, cle, billet.Email, billet.Role);
+            Journal.Info($"téléphone de l'église : {billet.Email} ({Roles.Nom(billet.Role)})");
+        }
+        else if (jumelage)
         {
             store.Ajouter(deviceId, nom, cle);
             Journal.Info($"nouveau téléphone jumelé : {nom}");
@@ -875,6 +920,7 @@ boucle();
             var bienvenue = new JsonObject { ["t"] = "welcome", ["v"] = Protocole, ["pcName"] = NomPc, ["paired"] = jumelage, ["proto"] = Fonctions, ["codecs"] = Codecs(), ["camHorloge"] = true, ["role"] = p.Role };
             // 1.7.0 : le téléphone apprend le relais (contrôle à distance) à sa prochaine connexion sur le Wi-Fi : rien à rescanner
             if (RelaisActif() is { } relais) bienvenue["relay"] = relais;
+            if (CompteEglise.Lire(dossier) is { } egl) { bienvenue["eglise"] = egl.Eglise; bienvenue["egliseNom"] = egl.Nom; }
             await Envoyer(p, bienvenue);
             if (dernierEtat.Length > 0) await Envoyer(p, dernierEtat);
             Prevenir();
@@ -956,6 +1002,28 @@ boucle();
         {
             switch (t)
             {
+                case "compte.lier":
+                {
+                    // 1.9.1 : l'admin relie ce PC à son église (code à usage unique donné par le serveur)
+                    try
+                    {
+                        var relaisLier = Ch("relais");
+                        var c = await CompteEglise.Lier(dossier, relaisLier.Length > 0 ? relaisLier : (RelaisActif() ?? ReglagesDistance.RelaisDefaut), Ch("code"), PcId, NomPc);
+                        Journal.Info($"PC relié à l'église « {c.Nom} »");
+                        DistanceChange?.Invoke();
+                        await Rep(new JsonObject { ["t"] = "compte.lie", ["eglise"] = c.Eglise, ["nom"] = c.Nom, ["relay"] = c.Relais });
+                    }
+                    catch (Exception e) when (e is HttpRequestException or TaskCanceledException or InvalidOperationException or IOException)
+                    {
+                        await Erreur("Liaison impossible : " + e.Message);
+                    }
+                    return;
+                }
+                case "compte.delier":
+                    CompteEglise.Effacer(dossier);
+                    Journal.Info("PC détaché de l'église");
+                    await Rep(new JsonObject { ["t"] = "compte.lie", ["eglise"] = "", ["nom"] = "" });
+                    return;
                 case "bible.preview":
                 {
                     Apercu? a = null;

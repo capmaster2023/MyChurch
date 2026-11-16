@@ -11,8 +11,8 @@
     <AssemblyName>SiloeStream</AssemblyName>
     <ApplicationIcon>myverse.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.9.0</Version>
-    <FileVersion>1.9.0.0</FileVersion>
+    <Version>1.9.1</Version>
+    <FileVersion>1.9.1.0</FileVersion>
     <Product>Siloé Stream</Product>
     <AssemblyTitle>Siloé Stream</AssemblyTitle>
     <Company>MEPC Montréal</Company>

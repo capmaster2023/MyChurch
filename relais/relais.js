@@ -10,9 +10,12 @@ const PORT = +(process.env.PORT || 8080);
 const pcs = new Map();      // pcId -> ws contrôle
 const attente = new Map();  // canal -> { tel, file, minuterie }
 
-const VERSION = 1;
+const VERSION = 2;
+const comptes = require('./comptes');
 const serveur = http.createServer((req, res) => {
-  // /etat/<pcId> : MyChurch (Réglages) vérifie que son PC est joignable de l'extérieur
+  // 1.9.1 : comptes Google, églises et rôles
+  if ((req.url || '').startsWith('/api/')) { comptes.api(req, res, pcs); return; }
+  // /etat/<pcId> : Siloé Stream (Réglages) vérifie que son PC est joignable de l'extérieur
   const [, type, id] = (req.url || '').split('?')[0].split('/');
   if (type === 'etat' && ok(id)) {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });

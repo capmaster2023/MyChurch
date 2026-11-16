@@ -329,6 +329,8 @@ private fun Reglages(remote: Remote, fermer: () -> Unit) {
                         T("Oublier ce PC", couleur = C.RougeTexte, poids = FontWeight.ExtraBold)
                     }
                 }
+                // 1.9.1 : comptes Google, église et membres
+                ReglagesEglise(remote)
                 Touche(onClick = { journal = true }, modifier = Modifier.fillMaxWidth(), bord = C.Trait) {
                     Ico(I.journal, C.Or, 18.dp)
                     Spacer(Modifier.width(8.dp))

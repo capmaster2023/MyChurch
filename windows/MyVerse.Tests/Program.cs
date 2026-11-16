@@ -579,6 +579,42 @@ if (Actif())
         Egal((bool?)w?["paired"], pair, "paired");
         return ws;
     }
+
+    // 1.9.1 : membre de l'église (compte Google) : billet signé avec le secret du PC, sans code QR
+    {
+        var secEg = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        new CompteEglise { Eglise = "eg1", Nom = "Église test", Secret = Telephone.B64(secEg) }.Ecrire(don.Dossier);
+        string Billet(string dev, string role, long exp)
+        {
+            var charge = Telephone.B64(System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(new { pc = tel.PcId, dev, email = "membre@gmail.com", role, nom = "Membre", exp })));
+            return charge + "." + Telephone.HmacB64(secEg, "siloe-billet|" + charge);
+        }
+        var maint = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        Ok(CompteEglise.Verifier(Billet("tel-c", "bible", maint + 600), secEg, tel.PcId, "tel-c", DateTimeOffset.UtcNow)?.Role == "bible", "billet : valide, rôle Versets");
+        Ok(CompteEglise.Verifier(Billet("tel-c", "bible", maint - 5), secEg, tel.PcId, "tel-c", DateTimeOffset.UtcNow) == null, "billet : expiré refusé");
+        Ok(CompteEglise.Verifier(Billet("tel-x", "bible", maint + 600), secEg, tel.PcId, "tel-c", DateTimeOffset.UtcNow) == null, "billet : autre téléphone refusé");
+        Ok(CompteEglise.Verifier(Billet("tel-c", "bible", maint + 600) + "x", secEg, tel.PcId, "tel-c", DateTimeOffset.UtcNow) == null, "billet : signature fausse refusée");
+        var cleC = CompteEglise.CleTelephone(secEg, tel.PcId, "tel-c");
+        var wsC = await Ouvrir();
+        await Env(wsC, new { t = "hello", v = 2, pcId = tel.PcId, deviceId = "tel-c", deviceName = "Membre", pair = false, cnonce = "cn1", compte = Billet("tel-c", "bible", maint + 600) });
+        var chC = await Rec(wsC);
+        Egal((string?)chC?["t"], "challenge", "compte : défi");
+        if (chC != null)
+        {
+            await Env(wsC, new { t = "auth", mac = Telephone.MacClient(cleC, (string)chC["nonce"]!, "tel-c") });
+            var wC = await Rec(wsC);
+            Egal((string?)wC?["role"], "bible", "compte : bienvenue avec le rôle du billet");
+            Egal((string?)wC?["eglise"], "eg1", "compte : le PC donne son église");
+            await wsC.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+        }
+        // sans billet : refusé même si le téléphone est connu
+        var wsD = await Ouvrir();
+        await Env(wsD, new { t = "hello", v = 2, pcId = tel.PcId, deviceId = "tel-c", deviceName = "Membre", pair = false, cnonce = "cn1" });
+        Egal((string?)(await Rec(wsD))?["t"], "auth.fail", "compte : sans billet, refusé");
+        CompteEglise.Effacer(don.Dossier);
+        tel.Revoquer("tel-c");
+        await Task.Delay(100);
+    }
     var cle = Telephone.DeriverCle(secret, tel.PcId, "tel-1");
     var ws1 = await Connecter("tel-1", cle, true);
     Ok(tel.Store.Liste().Any(a => a.DeviceId == "tel-1" && a.Nom == "Pixel test"), "téléphone jumelé enregistré");
