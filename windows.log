@@ -1,0 +1,6 @@
+  Determining projects to restore...
+  Restored D:\a\MyChurch\MyChurch\windows\MyVerse.Core\MyVerse.Core.csproj (in 8.64 sec).
+  Restored D:\a\MyChurch\MyChurch\windows\MyVerse\MyVerse.csproj (in 8.7 sec).
+  MyVerse.Core -> D:\a\MyChurch\MyChurch\windows\MyVerse.Core\bin\Release\net8.0\MyVerse.Core.dll
+  MyVerse -> D:\a\MyChurch\MyChurch\windows\MyVerse\bin\Release\net8.0-windows\win-x64\SiloeStream.dll
+  MyVerse -> D:\a\MyChurch\MyChurch\out\SiloeStream\
