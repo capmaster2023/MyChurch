@@ -310,8 +310,14 @@ class Ubjson(private val b: ByteArray) {
         else -> throw IllegalStateException("longueur de type $t")
     }
 
+    /** Longueur d'un texte : les consoles écrivent « i » suivi d'un octet lu sans signe (jusqu'à 255). */
+    private fun longueur(): Int {
+        val t = b[i++].toInt().toChar()
+        return if (t == 'i') u8() else entier(t).toInt()
+    }
+
     private fun texte(): String {
-        val n = entier(b[i++].toInt().toChar()).toInt()
+        val n = longueur()
         val s = String(b, i, n, Charsets.UTF_8)
         i += n
         return s

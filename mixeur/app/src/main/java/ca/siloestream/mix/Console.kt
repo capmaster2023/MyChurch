@@ -73,6 +73,7 @@ class Console(private val ctx: Context) {
 
     val derniereHote: String get() = prefs.getString("hote", "") ?: ""
     val dernierNom: String get() = prefs.getString("nom", "") ?: ""
+    val dernierPort: Int get() = prefs.getInt("port", Uc.PORT_TCP)
 
     private fun identifiant(): String {
         prefs.getString("id", null)?.let { return it }
@@ -96,7 +97,7 @@ class Console(private val ctx: Context) {
         }
     }
 
-    fun connecter(adresse: String, nomConsole: String) {
+    fun connecter(adresse: String, nomConsole: String, port: Int = 0, annonce: String = "") {
         deconnecter()
         val h = adresse.trim()
         if (h.isEmpty()) return
@@ -104,8 +105,10 @@ class Console(private val ctx: Context) {
         structure.value = Structure()
         hote.value = h
         nom.value = nomConsole.ifBlank { h }
-        prefs.edit().putString("hote", h).putString("nom", nomConsole).apply()
-        ecrireJournal("connexion à $h")
+        val ports = listOf(port, Uc.PORT_TCP).filter { it in 1024..65535 && it != Uc.PORT_DECOUVERTE }.distinct()
+        prefs.edit().putString("hote", h).putString("nom", nomConsole).putInt("port", ports.first()).apply()
+        ecrireJournal("connexion à $h (port ${ports.joinToString(" ou ")})")
+        if (annonce.isNotEmpty()) ecrireJournal("annonce : $annonce")
         val g = ++generation
         fun surPrincipal(bloc: () -> Unit) {
             principal.post { if (g == generation) bloc() }
@@ -134,7 +137,7 @@ class Console(private val ctx: Context) {
         }
         lien = Lien(
             hote = h,
-            port = Uc.PORT_TCP,
+            ports = ports,
             nomAppareil = "Siloe Mix " + Build.MODEL,
             identifiant = identifiant(),
             ecouteur = ecouteur,
@@ -210,7 +213,8 @@ class Console(private val ctx: Context) {
 
 /** Les consoles annoncées sur le Wi-Fi (UDP 47809). */
 class Decouverte(private val ctx: Context) {
-    data class Trouvee(val nom: String, val modele: String, val serie: String, val ip: String, val vu: Long)
+    /** port : celui d'où vient l'annonce (le port UCNet de la console) ; brut : le début de l'annonce, pour le journal. */
+    data class Trouvee(val nom: String, val modele: String, val serie: String, val ip: String, val port: Int, val brut: String, val vu: Long)
 
     val trouvees = MutableStateFlow<List<Trouvee>>(emptyList())
     val erreur = MutableStateFlow("")
@@ -255,7 +259,8 @@ class Decouverte(private val ctx: Context) {
                     val a = Uc.lireAnnonce(p, paquet.length)
                     val ip = paquet.address?.hostAddress
                     if (a != null && ip != null) {
-                        val t = Trouvee(a.nom.ifBlank { a.modele }, a.modele, a.serie, ip, System.currentTimeMillis())
+                        val brut = (0 until minOf(paquet.length, 48)).joinToString(" ") { "%02x".format(p[it].toInt() and 0xff) }
+                        val t = Trouvee(a.nom.ifBlank { a.modele }, a.modele, a.serie, ip, paquet.port, brut, System.currentTimeMillis())
                         principal.post { ajouter(t) }
                     }
                 } catch (e: SocketTimeoutException) {

@@ -206,26 +206,26 @@ fun EcranConnexion(console: Console, decouverte: Decouverte) {
             }
         }
         trouvees.forEach { c ->
-            Carte(onClick = { console.connecter(c.ip, c.nom) }) {
+            Carte(onClick = { console.connecter(c.ip, c.nom, c.port, c.brut) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         T(c.nom.ifBlank { "Console StudioLive" }, taille = 16.sp, poids = FontWeight.ExtraBold, lignes = 1)
                         T(listOf(c.modele.takeIf { it != c.nom }, c.ip).filterNotNull().filter { it.isNotBlank() }.joinToString(" · "), taille = 12.5.sp, couleur = K.Texte2, lignes = 1)
                     }
-                    Bouton("Connecter", plein = true) { console.connecter(c.ip, c.nom) }
+                    Bouton("Connecter", plein = true) { console.connecter(c.ip, c.nom, c.port, c.brut) }
                 }
             }
         }
         val derniere = console.derniereHote
         if (derniere.isNotBlank() && trouvees.none { it.ip == derniere }) {
             T("Dernière console", taille = 13.sp, poids = FontWeight.Bold, couleur = K.Texte2)
-            Carte(onClick = { console.connecter(derniere, console.dernierNom) }) {
+            Carte(onClick = { console.connecter(derniere, console.dernierNom, console.dernierPort) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         T(console.dernierNom.ifBlank { derniere }, taille = 16.sp, poids = FontWeight.ExtraBold, lignes = 1)
                         T(derniere, taille = 12.5.sp, couleur = K.Texte2)
                     }
-                    Bouton("Reconnecter") { console.connecter(derniere, console.dernierNom) }
+                    Bouton("Reconnecter") { console.connecter(derniere, console.dernierNom, console.dernierPort) }
                 }
             }
         }

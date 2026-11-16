@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
         val decouverte = Mix.decouverte(this)
         // au lancement : on retourne sur la dernière console
         if (savedInstanceState == null && console.etat.value == EtatLien.ARRET && console.derniereHote.isNotBlank()) {
-            console.connecter(console.derniereHote, console.dernierNom)
+            console.connecter(console.derniereHote, console.dernierNom, console.dernierPort)
         }
         setContent {
             val etat by console.etat.collectAsState()

@@ -24,7 +24,8 @@ enum class EtatLien { ARRET, CONNEXION, SYNCHRO, CONNECTE, PERDU }
  */
 class Lien(
     private val hote: String,
-    private val port: Int,
+    /** Ports essayés à tour de rôle tant qu'aucun ne répond (celui annoncé par la console, puis 53000). */
+    private val ports: List<Int>,
     private val nomAppareil: String,
     private val identifiant: String,
     private val ecouteur: Ecouteur,
@@ -55,6 +56,7 @@ class Lien(
     /** Réglages faits ici : on ignore l'écho de la console pendant un instant (le fader ne « saute » pas). */
     private val touches = ConcurrentHashMap<String, Long>()
     private var morceaux: java.io.ByteArrayOutputStream? = null
+    private var indexPort = 0
     private var sondes = 0
 
     fun demarrer() {
@@ -144,11 +146,14 @@ class Lien(
         var essais = 0
         while (actif.get()) {
             changer(if (essais == 0) EtatLien.CONNEXION else EtatLien.PERDU, if (essais == 0) "" else "reconnexion…")
+            val port = ports[indexPort % ports.size]
+            var relie = false
             try {
                 val s = Socket()
                 preparer(s)
                 s.tcpNoDelay = true
                 s.connect(InetSocketAddress(hote, port), 4000)
+                relie = true
                 s.soTimeout = 500
                 prise = s
                 sortie = s.getOutputStream()
@@ -161,7 +166,8 @@ class Lien(
                 essais = 0
                 lire(s.getInputStream())
             } catch (e: IOException) {
-                if (actif.get()) journal("liaison : ${e.javaClass.simpleName} ${e.message ?: ""}".trim())
+                if (actif.get()) journal("liaison ($hote:$port) : ${e.javaClass.simpleName} ${e.message ?: ""}".trim())
+                if (!relie) indexPort++
             } finally {
                 fermer()
             }
@@ -209,7 +215,11 @@ class Lien(
                 journal("JSON : $id")
                 if (id == "SubscriptionReply" && etatActuel == EtatLien.SYNCHRO) changer(EtatLien.SYNCHRO, "réception de l'état de la console…")
             }
-            "ZB" -> etatRecu(Uc.lireEtat(m.data), m.data.size)
+            "ZB" -> {
+                val v = Uc.lireEtat(m.data)
+                if (v == null) journal("ZB illisible, début : " + m.data.take(24).joinToString(" ") { "%02x".format(it.toInt() and 0xff) })
+                etatRecu(v, m.data.size)
+            }
             "CK" -> morceau(m.data)
             "PV" -> Uc.lirePV(m.data)?.let { (k, v) -> if (!recent(k)) lot[k] = v }
             "PS" -> Uc.lirePS(m.data)?.let { (k, v) -> lot[k] = v }
