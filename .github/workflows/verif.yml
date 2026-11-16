@@ -1,0 +1,38 @@
+name: Verification de compilation
+on:
+  push:
+    branches: [verif]
+jobs:
+  compile:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compilation
+        shell: pwsh
+        run: |
+          dotnet build windows/MyVerse/MyVerse.csproj -c Release -v:q -nologo -clp:NoSummary 2>&1 | Tee-Object -FilePath build.log
+          $err = Select-String -Path build.log -Pattern ": error " | ForEach-Object { $_.Line } | Sort-Object -Unique
+          foreach ($e in $err) { if ($e -match '^(.*?)\((\d+),(\d+)\): error (\w+): (.*)$') { $f = $Matches[1] -replace '.*MyChurch[\\/]', ''; Write-Output "::error file=$f,line=$($Matches[2]),col=$($Matches[3])::$($Matches[4]) $($Matches[5])" } else { Write-Output "::error::$e" } }
+          if ($err.Count -gt 0) { exit 1 }
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compilation Kotlin
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew --no-daemon compileDebugKotlin 2>&1 | tee ../android.log
+          grep -E "^e: " ../android.log | sed -E 's#^e: file://[^ ]*/(android/[^:]*):([0-9]+):([0-9]+) (.*)$#::error file=\1,line=\2,col=\3::\4#' || true
